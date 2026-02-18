@@ -9,10 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-<<<<<<< HEAD
 import DateTimePicker from "@react-native-community/datetimepicker";
-=======
->>>>>>> 4975e9f2 (commit)
 import { Text, Surface, TextInput } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,12 +25,7 @@ import {
   CreateOrderPayload,
 } from "@/src/services/order.service";
 import { useRouter } from "expo-router";
-<<<<<<< HEAD
 import { Pressable } from "react-native-gesture-handler";
-=======
-// @ts-ignore
-import DateTimePickerModal from "react-native-modal-datetime-picker";
->>>>>>> 4975e9f2 (commit)
 
 interface OrderItem {
   id: number;
@@ -69,31 +61,18 @@ export default function CreateOrderScreen() {
   const [dataLoading, setDataLoading] = useState(true);
   const router = useRouter();
   const today = new Date().toLocaleDateString("en-GB");
-  const [poDate, setPoDate] = useState<string>("");
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [partyName, setPartyName] = useState<string | null>(null);
-
-  // const [dispatchFrom, setDispatchFrom] = useState<number | null>(null);
   const [company, setCompany] = useState<number | null>(null);
   const [branch, setBranch] = useState<number | null>(null);
-
   const [poNumber, setPoNumber] = useState("");
-<<<<<<< HEAD
-=======
-  const [delivery, setDeliveryDate] = useState("");
->>>>>>> 4975e9f2 (commit)
-
   const [comment, setComment] = useState("");
   const COMPANY_TYPES = [
     { label: "Oil", value: "oil" },
     { label: "Beverage", value: "beverage" },
     { label: "Mart", value: "mart" },
   ];
-<<<<<<< HEAD
   const [delivery, setDeliveryDate] = useState("");
   const [showPicker, setShowPicker] = useState(false);
-=======
->>>>>>> 4975e9f2 (commit)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedVariety, setSelectedVariety] = useState<string | null>(null);
@@ -119,10 +98,8 @@ export default function CreateOrderScreen() {
     }[]
   >([]);
 
-  const [price, setPrice] = useState<string>("");
   const [types, setTypes] = useState<{ label: string; value: string }[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
-
   const [branches, setbranches] = useState<{ label: string; value: number }[]>(
     [],
   );
@@ -130,17 +107,11 @@ export default function CreateOrderScreen() {
   const [billToAddresses, setBillToAddresses] = useState<
     { label: string; value: number }[]
   >([]);
-<<<<<<< HEAD
 
   const [shipToAddresses, setShipToAddresses] = useState<
     { label: string; value: number }[]
   >([]);
 
-=======
-  const [shipToAddresses, setShipToAddresses] = useState<
-    { label: string; value: number }[]
-  >([]);
->>>>>>> 4975e9f2 (commit)
   const [selectedBillTo, setSelectedBillTo] = useState<number | null>(null);
   const [selectedShipTo, setSelectedShipTo] = useState<number | null>(null);
   const [itemTotal, setItemTotal] = useState<string>("");
@@ -186,13 +157,6 @@ export default function CreateOrderScreen() {
   const [basePrice, setBasePrice] = useState<string>("");
   const [partyProducts, setPartyProducts] = useState<any[]>([]);
 
-  const handleConfirm = (date: Date) => {
-    const formatted = date.toISOString().split("T")[0]; // YYYY-MM-DD
-    setPoDate(formatted);
-    setShowDatePicker(false);
-  };
-  const hidePicker = () => setShowDatePicker(false);
-
   const getMainGroups = () => {
     if (!user?.main_group) return "N/A";
     if (Array.isArray(user.main_group)) {
@@ -237,10 +201,6 @@ export default function CreateOrderScreen() {
         value: addr.id,
       }));
 
-<<<<<<< HEAD
-=======
-      // Fallback: if one is empty, use the other
->>>>>>> 4975e9f2 (commit)
       const finalBillTo = billTo.length > 0 ? billTo : shipTo;
       const finalShipTo = shipTo.length > 0 ? shipTo : billTo;
 
@@ -297,11 +257,7 @@ export default function CreateOrderScreen() {
 
       setTypes(sortedTypes.map((t) => ({ label: t, value: t })));
     } catch (err) {
-<<<<<<< HEAD
       console.log("Failed to fetch party products:", err);
-=======
-      console.error("Failed to fetch party products:", err);
->>>>>>> 4975e9f2 (commit)
     }
   };
 
@@ -476,11 +432,7 @@ export default function CreateOrderScreen() {
       );
       console.log("Products state set");
     } catch (error) {
-<<<<<<< HEAD
       console.log("Error loading products:", error);
-=======
-      console.error("Error loading products:", error);
->>>>>>> 4975e9f2 (commit)
     }
   };
 
@@ -489,10 +441,7 @@ export default function CreateOrderScreen() {
       setDataLoading(true);
 
       const parties = await orderService.getParties();
-<<<<<<< HEAD
       console.log("parties" + JSON.stringify(parties));
-=======
->>>>>>> 4975e9f2 (commit)
       setParties(
         (parties || []).map((p) => ({
           label: p.label,
@@ -641,12 +590,13 @@ export default function CreateOrderScreen() {
   };
 
   const handleSubmit = async () => {
-    // if (!partyName) return Alert.alert("Error", "Select a party");
-    // if (!selectedBillTo) return Alert.alert("Error", "Select bill to address");
-    // if (!selectedShipTo) return Alert.alert("Error", "Select ship to address");
-    // if (!branch) return Alert.alert("Error", "Select dispatch location");
-    // if (!company) return Alert.alert("Error", "Select company");
-    // if (!poNumber) return Alert.alert("Error", "Select Po Number");
+    if (!partyName) return Alert.alert("Error", "Select a party");
+    if (!dispatches) return Alert.alert("Error", "Select dispatch location");
+    if (!company) return Alert.alert("Error", "Select company");
+    if (!selectedBillTo) return Alert.alert("Error", "Select bill to address");
+    if (!selectedShipTo) return Alert.alert("Error", "Select ship to address");
+    if (!poNumber) return Alert.alert("Error", "Select Po Number");
+    if (!branch) return Alert.alert("Error", "Select dispatch location");
 
     if (orderItems.length === 0)
       return Alert.alert("Error", "Add at least one item");
@@ -659,10 +609,7 @@ export default function CreateOrderScreen() {
 
     try {
       const payload: CreateOrderPayload = {
-<<<<<<< HEAD
         user_id: user?.id || 0,
-=======
->>>>>>> 4975e9f2 (commit)
         card_code: partyName,
         card_name: parties.find((p) => p.value === partyName)?.label ?? "",
         bill_to_id: selectedBillTo ?? 0,
@@ -699,7 +646,6 @@ export default function CreateOrderScreen() {
       const response = await orderService.createOrder(payload);
       console.log("Error creating order:", JSON.stringify(response));
 
-<<<<<<< HEAD
       if (response?.message?.includes("Order sent")) {
         Alert.alert("Success", response.message, [
           { text: "OK", onPress: () => router.back() },
@@ -707,13 +653,6 @@ export default function CreateOrderScreen() {
       } else {
         Alert.alert("Error", "Something went wrong. Please try again.");
       }
-=======
-      Alert.alert(
-        "Success",
-        `Order ${response.order_number} created successfully!`,
-        [{ text: "OK", onPress: () => router.back() }],
-      );
->>>>>>> 4975e9f2 (commit)
     } catch (error) {
       console.log("Error creating orderr:", error);
       Alert.alert("Error", "Failed to create order");
@@ -731,6 +670,13 @@ export default function CreateOrderScreen() {
     setSelectedBrand("");
     setSelectedVariety("");
     setSelectedType("");
+    setDeliveryDate("");
+    setSelectedProduct(null);
+    setQty("");
+    // setBillToAddresses("");
+    setSelectedBillTo(null);
+    setSelectedShipTo(null);
+    // setShipToAddresses(null);   
   };
 
   if (dataLoading) {
@@ -741,30 +687,17 @@ export default function CreateOrderScreen() {
       </View>
     );
   }
-<<<<<<< HEAD
-
-=======
-  
->>>>>>> 4975e9f2 (commit)
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {/* Info Bar */}
-<<<<<<< HEAD
       {/* <View style={styles.infoBar}>
         <Text style={styles.infoText}>
           MainGroup: {getMainGroups()} | States: {getStates()}
         </Text>
       </View> */}
-=======
-      <View style={styles.infoBar}>
-        <Text style={styles.infoText}>
-          MainGroup: {getMainGroups()} | States: {getStates()}
-        </Text>
-      </View>
->>>>>>> 4975e9f2 (commit)
 
       <ScrollView
         style={styles.scrollView}
@@ -884,7 +817,6 @@ export default function CreateOrderScreen() {
           </View>
 
           <View style={styles.field}>
-<<<<<<< HEAD
             <View style={styles.field}>
               <Pressable onPress={() => setShowPicker(true)}>
                 <TextInput
@@ -919,43 +851,6 @@ export default function CreateOrderScreen() {
               )}
             </View>
           </View>
-=======
-            <TextInput
-              label="Delivery Date"
-              value={delivery}
-              onChangeText={setDeliveryDate}
-              mode="outlined"
-              textColor={COLORS.black}
-              style={styles.input}
-              outlineColor={COLORS.border}
-              activeOutlineColor={COLORS.primary}
-              left={<TextInput.Icon icon="file-document-outline" />}
-            />
-          </View>
-
-          {/* <View style={styles.field}>
-            <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-              <TextInput
-                label="PO Date"
-                value={poDate}
-                mode="outlined"
-                editable={false}
-                textColor={COLORS.black}
-                style={styles.input}
-                outlineColor={COLORS.border}
-                activeOutlineColor={COLORS.primary}
-                left={<TextInput.Icon icon="calendar" />}
-              />
-            </TouchableOpacity>
-              
-            <DateTimePickerModal
-              isVisible={showDatePicker}
-              mode="date"
-              onConfirm={handleConfirm}
-              onCancel={hidePicker}
-            />
-          </View> */}
->>>>>>> 4975e9f2 (commit)
         </Surface>
 
         {/* Items Section */}

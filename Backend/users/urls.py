@@ -1,6 +1,5 @@
 from django.urls import path
 from .views import LoginView, ProfileView,StateListView,CompanyListView,MainGroupListView,CreateUserView,RoleListView
-<<<<<<< HEAD
 # from rest_framework_simplejwt.views import (
 #     TokenObtainPairView,
 #     TokenRefreshView,
@@ -9,10 +8,6 @@ from .views import LoginView, ProfileView,StateListView,CompanyListView,MainGrou
 
 urlpatterns = [
     
-=======
-
-urlpatterns = [
->>>>>>> 4975e9f2 (commit)
     path('login/', LoginView.as_view(), name='login'),
     path('profile/', ProfileView.as_view(), name='profile'),
 
