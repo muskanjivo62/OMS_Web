@@ -1,0 +1,1354 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  RefreshControl,
+  TextInput,
+  Platform,
+  Switch,
+  Modal,
+} from "react-native";
+import { Picker } from "@react-native-picker/picker";
+import { useAuth } from "@/src/context/AuthContext";
+import { storage } from "@/src/utils/storage";
+import { api } from "@/src/services/api";
+
+type TabType =
+  | "status"
+  | "products"
+  | "parties"
+  | "addresses"
+  | "branches"
+  | "schedules"
+  | "logs";
+
+interface Product {
+  id: number;
+  item_code: string;
+  item_name: string;
+  category: string;
+  brand: string;
+  variety: string;
+  tax_rate: string; // ✅ ADD
+  sal_factor2: string; // ✅ ADD
+  sal_pack_unit: string; // ✅ ADD
+  is_deleted: string;
+  synced_at: string;
+}
+
+interface Party {
+  id: number;
+  card_code: string;
+  card_name: string;
+  address: string; // ✅ ADD
+  state: string;
+  main_group: string;
+  chain: string; // ✅ ADD
+  country: string; // ✅ ADD
+  card_type: string; // ✅ ADD
+  category: string; // ✅ ADD
+  synced_at: string;
+}
+
+// ✅ ADD - New Interface for Addresses
+interface PartyAddress {
+  id: number;
+  card_code: string;
+  address_name: string;
+  address_type: string;
+  gst_number: string;
+  state: string;
+  city: string;
+  zip_code: string;
+  country: string;
+  full_address: string;
+  category: string;
+  synced_at: string;
+}
+
+interface Branch {
+  id: number;
+  bpl_id: number;
+  bpl_name: string;
+  category: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SyncLog {
+  id: number;
+  sync_type: string;
+  status: string;
+  records_processed: number;
+  records_created: number;
+  records_updated: number;
+  started_at: string;
+  completed_at: string;
+  triggered_by: string;
+  duration: number;
+}
+
+interface SyncSchedule {
+  id: number;
+  name: string;
+  sync_type: string;
+  frequency: string;
+  custom_interval_minutes: number;
+  hour: number;
+  is_active: boolean;
+  last_run: string | null;
+  next_run: string | null;
+}
+
+interface SyncStatus {
+  counts: {
+    products: number;
+    parties: number;
+    addresses: number;
+    branches: number;
+  };
+  last_sync: SyncLog | null;
+  active_schedules: number;
+}
+
+export default function SapSyncScreen() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabType>("status");
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Data states
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
+  const [addresses, setAddresses] = useState<PartyAddress[]>([]); // ✅ ADD
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [logs, setLogs] = useState<SyncLog[]>([]);
+  const [schedules, setSchedules] = useState<SyncSchedule[]>([]);
+  const [message, setMessage] = useState("");
+
+  // Schedule Modal
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    name: "",
+    sync_type: "ALL",
+    frequency: "DAILY",
+    hour: 6,
+    custom_interval_minutes: 60,
+  });
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const getToken = async (): Promise<string | undefined> => {
+    const token = await storage.getAccessToken();
+    return token || undefined;
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+
+      if (activeTab === "status") {
+        const res = await api.get("/sap/status/", token);
+        if (res.success) setStatus(res.data);
+      } else if (activeTab === "products") {
+        const res = await api.get("/sap/products/", token);
+        setProducts(Array.isArray(res) ? res : []);
+      } else if (activeTab === "parties") {
+        const res = await api.get("/sap/parties/", token);
+        console.log(res);
+        setParties(Array.isArray(res) ? res : []);
+      } else if (activeTab === "addresses") {
+        // ✅ ADD
+        const res = await api.get("/sap/addresses/", token);
+        setAddresses(Array.isArray(res) ? res : []);
+      } else if (activeTab === "branches") {
+        const res = await api.get("/sap/branches/", token);
+        setBranches(Array.isArray(res) ? res : []);
+      } else if (activeTab === "schedules") {
+        const res = await api.get("/sap/schedules/", token);
+        if (res.success) setSchedules(res.data || []);
+      } else if (activeTab === "logs") {
+        const res = await api.get("/sap/logs/", token);
+        setLogs(Array.isArray(res) ? res : []);
+      }
+    } catch (error) {
+      console.log("Load error:", error);
+    }
+    setLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleSync = async (
+    type: "all" | "products" | "parties" | "addresses" | "branches",
+  ) => {
+    setSyncing(true);
+    setMessage("");
+    try {
+      const token = await getToken();
+      const res = await api.post(`/sap/sync/${type}/`, {}, token);
+      if (res.success) {
+        setMessage(
+          `✅ Sync completed! Processed: ${res.data.processed}, Created: ${res.data.created}, Updated: ${res.data.updated}`,
+        );
+        loadData();
+      } else {
+        setMessage(`❌ Sync failed: ${res.message}`);
+      }
+    } catch (error) {
+      setMessage("❌ Sync failed: Network error");
+    }
+    setSyncing(false);
+  };
+
+  const toggleSchedule = async (scheduleId: number) => {
+    try {
+      const token = await getToken();
+      const res = await api.post(
+        `/sap/schedules/${scheduleId}/toggle/`,
+        {},
+        token,
+      );
+      if (res.success) {
+        loadData();
+      }
+    } catch (error) {
+      console.log("Toggle error:", error);
+    }
+  };
+
+  const createSchedule = async () => {
+    if (!newSchedule.name.trim()) {
+      alert("Please enter a schedule name");
+      return;
+    }
+
+    try {
+      const token = await getToken();
+      const res = await api.post(
+        "/sap/schedules/",
+        {
+          ...newSchedule,
+          is_active: true,
+        },
+        token,
+      );
+
+      if (res.success) {
+        setShowScheduleModal(false);
+        setNewSchedule({
+          name: "",
+          sync_type: "ALL",
+          frequency: "DAILY",
+          hour: 6,
+          custom_interval_minutes: 60,
+        });
+        loadData();
+      } else {
+        alert("Failed to create schedule");
+      }
+    } catch (error) {
+      alert("Error creating schedule");
+    }
+  };
+
+  const deleteSchedule = async (scheduleId: number) => {
+    try {
+      const token = await getToken();
+      const res = await api.delete(`/sap/schedules/${scheduleId}/`, token);
+      if (res.success) {
+        loadData();
+      }
+    } catch (error) {
+      console.log("Delete error:", error);
+    }
+  };
+
+  const filteredProducts = products.filter(
+    (p) =>
+      p.item_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.item_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.brand?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const filteredParties = parties.filter(
+    (p) =>
+      p.card_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.card_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  // ✅ ADD - Filter for Addresses
+  const filteredAddresses = addresses.filter(
+    (a) =>
+      a.card_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.address_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.state?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.gst_number?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const filteredBranches = branches.filter(
+    (b) =>
+      b.bpl_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.bpl_id?.toString().includes(searchQuery) ||
+      b.category?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return date.toLocaleString();
+  };
+
+  const renderTabs = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.tabScrollContainer}
+    >
+      <View style={styles.tabContainer}>
+        {(
+          [
+            "status",
+            "products",
+            "parties",
+            "addresses",
+            "branches",
+            "schedules",
+            "logs",
+          ] as TabType[]
+        ).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.activeTab]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.activeTabText,
+              ]}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+
+  const renderStatus = () => (
+    <View style={styles.content}>
+      {/* Sync Buttons */}
+      <View style={styles.syncButtonsContainer}>
+        <Text style={styles.sectionTitle}>Manual Sync</Text>
+        <View style={styles.syncButtons}>
+          <TouchableOpacity
+            style={[styles.syncButton, styles.syncAllButton]}
+            onPress={() => handleSync("all")}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.syncButtonText}>Sync All</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.syncButton, styles.syncProductsButton]}
+            onPress={() => handleSync("products")}
+            disabled={syncing}
+          >
+            <Text style={styles.syncButtonText}>Products</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={[styles.syncButtons, { marginTop: 10 }]}>
+          <TouchableOpacity
+            style={[styles.syncButton, styles.syncPartiesButton]}
+            onPress={() => handleSync("parties")}
+            disabled={syncing}
+          >
+            <Text style={styles.syncButtonText}>Parties</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.syncButton, styles.syncAddressesButton]}
+            onPress={() => handleSync("addresses")}
+            disabled={syncing}
+          >
+            <Text style={styles.syncButtonText}>Addresses</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={[styles.syncButtons, { marginTop: 10 }]}>
+          <TouchableOpacity
+            style={[styles.syncButton, styles.syncBranchesButton]}
+            onPress={() => handleSync("branches")}
+            disabled={syncing}
+          >
+            <Text style={styles.syncButtonText}>🏢 Branches</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Message */}
+      {message ? (
+        <View style={styles.messageContainer}>
+          <Text style={styles.messageText}>{message}</Text>
+        </View>
+      ) : null}
+
+      {/* Stats */}
+      {status && (
+        <View style={styles.statsContainer}>
+          <Text style={styles.sectionTitle}>Current Data</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{status.counts.products}</Text>
+              <Text style={styles.statLabel}>Products</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{status.counts.parties}</Text>
+              <Text style={styles.statLabel}>Parties</Text>
+            </View>
+          </View>
+          <View style={[styles.statsGrid, { marginTop: 10 }]}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{status.counts.addresses}</Text>
+              <Text style={styles.statLabel}>Addresses</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>
+                {status.counts.branches || 0}
+              </Text>
+              <Text style={styles.statLabel}>Branches</Text>
+            </View>
+          </View>
+
+          <View style={styles.scheduleStatus}>
+            <Text style={styles.scheduleStatusText}>
+              Active Schedules: {status.active_schedules}
+            </Text>
+          </View>
+
+          {status.last_sync && (
+            <View style={styles.lastSyncContainer}>
+              <Text style={styles.sectionTitle}>Last Sync</Text>
+              <Text style={styles.lastSyncText}>
+                Type: {status.last_sync.sync_type} | Status:{" "}
+                {status.last_sync.status}
+              </Text>
+              <Text style={styles.lastSyncText}>
+                {formatDate(status.last_sync.completed_at)}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+
+  const renderProducts = () => (
+    <View style={styles.content}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by code, name or brand..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <Text style={styles.countText}>
+        Total: {filteredProducts.length} products
+      </Text>
+
+      <ScrollView style={styles.listContainer}>
+        {filteredProducts.map((product) => (
+          <View key={product.id} style={styles.listItem}>
+            <View style={styles.listItemHeader}>
+              <Text style={styles.itemCode}>{product.item_code}</Text>
+              <Text
+                style={[
+                  styles.itemCategory,
+                  product.category === "OIL" && styles.categoryOil,
+                  product.category === "BEVERAGES" && styles.categoryBeverages,
+                  product.category === "MART" && styles.categoryMart,
+                ]}
+              >
+                {product.category}
+              </Text>
+            </View>
+            <Text style={styles.itemName}>{product.item_name}</Text>
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemDetail}>
+                Brand: {product.brand || "-"}
+              </Text>
+              <Text style={styles.itemDetail}>
+                Variety: {product.variety || "-"}
+              </Text>
+            </View>
+            {/* ✅ ADD - Tax Code Display */}
+            <View style={[styles.itemDetails, { marginTop: 5 }]}>
+              <Text style={styles.itemDetail}>
+                Pack: {product.sal_pack_unit || "-"}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  // ✅ UPDATED - Parties with new fields
+  const renderParties = () => (
+    <View style={styles.content}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by code, name, GST or category..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <Text style={styles.countText}>
+        Total: {filteredParties.length} parties
+      </Text>
+
+      <ScrollView style={styles.listContainer}>
+        {filteredParties.map((party) => (
+          <View key={party.id} style={styles.listItem}>
+            <View style={styles.listItemHeader}>
+              <Text style={styles.itemCode}>{party.card_code}</Text>
+              <Text
+                style={[
+                  styles.itemCategory,
+                  party.category === "OIL" && styles.categoryOil,
+                  party.category === "BEVERAGES" && styles.categoryBeverages,
+                  party.category === "MART" && styles.categoryMart,
+                ]}
+              >
+                {party.category || "-"}
+              </Text>
+            </View>
+            <Text style={styles.itemName}>{party.card_name}</Text>
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemDetail}>State: {party.state || "-"}</Text>
+              <Text style={styles.itemDetail}>
+                Group: {party.main_group || "-"}
+              </Text>
+            </View>
+            {/* ✅ ADD - GST Number Display */}
+            <View style={[styles.itemDetails, { marginTop: 5 }]}></View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  // ✅ ADD - New Addresses Tab
+  const renderAddresses = () => (
+    <View style={styles.content}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by code, address, city, state or GST..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <Text style={styles.countText}>
+        Total: {filteredAddresses.length} addresses
+      </Text>
+
+      <ScrollView style={styles.listContainer}>
+        {filteredAddresses.map((address) => (
+          <View key={address.id} style={styles.listItem}>
+            <View style={styles.listItemHeader}>
+              <Text style={styles.itemCode}>{address.card_code}</Text>
+              <View style={styles.badgeContainer}>
+                <Text
+                  style={[
+                    styles.addressTypeBadge,
+                    address.address_type === "B"
+                      ? styles.billingBadge
+                      : styles.shippingBadge,
+                  ]}
+                >
+                  {address.address_type === "B" ? "Billing" : "Shipping"}
+                </Text>
+                <Text
+                  style={[
+                    styles.itemCategory,
+                    address.category === "OIL" && styles.categoryOil,
+                    address.category === "BEVERAGES" &&
+                      styles.categoryBeverages,
+                    address.category === "MART" && styles.categoryMart,
+                  ]}
+                >
+                  {address.category || "-"}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.addressName}>{address.address_name}</Text>
+            <Text style={styles.fullAddress} numberOfLines={2}>
+              {address.full_address || "-"}
+            </Text>
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemDetail}>City: {address.city || "-"}</Text>
+              <Text style={styles.itemDetail}>
+                State: {address.state || "-"}
+              </Text>
+            </View>
+            <View style={[styles.itemDetails, { marginTop: 5 }]}>
+              <Text style={[styles.itemDetail, styles.gstText]}>
+                GST: {address.gst_number || "-"}
+              </Text>
+              <Text style={styles.itemDetail}>
+                PIN: {address.zip_code || "-"}
+              </Text>
+            </View>
+          </View>
+        ))}
+        {filteredAddresses.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No addresses found</Text>
+            <Text style={styles.emptySubtext}>
+              Sync addresses from SAP to see data here
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  const renderBranches = () => (
+    <View style={styles.content}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by ID, name or category..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <Text style={styles.countText}>
+        Total: {filteredBranches.length} branches
+      </Text>
+
+      <ScrollView style={styles.listContainer}>
+        {filteredBranches.map((branch) => (
+          <View key={branch.id} style={styles.listItem}>
+            <View style={styles.listItemHeader}>
+              <Text style={styles.itemCode}>BPL-{branch.bpl_id}</Text>
+              <Text
+                style={[
+                  styles.itemCategory,
+                  branch.category === "OIL" && styles.categoryOil,
+                  branch.category === "BEVERAGES" && styles.categoryBeverages,
+                  branch.category === "MART" && styles.categoryMart,
+                ]}
+              >
+                {branch.category}
+              </Text>
+            </View>
+            <Text style={styles.itemName}>{branch.bpl_name}</Text>
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemDetail}>
+                Status: {branch.is_active ? "✅ Active" : "❌ Inactive"}
+              </Text>
+              <Text style={styles.itemDetail}>
+                Updated: {formatDate(branch.updated_at)}
+              </Text>
+            </View>
+          </View>
+        ))}
+        {filteredBranches.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No branches found</Text>
+            <Text style={styles.emptySubtext}>
+              Sync branches from SAP to see data here
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  const renderSchedules = () => (
+    <View style={styles.content}>
+      <View style={styles.scheduleHeader}>
+        <Text style={styles.sectionTitle}>Sync Schedules</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setShowScheduleModal(true)}
+        >
+          <Text style={styles.addButtonText}>+ Add</Text>
+        </TouchableOpacity>
+      </View>
+
+      {schedules.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No schedules configured</Text>
+          <Text style={styles.emptySubtext}>
+            Create a schedule to automate syncing
+          </Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.listContainer}>
+          {schedules.map((schedule) => (
+            <View key={schedule.id} style={styles.scheduleItem}>
+              <View style={styles.scheduleItemHeader}>
+                <View>
+                  <Text style={styles.scheduleName}>{schedule.name}</Text>
+                  <Text style={styles.scheduleInfo}>
+                    {schedule.sync_type} • {schedule.frequency}
+                    {schedule.frequency === "DAILY" &&
+                      ` at ${schedule.hour}:00`}
+                    {schedule.frequency === "CUSTOM" &&
+                      ` every ${schedule.custom_interval_minutes} min`}
+                  </Text>
+                </View>
+                <Switch
+                  value={schedule.is_active}
+                  onValueChange={() => toggleSchedule(schedule.id)}
+                  trackColor={{ false: "#e5e5e5", true: "#86efac" }}
+                  thumbColor={schedule.is_active ? "#22c55e" : "#999"}
+                />
+              </View>
+
+              <View style={styles.scheduleDetails}>
+                <Text style={styles.scheduleDetailText}>
+                  Last run:{" "}
+                  {schedule.last_run ? formatDate(schedule.last_run) : "Never"}
+                </Text>
+                <Text style={styles.scheduleDetailText}>
+                  Next run:{" "}
+                  {schedule.next_run ? formatDate(schedule.next_run) : "-"}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deleteSchedule(schedule.id)}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Add Schedule Modal */}
+      <Modal
+        visible={showScheduleModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowScheduleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Create Schedule</Text>
+
+            <Text style={styles.inputLabel}>Schedule Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g., Daily Product Sync"
+              value={newSchedule.name}
+              onChangeText={(text) =>
+                setNewSchedule({ ...newSchedule, name: text })
+              }
+            />
+
+            <Text style={styles.inputLabel}>Sync Type</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={newSchedule.sync_type}
+                onValueChange={(value) =>
+                  setNewSchedule({ ...newSchedule, sync_type: value })
+                }
+                style={styles.picker}
+              >
+                <Picker.Item label="All Data" value="ALL" />
+                <Picker.Item label="Products Only" value="PRODUCT" />
+                <Picker.Item label="Parties Only" value="PARTY" />
+                <Picker.Item label="Addresses Only" value="PARTY_ADDRESS" />
+                <Picker.Item label="Branches Only" value="BRANCH" />
+              </Picker>
+            </View>
+
+            <Text style={styles.inputLabel}>Frequency</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={newSchedule.frequency}
+                onValueChange={(value) =>
+                  setNewSchedule({ ...newSchedule, frequency: value })
+                }
+                style={styles.picker}
+              >
+                <Picker.Item label="Every Hour" value="HOURLY" />
+                <Picker.Item label="Daily" value="DAILY" />
+                <Picker.Item label="Weekly" value="WEEKLY" />
+                <Picker.Item label="Custom Interval" value="CUSTOM" />
+              </Picker>
+            </View>
+
+            {newSchedule.frequency === "DAILY" && (
+              <>
+                <Text style={styles.inputLabel}>Hour (0-23)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="6"
+                  keyboardType="number-pad"
+                  value={newSchedule.hour.toString()}
+                  onChangeText={(text) =>
+                    setNewSchedule({
+                      ...newSchedule,
+                      hour: parseInt(text) || 0,
+                    })
+                  }
+                />
+              </>
+            )}
+
+            {newSchedule.frequency === "CUSTOM" && (
+              <>
+                <Text style={styles.inputLabel}>Interval (minutes)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="60"
+                  keyboardType="number-pad"
+                  value={newSchedule.custom_interval_minutes.toString()}
+                  onChangeText={(text) =>
+                    setNewSchedule({
+                      ...newSchedule,
+                      custom_interval_minutes: parseInt(text) || 60,
+                    })
+                  }
+                />
+              </>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowScheduleModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.createButton]}
+                onPress={createSchedule}
+              >
+                <Text style={styles.createButtonText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+
+  const renderLogs = () => (
+    <View style={styles.content}>
+      <Text style={styles.countText}>Recent sync logs</Text>
+
+      <ScrollView style={styles.listContainer}>
+        {logs.map((log) => (
+          <View key={log.id} style={styles.logItem}>
+            <View style={styles.logHeader}>
+              <Text style={styles.logType}>{log.sync_type}</Text>
+              <Text
+                style={[
+                  styles.logStatus,
+                  log.status === "SUCCESS"
+                    ? styles.statusSuccess
+                    : styles.statusFailed,
+                ]}
+              >
+                {log.status}
+              </Text>
+            </View>
+            <Text style={styles.logStats}>
+              Processed: {log.records_processed} | Created:{" "}
+              {log.records_created} | Updated: {log.records_updated}
+            </Text>
+            <Text style={styles.logTime}>
+              {formatDate(log.started_at)} | {log.triggered_by}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>SAP Data Sync</Text>
+      </View>
+
+      {renderTabs()}
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+        </View>
+      ) : (
+        <ScrollView
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {activeTab === "status" && renderStatus()}
+          {activeTab === "products" && renderProducts()}
+          {activeTab === "parties" && renderParties()}
+          {activeTab === "addresses" && renderAddresses()}
+          {activeTab === "branches" && renderBranches()}
+          {activeTab === "schedules" && renderSchedules()}
+          {activeTab === "logs" && renderLogs()}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  header: {
+    backgroundColor: "#1e3a8a",
+    padding: 20,
+    paddingTop: Platform.OS === "web" ? 20 : 50,
+  },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  tabScrollContainer: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+  },
+  tab: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: "#3b82f6",
+  },
+  tabText: {
+    color: "#666",
+    fontWeight: "500",
+    fontSize: 12,
+  },
+  activeTabText: {
+    color: "#3b82f6",
+    fontWeight: "bold",
+  },
+  content: {
+    padding: 15,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 50,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 15,
+  },
+  syncButtonsContainer: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+  syncButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  syncButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginHorizontal: 5,
+  },
+  syncAllButton: {
+    backgroundColor: "#3b82f6",
+  },
+  syncProductsButton: {
+    backgroundColor: "#10b981",
+  },
+  syncPartiesButton: {
+    backgroundColor: "#f59e0b",
+  },
+  syncAddressesButton: {
+    backgroundColor: "#8b5cf6",
+  },
+  syncBranchesButton: {
+    backgroundColor: "#0891b2",
+  },
+  syncButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  messageContainer: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+  messageText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  statsContainer: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 10,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#f0f9ff",
+    padding: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    marginHorizontal: 5,
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1e3a8a",
+  },
+  statLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 5,
+  },
+  scheduleStatus: {
+    backgroundColor: "#fef3c7",
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  scheduleStatusText: {
+    color: "#92400e",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  lastSyncContainer: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e5e5",
+    paddingTop: 15,
+  },
+  lastSyncText: {
+    color: "#666",
+    marginBottom: 5,
+  },
+  searchInput: {
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+  },
+  countText: {
+    color: "#666",
+    marginBottom: 10,
+  },
+  listContainer: {
+    maxHeight: Platform.OS === "web" ? 500 : undefined,
+  },
+  listItem: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  listItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  badgeContainer: {
+    flexDirection: "row",
+    gap: 5,
+  },
+  itemCode: {
+    fontWeight: "bold",
+    color: "#1e3a8a",
+  },
+  itemCategory: {
+    backgroundColor: "#e0f2fe",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontSize: 12,
+    color: "#0369a1",
+    overflow: "hidden",
+  },
+  categoryOil: {
+    backgroundColor: "#fef3c7",
+    color: "#92400e",
+  },
+  categoryBeverages: {
+    backgroundColor: "#dcfce7",
+    color: "#166534",
+  },
+  categoryMart: {
+    backgroundColor: "#f3e8ff",
+    color: "#7c3aed",
+  },
+  addressTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontSize: 11,
+    fontWeight: "600",
+    overflow: "hidden",
+  },
+  billingBadge: {
+    backgroundColor: "#dbeafe",
+    color: "#1d4ed8",
+  },
+  shippingBadge: {
+    backgroundColor: "#fce7f3",
+    color: "#be185d",
+  },
+  itemName: {
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 5,
+  },
+  addressName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 3,
+  },
+  fullAddress: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  itemDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  itemDetail: {
+    fontSize: 12,
+    color: "#666",
+  },
+  gstText: {
+    color: "#059669",
+    fontWeight: "500",
+  },
+  logItem: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  logHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  logType: {
+    fontWeight: "bold",
+    color: "#333",
+  },
+  logStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: "bold",
+    overflow: "hidden",
+  },
+  statusSuccess: {
+    backgroundColor: "#d1fae5",
+    color: "#059669",
+  },
+  statusFailed: {
+    backgroundColor: "#fee2e2",
+    color: "#dc2626",
+  },
+  logStats: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 5,
+  },
+  logTime: {
+    fontSize: 12,
+    color: "#999",
+  },
+  scheduleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  addButton: {
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  addButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  emptyContainer: {
+    backgroundColor: "#fff",
+    padding: 40,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#666",
+    marginBottom: 5,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#999",
+  },
+  scheduleItem: {
+    backgroundColor: "#fff",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  scheduleItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  scheduleName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  scheduleInfo: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  scheduleDetails: {
+    backgroundColor: "#f9fafb",
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  scheduleDetailText: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+  },
+  deleteButton: {
+    alignSelf: "flex-end",
+  },
+  deleteButtonText: {
+    color: "#dc2626",
+    fontSize: 13,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 20,
+    width: "90%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 5,
+  },
+  modalInput: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+  },
+  pickerContainer: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+  },
+  picker: {
+    height: 50,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: "#f5f5f5",
+  },
+  cancelButtonText: {
+    color: "#666",
+    fontWeight: "bold",
+  },
+  createButton: {
+    backgroundColor: "#3b82f6",
+  },
+  createButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+});
