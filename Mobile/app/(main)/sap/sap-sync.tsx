@@ -11,10 +11,11 @@ import {
   Platform,
   Switch,
   Modal,
+  FlatList,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { useAuth } from "@/src/context/AuthContext";
 import { storage } from "@/src/utils/storage";
+import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/services/api";
 
 type TabType =
@@ -33,9 +34,9 @@ interface Product {
   category: string;
   brand: string;
   variety: string;
-  tax_rate: string; // ✅ ADD
-  sal_factor2: string; // ✅ ADD
-  sal_pack_unit: string; // ✅ ADD
+  tax_rate: string;
+  sal_factor2: string;
+  sal_pack_unit: string;
   is_deleted: string;
   synced_at: string;
 }
@@ -44,17 +45,16 @@ interface Party {
   id: number;
   card_code: string;
   card_name: string;
-  address: string; // ✅ ADD
+  address: string;
   state: string;
   main_group: string;
-  chain: string; // ✅ ADD
-  country: string; // ✅ ADD
-  card_type: string; // ✅ ADD
-  category: string; // ✅ ADD
+  chain: string;
+  country: string;
+  card_type: string;
+  category: string;
   synced_at: string;
 }
 
-// ✅ ADD - New Interface for Addresses
 interface PartyAddress {
   id: number;
   card_code: string;
@@ -120,6 +120,8 @@ export default function SapSyncScreen() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("status");
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,7 +130,7 @@ export default function SapSyncScreen() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
-  const [addresses, setAddresses] = useState<PartyAddress[]>([]); // ✅ ADD
+  const [addresses, setAddresses] = useState<PartyAddress[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [schedules, setSchedules] = useState<SyncSchedule[]>([]);
@@ -145,7 +147,7 @@ export default function SapSyncScreen() {
   });
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [activeTab]);
 
   const getToken = async (): Promise<string | undefined> => {
@@ -153,45 +155,91 @@ export default function SapSyncScreen() {
     return token || undefined;
   };
 
-  const loadData = async () => {
+  const PAGE_SIZE = 10;
+
+  const loadData = async (reset = false) => {
+    if (loading) return;
+    if (!hasMore && !reset) return;
+
     setLoading(true);
+
     try {
       const token = await getToken();
+      const currentPage = reset ? 1 : page;
+
+      let endpoint = "";
 
       if (activeTab === "status") {
-        const res = await api.get("/sap/status/", token);
-        if (res.success) setStatus(res.data);
+        endpoint = `/sap/status/`;
       } else if (activeTab === "products") {
-        const res = await api.get("/sap/products/", token);
-        setProducts(Array.isArray(res) ? res : []);
+        endpoint = `/sap/products/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       } else if (activeTab === "parties") {
-        const res = await api.get("/sap/parties/", token);
-        console.log(res);
-        setParties(Array.isArray(res) ? res : []);
+        endpoint = `/sap/parties/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       } else if (activeTab === "addresses") {
-        // ✅ ADD
-        const res = await api.get("/sap/addresses/", token);
-        setAddresses(Array.isArray(res) ? res : []);
+        endpoint = `/sap/addresses/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       } else if (activeTab === "branches") {
-        const res = await api.get("/sap/branches/", token);
-        setBranches(Array.isArray(res) ? res : []);
+        endpoint = `/sap/branches/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       } else if (activeTab === "schedules") {
-        const res = await api.get("/sap/schedules/", token);
-        if (res.success) setSchedules(res.data || []);
+        endpoint = `/sap/schedules/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       } else if (activeTab === "logs") {
-        const res = await api.get("/sap/logs/", token);
-        setLogs(Array.isArray(res) ? res : []);
+        endpoint = `/sap/logs/?page=${currentPage}&page_size=${PAGE_SIZE}`;
+      }
+
+      const res = await api.get(endpoint, token);
+
+      if (activeTab === "status") {
+        if (res.success) setStatus(res.data);
+        setLoading(false);
+        return;
+      }
+
+      const newData = res?.results ?? res ?? [];
+
+      if (reset) {
+        if (activeTab === "products") setProducts(newData);
+        if (activeTab === "parties") setParties(newData);
+        if (activeTab === "addresses") setAddresses(newData);
+        if (activeTab === "branches") setBranches(newData);
+        if (activeTab === "schedules") setSchedules(newData);
+        if (activeTab === "logs") setLogs(newData);
+        setPage(2);
+        setHasMore(true);
+      } else {
+        if (activeTab === "products")
+          setProducts((prev) => [...prev, ...newData]);
+        if (activeTab === "parties")
+          setParties((prev) => [...prev, ...newData]);
+        if (activeTab === "addresses")
+          setAddresses((prev) => [...prev, ...newData]);
+        if (activeTab === "branches")
+          setBranches((prev) => [...prev, ...newData]);
+        if (activeTab === "schedules")
+          setSchedules((prev) => [...prev, ...newData]);
+        if (activeTab === "logs") setLogs((prev) => [...prev, ...newData]);
+        setPage((prev) => prev + 1);
+      }
+
+      if (!res?.next && newData.length < PAGE_SIZE) {
+        setHasMore(false);
       }
     } catch (error) {
-      console.log("Load error:", error);
+      console.error("Load error:", error);
     }
+
     setLoading(false);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    setHasMore(true);
+    await loadData(true);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = () => {
+    if (!loading && hasMore) {
+      loadData(false);
+    }
   };
 
   const handleSync = async (
@@ -206,7 +254,7 @@ export default function SapSyncScreen() {
         setMessage(
           `✅ Sync completed! Processed: ${res.data.processed}, Created: ${res.data.created}, Updated: ${res.data.updated}`,
         );
-        loadData();
+        loadData(true);
       } else {
         setMessage(`❌ Sync failed: ${res.message}`);
       }
@@ -225,10 +273,10 @@ export default function SapSyncScreen() {
         token,
       );
       if (res.success) {
-        loadData();
+        loadData(true);
       }
     } catch (error) {
-      console.log("Toggle error:", error);
+      console.error("Toggle error:", error);
     }
   };
 
@@ -258,7 +306,7 @@ export default function SapSyncScreen() {
           hour: 6,
           custom_interval_minutes: 60,
         });
-        loadData();
+        loadData(true);
       } else {
         alert("Failed to create schedule");
       }
@@ -272,10 +320,10 @@ export default function SapSyncScreen() {
       const token = await getToken();
       const res = await api.delete(`/sap/schedules/${scheduleId}/`, token);
       if (res.success) {
-        loadData();
+        loadData(true);
       }
     } catch (error) {
-      console.log("Delete error:", error);
+      console.error("Delete error:", error);
     }
   };
 
@@ -293,7 +341,6 @@ export default function SapSyncScreen() {
       p.category?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // ✅ ADD - Filter for Addresses
   const filteredAddresses = addresses.filter(
     (a) =>
       a.card_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -317,44 +364,45 @@ export default function SapSyncScreen() {
   };
 
   const renderTabs = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.tabScrollContainer}
-    >
-      <View style={styles.tabContainer}>
-        {(
-          [
-            "status",
-            "products",
-            "parties",
-            "addresses",
-            "branches",
-            "schedules",
-            "logs",
-          ] as TabType[]
-        ).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
+    // <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollContainer}>
+    <View style={styles.tabContainer}>
+      {(
+        [
+          "status",
+          "products",
+          "parties",
+          "addresses",
+          "branches",
+          "schedules",
+          "logs",
+        ] as TabType[]
+      ).map((tab) => (
+        <TouchableOpacity
+          key={tab}
+          style={[styles.tab, activeTab === tab && styles.activeTab]}
+          onPress={() => {
+            setActiveTab(tab);
+            setSearchQuery("");
+          }}
+        >
+          <Text
+            style={[styles.tabText, activeTab === tab && styles.activeTabText]}
           >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab && styles.activeTabText,
-              ]}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+    // </ScrollView>
   );
 
   const renderStatus = () => (
-    <View style={styles.content}>
+    <ScrollView
+      style={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
       {/* Sync Buttons */}
       <View style={styles.syncButtonsContainer}>
         <Text style={styles.sectionTitle}>Manual Sync</Text>
@@ -459,290 +507,377 @@ export default function SapSyncScreen() {
           )}
         </View>
       )}
+    </ScrollView>
+  );
+
+  const renderProductItem = ({ item }: { item: Product }) => (
+    <View style={styles.listItem}>
+      <View style={styles.listItemHeader}>
+        <Text style={styles.itemCode}>{item.item_code}</Text>
+        <Text
+          style={[
+            styles.itemCategory,
+            item.category === "OIL" && styles.categoryOil,
+            item.category === "BEVERAGES" && styles.categoryBeverages,
+            item.category === "MART" && styles.categoryMart,
+          ]}
+        >
+          {item.category}
+        </Text>
+      </View>
+      <Text style={styles.itemName}>{item.item_name}</Text>
+      <View style={styles.itemDetails}>
+        <Text style={styles.itemDetail}>Brand: {item.brand || "-"}</Text>
+        <Text style={styles.itemDetail}>Variety: {item.variety || "-"}</Text>
+      </View>
+      <View style={[styles.itemDetails, { marginTop: 5 }]}>
+        <Text style={styles.itemDetail}>Pack: {item.sal_pack_unit || "-"}</Text>
+      </View>
     </View>
   );
 
   const renderProducts = () => (
-    <View style={styles.content}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by code, name or brand..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-      <Text style={styles.countText}>
-        Total: {filteredProducts.length} products
-      </Text>
-
-      <ScrollView style={styles.listContainer}>
-        {filteredProducts.map((product) => (
-          <View key={product.id} style={styles.listItem}>
-            <View style={styles.listItemHeader}>
-              <Text style={styles.itemCode}>{product.item_code}</Text>
-              <Text
-                style={[
-                  styles.itemCategory,
-                  product.category === "OIL" && styles.categoryOil,
-                  product.category === "BEVERAGES" && styles.categoryBeverages,
-                  product.category === "MART" && styles.categoryMart,
-                ]}
-              >
-                {product.category}
-              </Text>
-            </View>
-            <Text style={styles.itemName}>{product.item_name}</Text>
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemDetail}>
-                Brand: {product.brand || "-"}
-              </Text>
-              <Text style={styles.itemDetail}>
-                Variety: {product.variety || "-"}
-              </Text>
-            </View>
-            {/* ✅ ADD - Tax Code Display */}
-            <View style={[styles.itemDetails, { marginTop: 5 }]}>
-              <Text style={styles.itemDetail}>
-                Pack: {product.sal_pack_unit || "-"}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  // ✅ UPDATED - Parties with new fields
-  const renderParties = () => (
-    <View style={styles.content}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by code, name, GST or category..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-      <Text style={styles.countText}>
-        Total: {filteredParties.length} parties
-      </Text>
-
-      <ScrollView style={styles.listContainer}>
-        {filteredParties.map((party) => (
-          <View key={party.id} style={styles.listItem}>
-            <View style={styles.listItemHeader}>
-              <Text style={styles.itemCode}>{party.card_code}</Text>
-              <Text
-                style={[
-                  styles.itemCategory,
-                  party.category === "OIL" && styles.categoryOil,
-                  party.category === "BEVERAGES" && styles.categoryBeverages,
-                  party.category === "MART" && styles.categoryMart,
-                ]}
-              >
-                {party.category || "-"}
-              </Text>
-            </View>
-            <Text style={styles.itemName}>{party.card_name}</Text>
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemDetail}>State: {party.state || "-"}</Text>
-              <Text style={styles.itemDetail}>
-                Group: {party.main_group || "-"}
-              </Text>
-            </View>
-            {/* ✅ ADD - GST Number Display */}
-            <View style={[styles.itemDetails, { marginTop: 5 }]}></View>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  // ✅ ADD - New Addresses Tab
-  const renderAddresses = () => (
-    <View style={styles.content}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by code, address, city, state or GST..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-      <Text style={styles.countText}>
-        Total: {filteredAddresses.length} addresses
-      </Text>
-
-      <ScrollView style={styles.listContainer}>
-        {filteredAddresses.map((address) => (
-          <View key={address.id} style={styles.listItem}>
-            <View style={styles.listItemHeader}>
-              <Text style={styles.itemCode}>{address.card_code}</Text>
-              <View style={styles.badgeContainer}>
-                <Text
-                  style={[
-                    styles.addressTypeBadge,
-                    address.address_type === "B"
-                      ? styles.billingBadge
-                      : styles.shippingBadge,
-                  ]}
-                >
-                  {address.address_type === "B" ? "Billing" : "Shipping"}
-                </Text>
-                <Text
-                  style={[
-                    styles.itemCategory,
-                    address.category === "OIL" && styles.categoryOil,
-                    address.category === "BEVERAGES" &&
-                      styles.categoryBeverages,
-                    address.category === "MART" && styles.categoryMart,
-                  ]}
-                >
-                  {address.category || "-"}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.addressName}>{address.address_name}</Text>
-            <Text style={styles.fullAddress} numberOfLines={2}>
-              {address.full_address || "-"}
+    <View style={styles.flatListContainer}>
+      <FlatList
+        data={filteredProducts}
+        renderItem={renderProductItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={
+          <>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by code, name or brand..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Text style={styles.countText}>
+              Total: {filteredProducts.length} products
             </Text>
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemDetail}>City: {address.city || "-"}</Text>
-              <Text style={styles.itemDetail}>
-                State: {address.state || "-"}
-              </Text>
-            </View>
-            <View style={[styles.itemDetails, { marginTop: 5 }]}>
-              <Text style={[styles.itemDetail, styles.gstText]}>
-                GST: {address.gst_number || "-"}
-              </Text>
-              <Text style={styles.itemDetail}>
-                PIN: {address.zip_code || "-"}
-              </Text>
-            </View>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No products found</Text>
+            <Text style={styles.emptySubtext}>
+              Sync products from SAP to see data here
+            </Text>
           </View>
-        ))}
-        {filteredAddresses.length === 0 && (
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loading && hasMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+            </View>
+          ) : null
+        }
+      />
+    </View>
+  );
+
+  const renderPartyItem = ({ item }: { item: Party }) => (
+    <View style={styles.listItem}>
+      <View style={styles.listItemHeader}>
+        <Text style={styles.itemCode}>{item.card_code}</Text>
+        <Text
+          style={[
+            styles.itemCategory,
+            item.category === "OIL" && styles.categoryOil,
+            item.category === "BEVERAGES" && styles.categoryBeverages,
+            item.category === "MART" && styles.categoryMart,
+          ]}
+        >
+          {item.category || "-"}
+        </Text>
+      </View>
+      <Text style={styles.itemName}>{item.card_name}</Text>
+      <View style={styles.itemDetails}>
+        <Text style={styles.itemDetail}>State: {item.state || "-"}</Text>
+        <Text style={styles.itemDetail}>Group: {item.main_group || "-"}</Text>
+      </View>
+    </View>
+  );
+
+  const renderParties = () => (
+    <View style={styles.flatListContainer}>
+      <FlatList
+        data={filteredParties}
+        renderItem={renderPartyItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={
+          <>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by code, name, or category..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Text style={styles.countText}>
+              Total: {filteredParties.length} parties
+            </Text>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No parties found</Text>
+            <Text style={styles.emptySubtext}>
+              Sync parties from SAP to see data here
+            </Text>
+          </View>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loading && hasMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+            </View>
+          ) : null
+        }
+      />
+    </View>
+  );
+
+  const renderAddressItem = ({ item }: { item: PartyAddress }) => (
+    <View style={styles.listItem}>
+      <View style={styles.listItemHeader}>
+        <Text style={styles.itemCode}>{item.card_code}</Text>
+        <View style={styles.badgeContainer}>
+          <Text
+            style={[
+              styles.addressTypeBadge,
+              item.address_type === "B"
+                ? styles.billingBadge
+                : styles.shippingBadge,
+            ]}
+          >
+            {item.address_type === "B" ? "Billing" : "Shipping"}
+          </Text>
+          <Text
+            style={[
+              styles.itemCategory,
+              item.category === "OIL" && styles.categoryOil,
+              item.category === "BEVERAGES" && styles.categoryBeverages,
+              item.category === "MART" && styles.categoryMart,
+            ]}
+          >
+            {item.category || "-"}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.addressName}>{item.address_name}</Text>
+      <Text style={styles.fullAddress} numberOfLines={2}>
+        {item.full_address || "-"}
+      </Text>
+      <View style={styles.itemDetails}>
+        <Text style={styles.itemDetail}>City: {item.city || "-"}</Text>
+        <Text style={styles.itemDetail}>State: {item.state || "-"}</Text>
+      </View>
+      <View style={[styles.itemDetails, { marginTop: 5 }]}>
+        <Text style={[styles.itemDetail, styles.gstText]}>
+          GST: {item.gst_number || "-"}
+        </Text>
+        <Text style={styles.itemDetail}>PIN: {item.zip_code || "-"}</Text>
+      </View>
+    </View>
+  );
+
+  const renderAddresses = () => (
+    <View style={styles.flatListContainer}>
+      <FlatList
+        data={filteredAddresses}
+        renderItem={renderAddressItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={
+          <>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by code, address, city, state or GST..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Text style={styles.countText}>
+              Total: {filteredAddresses.length} addresses
+            </Text>
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No addresses found</Text>
             <Text style={styles.emptySubtext}>
               Sync addresses from SAP to see data here
             </Text>
           </View>
-        )}
-      </ScrollView>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loading && hasMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+            </View>
+          ) : null
+        }
+      />
+    </View>
+  );
+
+  const renderBranchItem = ({ item }: { item: Branch }) => (
+    <View style={styles.listItem}>
+      <View style={styles.listItemHeader}>
+        <Text style={styles.itemCode}>BPL-{item.bpl_id}</Text>
+        <Text
+          style={[
+            styles.itemCategory,
+            item.category === "OIL" && styles.categoryOil,
+            item.category === "BEVERAGES" && styles.categoryBeverages,
+            item.category === "MART" && styles.categoryMart,
+          ]}
+        >
+          {item.category}
+        </Text>
+      </View>
+      <Text style={styles.itemName}>{item.bpl_name}</Text>
+      <View style={styles.itemDetails}>
+        <Text style={styles.itemDetail}>
+          Status: {item.is_active ? "✅ Active" : "❌ Inactive"}
+        </Text>
+        <Text style={styles.itemDetail}>
+          Updated: {formatDate(item.updated_at)}
+        </Text>
+      </View>
     </View>
   );
 
   const renderBranches = () => (
-    <View style={styles.content}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by ID, name or category..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-      <Text style={styles.countText}>
-        Total: {filteredBranches.length} branches
-      </Text>
-
-      <ScrollView style={styles.listContainer}>
-        {filteredBranches.map((branch) => (
-          <View key={branch.id} style={styles.listItem}>
-            <View style={styles.listItemHeader}>
-              <Text style={styles.itemCode}>BPL-{branch.bpl_id}</Text>
-              <Text
-                style={[
-                  styles.itemCategory,
-                  branch.category === "OIL" && styles.categoryOil,
-                  branch.category === "BEVERAGES" && styles.categoryBeverages,
-                  branch.category === "MART" && styles.categoryMart,
-                ]}
-              >
-                {branch.category}
-              </Text>
-            </View>
-            <Text style={styles.itemName}>{branch.bpl_name}</Text>
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemDetail}>
-                Status: {branch.is_active ? "✅ Active" : "❌ Inactive"}
-              </Text>
-              <Text style={styles.itemDetail}>
-                Updated: {formatDate(branch.updated_at)}
-              </Text>
-            </View>
-          </View>
-        ))}
-        {filteredBranches.length === 0 && (
+    <View style={styles.flatListContainer}>
+      <FlatList
+        data={filteredBranches}
+        renderItem={renderBranchItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={
+          <>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by ID, name or category..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Text style={styles.countText}>
+              Total: {filteredBranches.length} branches
+            </Text>
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No branches found</Text>
             <Text style={styles.emptySubtext}>
               Sync branches from SAP to see data here
             </Text>
           </View>
-        )}
-      </ScrollView>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loading && hasMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+            </View>
+          ) : null
+        }
+      />
+    </View>
+  );
+
+  const renderScheduleItem = ({ item }: { item: SyncSchedule }) => (
+    <View style={styles.scheduleItem}>
+      <View style={styles.scheduleItemHeader}>
+        <View>
+          <Text style={styles.scheduleName}>{item.name}</Text>
+          <Text style={styles.scheduleInfo}>
+            {item.sync_type} • {item.frequency}
+            {item.frequency === "DAILY" && ` at ${item.hour}:00`}
+            {item.frequency === "CUSTOM" &&
+              ` every ${item.custom_interval_minutes} min`}
+          </Text>
+        </View>
+        <Switch
+          value={item.is_active}
+          onValueChange={() => toggleSchedule(item.id)}
+          trackColor={{ false: "#e5e5e5", true: "#86efac" }}
+          thumbColor={item.is_active ? "#22c55e" : "#999"}
+        />
+      </View>
+
+      <View style={styles.scheduleDetails}>
+        <Text style={styles.scheduleDetailText}>
+          Last run: {item.last_run ? formatDate(item.last_run) : "Never"}
+        </Text>
+        <Text style={styles.scheduleDetailText}>
+          Next run: {item.next_run ? formatDate(item.next_run) : "-"}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => deleteSchedule(item.id)}
+      >
+        <Text style={styles.deleteButtonText}>Delete</Text>
+      </TouchableOpacity>
     </View>
   );
 
   const renderSchedules = () => (
-    <View style={styles.content}>
-      <View style={styles.scheduleHeader}>
-        <Text style={styles.sectionTitle}>Sync Schedules</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowScheduleModal(true)}
-        >
-          <Text style={styles.addButtonText}>+ Add</Text>
-        </TouchableOpacity>
-      </View>
-
-      {schedules.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No schedules configured</Text>
-          <Text style={styles.emptySubtext}>
-            Create a schedule to automate syncing
-          </Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.listContainer}>
-          {schedules.map((schedule) => (
-            <View key={schedule.id} style={styles.scheduleItem}>
-              <View style={styles.scheduleItemHeader}>
-                <View>
-                  <Text style={styles.scheduleName}>{schedule.name}</Text>
-                  <Text style={styles.scheduleInfo}>
-                    {schedule.sync_type} • {schedule.frequency}
-                    {schedule.frequency === "DAILY" &&
-                      ` at ${schedule.hour}:00`}
-                    {schedule.frequency === "CUSTOM" &&
-                      ` every ${schedule.custom_interval_minutes} min`}
-                  </Text>
-                </View>
-                <Switch
-                  value={schedule.is_active}
-                  onValueChange={() => toggleSchedule(schedule.id)}
-                  trackColor={{ false: "#e5e5e5", true: "#86efac" }}
-                  thumbColor={schedule.is_active ? "#22c55e" : "#999"}
-                />
-              </View>
-
-              <View style={styles.scheduleDetails}>
-                <Text style={styles.scheduleDetailText}>
-                  Last run:{" "}
-                  {schedule.last_run ? formatDate(schedule.last_run) : "Never"}
-                </Text>
-                <Text style={styles.scheduleDetailText}>
-                  Next run:{" "}
-                  {schedule.next_run ? formatDate(schedule.next_run) : "-"}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => deleteSchedule(schedule.id)}
-              >
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
+    <View style={styles.flatListContainer}>
+      <FlatList
+        data={schedules}
+        renderItem={renderScheduleItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={
+          <View style={styles.scheduleHeader}>
+            <Text style={styles.sectionTitle}>Sync Schedules</Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowScheduleModal(true)}
+            >
+              <Text style={styles.addButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No schedules configured</Text>
+            <Text style={styles.emptySubtext}>
+              Create a schedule to automate syncing
+            </Text>
+          </View>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loading && hasMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color="#3b82f6" />
             </View>
-          ))}
-        </ScrollView>
-      )}
+          ) : null
+        }
+      />
 
       {/* Add Schedule Modal */}
       <Modal
@@ -854,36 +989,59 @@ export default function SapSyncScreen() {
     </View>
   );
 
-  const renderLogs = () => (
-    <View style={styles.content}>
-      <Text style={styles.countText}>Recent sync logs</Text>
+  const renderLogItem = ({ item }: { item: SyncLog }) => (
+    <View style={styles.logItem}>
+      <View style={styles.logHeader}>
+        <Text style={styles.logType}>{item.sync_type}</Text>
+        <Text
+          style={[
+            styles.logStatus,
+            item.status === "SUCCESS"
+              ? styles.statusSuccess
+              : styles.statusFailed,
+          ]}
+        >
+          {item.status}
+        </Text>
+      </View>
+      <Text style={styles.logStats}>
+        Processed: {item.records_processed} | Created: {item.records_created} |
+        Updated: {item.records_updated}
+      </Text>
+      <Text style={styles.logTime}>
+        {formatDate(item.started_at)} | {item.triggered_by}
+      </Text>
+    </View>
+  );
 
-      <ScrollView style={styles.listContainer}>
-        {logs.map((log) => (
-          <View key={log.id} style={styles.logItem}>
-            <View style={styles.logHeader}>
-              <Text style={styles.logType}>{log.sync_type}</Text>
-              <Text
-                style={[
-                  styles.logStatus,
-                  log.status === "SUCCESS"
-                    ? styles.statusSuccess
-                    : styles.statusFailed,
-                ]}
-              >
-                {log.status}
-              </Text>
-            </View>
-            <Text style={styles.logStats}>
-              Processed: {log.records_processed} | Created:{" "}
-              {log.records_created} | Updated: {log.records_updated}
-            </Text>
-            <Text style={styles.logTime}>
-              {formatDate(log.started_at)} | {log.triggered_by}
-            </Text>
+  const renderLogs = () => (
+    <View style={styles.flatListContainer}>
+      <FlatList
+        data={logs}
+        renderItem={renderLogItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={
+          <Text style={styles.countText}>Recent sync logs</Text>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No logs found</Text>
+            <Text style={styles.emptySubtext}>Sync logs will appear here</Text>
           </View>
-        ))}
-      </ScrollView>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loading && hasMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+            </View>
+          ) : null
+        }
+      />
     </View>
   );
 
@@ -895,16 +1053,12 @@ export default function SapSyncScreen() {
 
       {renderTabs()}
 
-      {loading ? (
+      {loading && (activeTab === "status" || page === 1) ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3b82f6" />
         </View>
       ) : (
-        <ScrollView
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
+        <>
           {activeTab === "status" && renderStatus()}
           {activeTab === "products" && renderProducts()}
           {activeTab === "parties" && renderParties()}
@@ -912,7 +1066,7 @@ export default function SapSyncScreen() {
           {activeTab === "branches" && renderBranches()}
           {activeTab === "schedules" && renderSchedules()}
           {activeTab === "logs" && renderLogs()}
-        </ScrollView>
+        </>
       )}
     </View>
   );
@@ -943,7 +1097,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   tab: {
-    paddingVertical: 12,
+    paddingVertical: 1,
     paddingHorizontal: 16,
     alignItems: "center",
   },
@@ -963,17 +1117,25 @@ const styles = StyleSheet.create({
   content: {
     padding: 15,
   },
+  flatListContainer: {
+    flex: 1,
+    height: 10,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingTop: 50,
   },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 15,
+    marginBottom: 5,
   },
   syncButtonsContainer: {
     backgroundColor: "#fff",
@@ -1071,7 +1233,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     backgroundColor: "#fff",
-    padding: 12,
+    // padding: 12,
     borderRadius: 8,
     marginBottom: 10,
     borderWidth: 1,
@@ -1080,9 +1242,6 @@ const styles = StyleSheet.create({
   countText: {
     color: "#666",
     marginBottom: 10,
-  },
-  listContainer: {
-    maxHeight: Platform.OS === "web" ? 500 : undefined,
   },
   listItem: {
     backgroundColor: "#fff",

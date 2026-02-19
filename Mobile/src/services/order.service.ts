@@ -55,7 +55,11 @@ export const orderService = {
   },
   
   getOrderLogs: async(orderId:number):Promise<any>=>{
-    return await api.get(`/orders/${orderId}/orderdetails/`);
+    return await api.get(`/orders/${orderId}/orderlogs/`);
+  },
+
+  getorderdetailsbyid: async(orderId:number):Promise<any>=>{
+    return await api.get(`/orders/orderdetailsbyid/${orderId}`);
   },
   
   getOrderbyuserid: async (): Promise<any> => {
@@ -67,7 +71,7 @@ export const orderService = {
   }
 
   console.log("User data retrieved in service:", userdata.id);
-  return await api.get(`/orders/${userdata.id}/orderbyuserid/`);
+  return await api.get(`/orders/ordersbyuser/${userdata.id}/`);
   // return await api.get(`/orders/list/?user_id=${userdata.id}`);
 },
   

@@ -151,6 +151,13 @@ export default function MainLayout() {
         />
 
         <Drawer.Screen
+          name="orders/orderdetails"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
+
+        <Drawer.Screen
           name="orders/ordertracking"
           options={{
             drawerLabel: "Order Tracking",

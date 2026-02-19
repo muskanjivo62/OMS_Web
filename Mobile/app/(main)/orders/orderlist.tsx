@@ -19,6 +19,7 @@ import {
   productService,
 } from "@/src/services/order.service";
 import { COLORS } from "@/constants/theme";
+import { router } from "expo-router";
 
 const STATUS_TABS = [
   { key: "6", label: "Pending", color: "#FF9800" },
@@ -108,8 +109,11 @@ export default function BillingOrderList() {
 
             const res = await productService.sapApproveOrder(payload);
             console.log("Approval response:", JSON.stringify(res));
-
-            Alert.alert("Success", "Order approved");
+            if (res.status !== "success") {
+              throw new Error("Approval failed");
+            } else {
+              Alert.alert("Success", "Order approved");
+            }
             loadOrders();
           } catch (err) {
             console.log(err);
@@ -149,6 +153,14 @@ export default function BillingOrderList() {
   };
 
   const renderOrder = ({ item }: { item: OrderItemList }) => (
+    <TouchableOpacity
+      onPress={() =>
+        router.push({
+          pathname: "/orders/orderdetails",
+          params: { orderId: item.id }, })}        
+      style={styles.orderCard}
+    >
+
     <View style={styles.orderCard}>
       {/* Header */}
       <View style={styles.orderHeader}>
@@ -277,7 +289,10 @@ export default function BillingOrderList() {
           </View>
         </>
       )}
+   
     </View>
+
+    </TouchableOpacity>
   );
 
   const renderEmpty = () => (

@@ -67,7 +67,7 @@ class OrdersLogSerializer(serializers.ModelSerializer):
     performed_by_name = serializers.CharField(
         source="performed_by.username", read_only=True
     )
-
+    
     class Meta:
         model = OrdersLog
         fields = [
@@ -78,3 +78,21 @@ class OrdersLogSerializer(serializers.ModelSerializer):
             "performed_by_name",
             "created_at",
         ]
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = "__all__"
+
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    items_count = serializers.IntegerField(source="items.count", read_only=True)
+    status = serializers.CharField(source="status.code")
+    status_display = serializers.CharField(source="status.name")
+
+    class Meta:
+        model = Order
+        fields = "__all__"
+
+

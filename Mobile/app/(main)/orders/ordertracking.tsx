@@ -26,18 +26,17 @@ export default function OrderTrackingScreen() {
   const [orders, setOrders] = useState<OrderItemList[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("3");
   const router = useRouter();
 
   useEffect(() => {
     loadOrders();
-  }, [activeTab]);
+  }, []);
 
   const loadOrders = async () => {
     try {
       setLoading(true);
       const data = await orderService.getOrderbyuserid();
-
+      
       console.log("datavalue" + JSON.stringify(data));
       setOrders(data);
     } catch (error) {
@@ -54,58 +53,16 @@ export default function OrderTrackingScreen() {
     loadOrders();
   };
 
-  const handleApprove = (order: OrderItemList) => {
-    console.log("Approve order:", order.id);
-    Alert.alert("Approve Order", `Approve order ${order.order_number}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Approve",
-        onPress: async () => {
-          try {
-            setActionLoading(order.id);
-
-            const payload: ApproveOr = {
-              card_code: order.card_code,
-              created_at: order.created_at,
-              po_number: order.order_number,
-              ship_to_address: order.ship_to_address,
-              bill_to_address: order.bill_to_address,
-              dispatch_from_id: order.dispatch_from_id,
-              items: order.items || [],
-            };
-
-            const ap_res = await productService.updatestatus(
-              order.id,
-              "6",
-              "Approved",
-            );
-
-            const res = await productService.sapApproveOrder(payload);
-            console.log("Approval response:", JSON.stringify(res));
-
-            Alert.alert("Success", "Order approved");
-            loadOrders();
-          } catch (err) {
-            console.log(err);
-            Alert.alert("Error", "Approval failed");
-          } finally {
-            setActionLoading(null);
-          }
-        },
-      },
-    ]);
-  };
-
   const renderOrder = ({ item }: { item: OrderItemList }) => (
     <TouchableOpacity
       style={styles.orderCard}
       activeOpacity={0.8}
-      onPress={() =>
-        router.push({
-          pathname: "/orders/orderflow",
-          params: { orderId: item.id },
-        })
-      }
+      // onPress={() =>
+      //   // router.push({
+      //   //   pathname: "/orders/orderflow",
+      //   //   params: { orderId: item.id },
+      //   // })
+      // }
     >
       {/* Header */}
       <View style={styles.orderHeader}>
@@ -138,23 +95,40 @@ export default function OrderTrackingScreen() {
         <Text style={styles.amountLabel}>Total Amount</Text>
         <Text style={styles.amountValue}>₹{item.total_amount}</Text>
       </View>
+      {/* Actions */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.detailsBtn]}
+          onPress={() => {
+            router.push({
+              pathname: "/orders/orderdetails",
+              params: { orderId: item.id },
+            });
+          }}
+        >
+          <Ionicons name="eye-outline" size={18} color="#fff" />
+          <Text style={styles.actionBtnText}>View Details</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.progressBtn]}
+          // onPress={() => {
+          //   router.push({
+          //     pathname: "/orders/orderprogress",
+          //     params: { orderId: item.id },
+          //   });
+          // }}
+        >
+          <Ionicons name="git-branch-outline" size={18} color="#fff" />
+          <Text style={styles.actionBtnText}>View Progress</Text>
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons
-        name={
-          activeTab === "3"
-            ? "checkmark-done-circle-outline"
-            : "document-text-outline"
-        }
-        size={64}
-        color={COLORS.textLight}
-      />
-      <Text style={styles.emptyText}>
-        {activeTab === "3" ? "No pending orders" : `No ${activeTab} orders`}
-      </Text>
+      <Text style={styles.emptyText}>"No pending orders"</Text>
     </View>
   );
 
@@ -191,6 +165,36 @@ export default function OrderTrackingScreen() {
 }
 
 const styles = StyleSheet.create({
+  actionRow: {
+    flexDirection: "row",
+    marginTop: 16,
+    gap: 12,
+  },
+
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+
+  detailsBtn: {
+    backgroundColor: COLORS.primary,
+  },
+
+  progressBtn: {
+    backgroundColor: "#4CAF50",
+  },
+
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -308,21 +312,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.text,
   },
-  actionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 16,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 6,
-  },
 
   approveBtn: {
     backgroundColor: COLORS.success,
@@ -339,12 +328,6 @@ const styles = StyleSheet.create({
   rejectBtn: {
     backgroundColor: COLORS.error,
   },
-
-  actionBtnText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-
   emptyContainer: {
     flex: 1,
     justifyContent: "center",

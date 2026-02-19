@@ -87,7 +87,7 @@ export default function CreateUserScreen() {
   const handleSubmit = async () => {
     console.log("Creating user:");
     if (!validate()) return;
-    
+
     setLoading(true);
 
     try {
@@ -152,7 +152,7 @@ export default function CreateUserScreen() {
   useEffect(() => {
     fetchMasterData();
   }, []);
-
+  
   const fetchMasterData = async () => {
     try {
       // setDataLoading(true);
@@ -278,6 +278,7 @@ export default function CreateUserScreen() {
               }
             />
           </View>
+
         </Surface>
 
         {/* Login Credentials Section */}
