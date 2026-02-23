@@ -39,6 +39,7 @@ class PartyProductAssignment(models.Model):
 
     def __str__(self):
         return f"{self.card_code} - {self.item_code} ({self.category}) - ₹{self.basic_rate}"
+
     
 class UserPartyAssignment(models.Model):
     """Maps users to parties using card_code"""

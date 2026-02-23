@@ -36,6 +36,20 @@ export default function MultiSelectDialog({
   const [visible, setVisible] = useState(false);
   const [tempValues, setTempValues] = useState<number[]>(values);
 
+  // Helper to determine if all items are selected
+  const isAllSelected = data.length > 0 && tempValues.length === data.length;
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      // If everything is already selected, clear the selection
+      setTempValues([]);
+    } else {
+      // Otherwise, select all values from the data array
+      const allIds = data.map((item) => item.value);
+      setTempValues(allIds);
+    }
+  };
+
   const toggleValue = (val: number) => {
     if (tempValues.includes(val)) {
       setTempValues(tempValues.filter((v) => v !== val));
@@ -56,7 +70,6 @@ export default function MultiSelectDialog({
 
   return (
     <>
-      {/* Field */}
       <TouchableOpacity style={styles.input} onPress={handleOpen}>
         <View style={styles.row}>
           <Ionicons name={icon as any} size={18} color={COLORS.textSecondary} />
@@ -67,18 +80,29 @@ export default function MultiSelectDialog({
         </View>
       </TouchableOpacity>
 
-      {/* Dialog */}
       <Modal transparent animationType="fade" visible={visible}>
         <View style={styles.overlay}>
           <View style={styles.dialog}>
             <Text style={styles.title}>{label}</Text>
+
+            {/* Select All Option */}
+            <TouchableOpacity
+              style={[styles.item, styles.selectAllContainer]}
+              onPress={toggleSelectAll}
+            >
+              <Checkbox status={isAllSelected ? "checked" : "unchecked"} />
+              <Text style={[styles.itemText, { fontWeight: "bold" }]}>
+                Select All
+              </Text>
+            </TouchableOpacity>
+
+            {/* <View style={styles.separator} /> */}
 
             <FlatList
               data={data}
               keyExtractor={(item) => item.value.toString()}
               renderItem={({ item }) => {
                 const checked = tempValues.includes(item.value);
-
                 return (
                   <TouchableOpacity
                     style={styles.item}
@@ -102,9 +126,19 @@ export default function MultiSelectDialog({
     </>
   );
 }
-
 const styles = StyleSheet.create({
   /* Field (Closed State) */
+  selectAllContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    paddingBottom: 10,
+    marginBottom: 5,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginVertical: 5,
+  },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,

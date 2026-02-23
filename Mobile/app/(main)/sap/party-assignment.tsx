@@ -168,7 +168,7 @@ export default function PartyAssignmentScreen() {
         user_id: selectedUserId,
         card_codes: cardCodesArray,
       }, token);
-
+      
       console.log('Save response:', res);
 
       if (res && res.success) {

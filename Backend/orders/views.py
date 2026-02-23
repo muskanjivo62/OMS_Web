@@ -19,7 +19,6 @@ from collections import defaultdict
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions
 
-
 def _get_base_orders(user):
     """Scope orders by user role:
     - admin: all orders
@@ -34,11 +33,10 @@ def _get_base_orders(user):
     if role_name == 'manager':
         return Order.objects.filter(created_by=user.id)
     if role_name == 'approver':
-        return Order.objects.filter(status__code__in=['NEED_APPROVAL', 'RATE_APPROVAL'])
+        return Order.objects.filtcer(status__code__in=['NEED_APPROVAL', 'RATE_APPROVAL'])
     if role_name == 'billing':
         return Order.objects.filter(status__code__in=['BILLING', 'BILLING_PENDING'])
     return Order.objects.none()
-
 
 class DashboardKPIView(APIView):
     permission_classes = [AllowAny]
@@ -65,7 +63,6 @@ class DashboardKPIView(APIView):
             'this_month_orders': this_month_orders,
             'status_counts': status_counts,
         })
-
 
 class DashboardChartsView(APIView):
     permission_classes = [AllowAny]
@@ -277,7 +274,7 @@ class PartyAddressesView(APIView):
 
     def get(self, request):
         card_code = request.query_params.get('card_code')
-
+            
         if not card_code:
             return Response({'error': 'card_code is required'}, status=400)
             
@@ -439,7 +436,7 @@ class ProductListView(APIView):
         return Response(serializer.data)
 
 class CreateOrderView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def post(self, request):
         serializer = CreateOrderSerializer(data=request.data)
@@ -470,7 +467,8 @@ class CreateOrderView(APIView):
         # Calculate total
         total_amount = sum(float(item.get('total', 0)) for item in items)
 
-        user = request.user
+        user = request.user if request.user.is_authenticated else None
+        user_id = user.id if user else None
         print("AUTH HEADER:", request.headers.get("Authorization"))
         print("USER:", request.user)
         print("AUTHENTICATED:", request.user.is_authenticated)
@@ -489,11 +487,11 @@ class CreateOrderView(APIView):
             company=data.get('company', ''),
             po_number=data.get('po_number', ''),
             total_amount=total_amount,
-            status=get_status('Created'),
-            created_by=user.id,
+            status=get_status('Order Created'),
+            created_by=user_id,
             delivery_date=data.get('delivery_date', '')
         )
-
+            
         # Create order items + price check
         needs_approval = False
         flagged_items = []
@@ -522,19 +520,19 @@ class CreateOrderView(APIView):
             if bp > mp:
                 needs_approval = True
                 flagged_items.append(f"{item.get('item_name')}: Basic ₹{bp} > Market ₹{mp}")
-
+        
         # Log: Order created
-        log_order_action(order, 'Created', user=user)
+        log_order_action(order, 'Order Created', user=user_id)
 
         # Route based on price check
         if needs_approval:
             order.status = get_status('Rate_Approval')
             order.save()
-            log_order_action(order, 'Rate_Approval', user=user, remarks='; '.join(flagged_items))
+            log_order_action(order, 'Rate_Approval', user=None, remarks='; '.join(flagged_items))
         else:
-            order.status = get_status('Billing')
+            order.status = get_status('Auditor Approval')
             order.save()
-            log_order_action(order, 'Billing', user=user)
+            log_order_action(order, 'Auditor Approval', user=None)
 
         return Response({
             'id': order.id,
@@ -543,7 +541,7 @@ class CreateOrderView(APIView):
             'status': order.status.name,
             'needs_approval': needs_approval,
             'flagged_items': flagged_items if needs_approval else [],
-            'message': 'Order sent for approval' if needs_approval else 'Order sent to billing',
+            'message': 'Order sent for approval' if needs_approval else 'Order sent to auditor approval',
         }, status=status.HTTP_201_CREATED)
 
 class OrderStatusList(APIView):
@@ -562,39 +560,110 @@ class BranchView(APIView):
         return Response(serializer.data) 
 
 from .models import Order, OrderStatus
-
+    
 class UpdateOrderStatusView(APIView):
 
     def post(self, request, order_id):
         serializer = OrderStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        order = Order.objects.get(id=order_id)
+        order = get_object_or_404(Order, id=order_id)
+        previous_status = order.status
 
         status_id = serializer.validated_data["status"]
         reason = serializer.validated_data.get("reason", "")
-
+        
         # ✅ Fetch status dynamically from table
-        status_obj = OrderStatus.objects.get(id=status_id)
+        status_obj = get_object_or_404(OrderStatus, id=status_id)
+
+        prev_name = (previous_status.name or "").strip().lower() if previous_status else ""
+
+        # Guardrail: if client sends Auditor status again while already in Auditor stage,
+        # treat it as "Auditor approved -> move to Billing Approval".
+        if previous_status and previous_status.id == status_obj.id and prev_name == "auditor approval":
+            billing_status = (
+                OrderStatus.objects.filter(id=3).first()
+                or OrderStatus.objects.filter(name__iexact="Billing Approval").first()
+                or OrderStatus.objects.filter(name__iexact="Billing").first()
+                or OrderStatus.objects.filter(name__icontains="billing").order_by("id").first()
+            )
+            if billing_status:
+                status_obj = billing_status
 
         user = request.user if request.user.is_authenticated else None
 
         # ✅ Update order
-        order.status = status_obj
+        order.status = status_obj   
 
-        # Only store reason when provided
+        # Only store reason when providedr
         if reason:
             order.reject_reason = reason
 
         order.save()
 
-        # ✅ LOG using status name from DB
-        log_order_action(
-            order=order,
-            action_name=status_obj.name,
-            user=user,
-            remarks=reason
+        new_name = (status_obj.name or "").strip().lower()
+        is_auditor_to_billing = (
+            prev_name == "auditor approval"
+            and (status_obj.id == 3 or "billing" in new_name)
         )
+
+        if is_auditor_to_billing:
+            
+            auditor_pending_log = (
+                OrdersLog.objects
+                .filter(order=order, action=previous_status, performed_by__isnull=True)
+                .order_by("-created_at")
+                .first()
+            )
+            if auditor_pending_log:
+                auditor_pending_log.performed_by = user
+                if reason:
+                    auditor_pending_log.remarks = reason
+                auditor_pending_log.save(update_fields=["performed_by", "remarks"])
+
+            # Next stage entry: billing approval should be a new pending row.
+            billing_pending_log = (
+                OrdersLog.objects
+                .filter(order=order, action=status_obj, performed_by__isnull=True)
+                .order_by("-created_at")
+                .first()
+            )
+            if not billing_pending_log:
+                log_order_action(
+                    order=order,
+                    action_name=status_obj.name,
+                    user=None,
+                    remarks=""
+                )
+
+            return Response({
+                "message": "Order status updated successfully",
+                "order_id": order.id,
+                "status": status_obj.name
+            })
+
+        # If a placeholder row exists for this status (created earlier with no performer),
+        # update it instead of inserting a duplicate row.
+        pending_log = (
+            OrdersLog.objects
+            .filter(order=order, action=status_obj, performed_by__isnull=True)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if pending_log:
+            pending_log.performed_by = user
+            if reason:
+                pending_log.remarks = reason
+            pending_log.save(update_fields=["performed_by", "remarks"])
+        else:
+            # ✅ LOG using status name from DB
+            log_order_action(
+                order=order,
+                action_name=status_obj.name,
+                user=user,
+                remarks=reason
+            )
 
         return Response({
             "message": "Order status updated successfully",
@@ -709,7 +778,8 @@ class OrderListView(APIView):
         status_filter = request.query_params.get('status', None) #optional 
         user_id = request.query_params.get('user_id', None) #optional parameter
         
-        orders = Order.objects.all().order_by('-created_at')
+        # orders = Order.objects.all().order_by('-created_at')
+        orders = Order.objects.filter(sap_created=False).order_by('-created_at')
         
         # Filter by user_id
         if user_id:

@@ -36,7 +36,7 @@ export const orderService = {
     return await api.get(`/orders/addresses/?card_code=${cardCode}`);
   },
   
-
+  
   createOrder: async (payload: CreateOrderPayload) => {
     const token = await storage.getAccessToken();
     return await api.post('/orders/create/', payload, token || undefined);
@@ -268,6 +268,5 @@ export const productService = {
   sapApproveOrder:async(order:ApproveOr):Promise<any>=>{
     return await api.post(`/sap/approve-order/`, order);
   },
-
     
 };

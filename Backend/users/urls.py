@@ -1,9 +1,6 @@
 from django.urls import path
 from .views import LoginView,PartyUsersView,AssignPartiesView, ProfileView,StateListView,UserPartiesView,UpdateProductRateView,RemoveProductFromPartyView,RemovePartyAssignmentView,PartyProductsView,AssignProductToPartyView,BulkAssignProductsToPartyView,UserListForAssignmentView,CompanyListView,MainGroupListView,CreateUserView,RoleListView
-# from rest_framework_simplejwt.views import (
-#     TokenObtainPairView,
-#     TokenRefreshView,
-# )
+from django.views.decorators.csrf import csrf_exempt
 
 
 urlpatterns = [
@@ -19,6 +16,7 @@ urlpatterns = [
     path('roles/', RoleListView.as_view(), name='roles-list'),
     path('users/list/', UserListForAssignmentView.as_view(), name='users-list'),
 
+    # User-Party assignment
     path('users/<int:user_id>/parties/', UserPartiesView.as_view(), name='user-parties'),
     path('parties/<str:card_code>/users/', PartyUsersView.as_view(), name='party-users'),
     path('assign-parties/', AssignPartiesView.as_view(), name='assign-parties'),

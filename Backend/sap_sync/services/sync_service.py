@@ -1,4 +1,5 @@
 import logging
+import urllib3
 from django.utils import timezone
 from ..models import Product, Party, PartyAddress, Branch, SyncLog
 from .connection import SAPConnection
@@ -12,6 +13,15 @@ class SyncService:
     def __init__(self, triggered_by='manual'):
         self.triggered_by = triggered_by
         self.connection = SAPConnection()
+
+    def _post_with_ssl_fallback(self, url, payload):
+        try:
+            return self.sap_session.post(url, json=payload, verify=self.sap_verify)
+        except requests.exceptions.SSLError:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            self.sap_verify = False
+            self.sap_session.verify = False
+            return self.sap_session.post(url, json=payload, verify=False)
     
     def sync_all(self):
         log = SyncLog.objects.create(
@@ -388,7 +398,16 @@ class SyncService:
         }
 
         self.sap_session = requests.Session()
-        response = self.sap_session.post(login_url, json=payload, verify=False)
+        self.sap_verify = (
+            settings.HANA_SSL_CA_BUNDLE
+            if getattr(settings, "HANA_SSL_CA_BUNDLE", "")
+            else getattr(settings, "HANA_SSL_VERIFY", True)
+        )
+        if self.sap_verify is False:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        self.sap_session.verify = self.sap_verify
+        
+        response = self._post_with_ssl_fallback(login_url, payload)
 
         if response.status_code != 200:
             raise Exception(f"SAP Login Failed: {response.text}")
@@ -458,14 +477,16 @@ class SyncService:
      
             url = f"{settings.HANA_SERVICE_LAYER_URL}/Quotations"
 
-            response = self.sap_session.post(
-                url,
-                json=quotation_payload,
-                verify=False
-            )
+            response = self._post_with_ssl_fallback(url, quotation_payload)
 
             if response.status_code == 201:
                 response_data = response.json()
+
+                # order.status = 6
+                order.save(update_fields=['status'])  # Mark order as synced with SAP
+                
+                order.sap_created = True
+                order.save(update_fields=['sap_created'])
 
                 log.status = 'SUCCESS'
                 log.response_data = response_data

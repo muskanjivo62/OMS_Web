@@ -56,19 +56,17 @@ export const api = {
 
 post: async (endpoint: string, body: object, token?: string): Promise<any> => {
 
-  // if (!token) {
-  //   try {
-  //     token = (await storage.getAccessToken()) || undefined;
-  //   } catch (error) {
-  //     console.log('Error retrieving token:', error);
-  //   }
-  // }
+  if (!token) {
+    try {
+      token = (await storage.getAccessToken()) || undefined;
+    } catch (error) {
+      console.log('Error retrieving token:', error);
+    }
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  console.log("", await storage.getAccessToken());
-
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }

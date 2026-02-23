@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-#im8s6vmxe)=%xl8$ybjl*fu9(+2=5cf^8$=ok8%bx%0f&^t05
 DEBUG = True
 
 # ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
-
+# 103.89.45.75:13579
 ALLOWED_HOSTS = ['*']
 # Application definition
 
@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     # Third party
     'rest_framework',
     # 'rest_framework.authtoken',
-    # 'rest_framework.authtoken',
+    # 'rest_framework.authto
     'corsheaders',
     
     # Local apps
@@ -104,6 +104,9 @@ HANA_SERVICE_LAYER_URL = HANA_SERVICE_LAYER_URL = config('HANA_SERVICE_LAYER_URL
 HANA_USERNAME = config('HANA_USERNAME')
 HANA_PASSWORD = config('HANA_PASSWORD')
 HANA_COMPANY_DB = config('HANA_COMPANY_DB')
+# In DEBUG, default to False for local/self-signed SAP endpoints unless explicitly set.
+HANA_SSL_VERIFY = config('HANA_SSL_VERIFY', default=not DEBUG, cast=bool)
+HANA_SSL_CA_BUNDLE = config('HANA_SSL_CA_BUNDLE', default='')
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

@@ -1,7 +1,6 @@
 import pymssql
 from django.conf import settings
 import logging
-import pyodbc
 
 logger = logging.getLogger(__name__)
 

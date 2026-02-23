@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, RADIUS } from "@/src/constants/theme";
 import { APP_CONFIG } from "@/src/constants/config";
 import { useAuth } from "@/src/context/AuthContext";
+import CustomDialog from "@/src/components/common/CustomDialog";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -23,6 +24,10 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({ username: "", password: "" });
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogMsg, setDialogMsg] = useState("");
+  const [dialogMessage, setDialogMessage] = useState("");
+  const [dialogTitle, setDialogTitle] = useState("Alert");
 
   const validate = (): boolean => {
     const newErrors = { username: "", password: "" };
@@ -54,10 +59,16 @@ export default function LoginScreen() {
       if (result.success) {
         router.replace("/(main)/dashboard" as any);
       } else {
-        Alert.alert(result.message, "Please try again.");
+        setDialogTitle("Login Failed");
+        setDialogMessage(result.message || "Please try again.");
+        setDialogVisible(true);
+        // Alert.alert(result.message, "Please try again.");
       }
     } catch (error) {
-      Alert.alert("Error", "Something went wrong. Please try again.");
+      setDialogTitle("Error");
+      setDialogMessage("Something went wrong. Please try again.");
+      setDialogVisible(true);
+      //Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -200,9 +211,9 @@ export default function LoginScreen() {
                 style={styles.button}
                 contentStyle={styles.buttonContent}
                 labelStyle={styles.buttonLabel}
-                buttonColor="transparent"
-              >
+                buttonColor="transparent">
                 {loading ? "Signing in..." : "Sign In"}
+                  
               </Button>
             </LinearGradient>
           </View>
@@ -213,6 +224,13 @@ export default function LoginScreen() {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <CustomDialog
+        visible={dialogVisible}
+        title={dialogTitle}
+        message={dialogMessage}
+        onClose={() => setDialogVisible(false)}
+      />
     </View>
   );
 }

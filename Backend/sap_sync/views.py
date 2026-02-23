@@ -83,7 +83,7 @@ class SyncPartiesView(APIView):
 
 class SyncPartyAddressesView(APIView):
     """Trigger manual sync of party addresses only"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     def post(self, request):
         try:
@@ -106,35 +106,28 @@ class SyncPartyAddressesView(APIView):
 # ============ Products ============
 
 class ProductListView(ListAPIView):
-    """List all products with optional search/filter"""
     permission_classes = [AllowAny]
     serializer_class = ProductSerializer
-    
+
     def get_queryset(self):
-        queryset = Product.objects.all()
-        
-        # Search by item_code or item_name
+        # ✅ Only OIL category
+        queryset = Product.objects.filter(category__iexact='OIL')
+
         search = self.request.query_params.get('search', None)
         if search:
             queryset = queryset.filter(
-                Q(item_code__icontains=search) | Q(item_name__icontains=search)
+                Q(item_code__icontains=search) |
+                Q(item_name__icontains=search)
             )
-        
-        # Filter by category
-        category = self.request.query_params.get('category', None)
-        if category:
-            queryset = queryset.filter(category=category)
-        
-        # Filter by brand
+
         brand = self.request.query_params.get('brand', None)
         if brand:
             queryset = queryset.filter(brand__icontains=brand)
-        
-        # Exclude deleted
+
         exclude_deleted = self.request.query_params.get('exclude_deleted', 'true')
         if exclude_deleted.lower() == 'true':
             queryset = queryset.exclude(is_deleted='Y')
-        
+
         return queryset
 
 
@@ -157,37 +150,33 @@ class ProductByCodeView(RetrieveAPIView):
 # ============ Parties ============
 
 class PartyListView(ListAPIView):
-    """List all parties with optional search/filter"""
     permission_classes = [AllowAny]
     serializer_class = PartyListSerializer
-    
+
     def get_queryset(self):
-        queryset = Party.objects.all()
-        
-        # Search by card_code or card_name
+        # ✅ Only OIL category
+        queryset = Party.objects.filter(category__iexact='OIL')
+
         search = self.request.query_params.get('search', None)
         if search:
             queryset = queryset.filter(
-                Q(card_code__icontains=search) | Q(card_name__icontains=search)
+                Q(card_code__icontains=search) |
+                Q(card_name__icontains=search)
             )
-        
-        # Filter by state
+
         state = self.request.query_params.get('state', None)
         if state:
             queryset = queryset.filter(state__icontains=state)
-        
-        # Filter by main_group
+
         main_group = self.request.query_params.get('main_group', None)
         if main_group:
             queryset = queryset.filter(main_group__icontains=main_group)
-        
-        # Filter by card_type
+
         card_type = self.request.query_params.get('card_type', None)
         if card_type:
             queryset = queryset.filter(card_type=card_type)
-        
-        return queryset
 
+        return queryset
 
 class PartyDetailView(RetrieveAPIView):
     """Get single party with addresses"""

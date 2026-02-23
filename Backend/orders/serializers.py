@@ -42,8 +42,8 @@ class BranchSerializer(serializers.ModelSerializer):
         fields = ['bpl_id', 'bpl_name', 'category']
 
 class OrderStatusUpdateSerializer(serializers.Serializer):
-    status = serializers.CharField()
-    rejection_reason = serializers.CharField(required=False, allow_blank=True)       
+    status = serializers.IntegerField()
+    reason = serializers.CharField(required=False, allow_blank=True)
 
 class OrderListByUserIdSerializer(serializers.ModelSerializer):
     status_name = serializers.CharField(source="status.name")

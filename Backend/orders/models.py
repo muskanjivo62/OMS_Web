@@ -107,6 +107,7 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     delivery_date = models.CharField(max_length=255)
+    sap_created = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'orders'
@@ -159,7 +160,7 @@ class OrderStatus(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     # display_name = models.CharField(max_length=100)
     # is_active = models.BooleanField(default=True)
-
+    
     class Meta:
         managed = False  # Django won't create/alter the table
         db_table = 'order_statuses'
@@ -182,9 +183,10 @@ class Branches(models.Model):
 # Helper function
 def log_order_action(order, action_name, user=None, remarks=''):
     action = OrderStatus.objects.get(name=action_name)
+    performed_by_id = getattr(user, 'id', user) if user else None
     return OrdersLog.objects.create(
         order=order,
         action=action,
-        performed_by=user if user and user.is_authenticated else None,
+        performed_by_id=performed_by_id,
         remarks=remarks
     )   

@@ -18,7 +18,7 @@ from .views import (
     # Status
     SyncStatusView,
     PushSalesQuotationView,
-    TestSalesQuotation,ApproveOrderAPIView
+    TestSalesQuotation,ApproveOrderAPIView,PushSalesQuotationView
 )
  
 urlpatterns = [
@@ -61,6 +61,8 @@ urlpatterns = [
     path('test-quotation/', TestSalesQuotation.as_view()),
 
     path('test-quotation/<int:pk>/', TestSalesQuotation.as_view()),
-    path("approve-order/", ApproveOrderAPIView.as_view()),
+    path("approve-order/", PushSalesQuotationView.as_view()),
+
+    
     
 ]

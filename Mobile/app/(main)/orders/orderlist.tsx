@@ -109,15 +109,35 @@ export default function BillingOrderList() {
 
             const res = await productService.sapApproveOrder(payload);
             console.log("Approval response:", JSON.stringify(res));
+            console.log("Approval response:", JSON.stringify(res));
+
             if (res.status !== "success") {
-              throw new Error("Approval failed");
+              let errorMessage = "Approval failed";
+
+              try {
+                // res.error is a JSON string
+                const parsed = JSON.parse(res.error);
+
+                errorMessage = parsed?.error?.message || "Approval failed";
+              } catch (e) {
+                // fallback if parsing fails
+                errorMessage = "Approval failed";
+              }
+
+              throw new Error(errorMessage);
             } else {
               Alert.alert("Success", "Order approved");
             }
+
             loadOrders();
           } catch (err) {
             console.log(err);
-            Alert.alert("Error", "Approval failed");
+
+            if (err instanceof Error) {
+              Alert.alert("Error", err.message);
+            } else {
+              Alert.alert("Error", "Approval failed");
+            }
           } finally {
             setActionLoading(null);
           }
@@ -157,15 +177,16 @@ export default function BillingOrderList() {
       onPress={() =>
         router.push({
           pathname: "/orders/orderdetails",
-          params: { orderId: item.id }, })}        
+          params: { orderId: item.id },
+        })
+      }
       style={styles.orderCard}
     >
-
-    <View style={styles.orderCard}>
-      {/* Header */}
-      <View style={styles.orderHeader}>
-        <Text style={styles.orderNumber}>{item.order_number}</Text>
-        {/* <View
+      <View style={styles.orderCard}>
+        {/* Header */}
+        <View style={styles.orderHeader}>
+          <Text style={styles.orderNumber}>{item.order_number}</Text>
+          {/* <View
           style={[
             styles.statusBadge,
             {
@@ -175,107 +196,107 @@ export default function BillingOrderList() {
           ]}>
           <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
         </View> */}
-      </View>
-
-      {/* Party Info */}
-      <Text style={styles.cardName}>{item.card_name}</Text>
-      <Text style={styles.cardCode}>{item.card_code}</Text>
-
-      {/* Details Row */}
-      <View style={styles.detailsRow}>
-        <View style={styles.detailItem}>
-          <Ionicons name="cube-outline" size={16} color={COLORS.textLight} />
-          <Text style={styles.detailText}>{item.items_count} items</Text>
         </View>
-        <View style={styles.detailItem}>
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={COLORS.textLight}
-          />
-          <Text style={styles.detailText}>{item.created_at}</Text>
-        </View>
-      </View>
 
-      {/* Amount */}
-      <View style={styles.amountRow}>
-        <Text style={styles.amountLabel}>Total Amount</Text>
-        <Text style={styles.amountValue}>₹{item.total_amount}</Text>
-      </View>
+        {/* Party Info */}
+        <Text style={styles.cardName}>{item.card_name}</Text>
+        <Text style={styles.cardCode}>{item.card_code}</Text>
 
-      {/* Action Buttons - Only for Pending */}
-      {activeTab === "3" && (
-        <>
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.rejectBtn]}
-              onPress={() => openRejectModal(item.id)}
-              disabled={actionLoading === item.id}
-            >
-              {actionLoading === item.id ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="close-outline" size={18} color="#fff" />
-                  <Text style={styles.actionBtnText}>Reject</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.approveBtn]}
-              onPress={() => handleApprove(item)}
-              disabled={actionLoading === item.id}
-            >
-              {actionLoading === item.id ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-outline" size={18} color="#fff" />
-                  <Text style={styles.actionBtnText}>Accept</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.moreBtn]}
-              onPress={() =>
-                setActionMenuVisible(
-                  actionMenuVisible === item.id ? null : item.id,
-                )
-              }
-            >
-              <Ionicons name="ellipsis-vertical" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>More</Text>
-            </TouchableOpacity>
+        {/* Details Row */}
+        <View style={styles.detailsRow}>
+          <View style={styles.detailItem}>
+            <Ionicons name="cube-outline" size={16} color={COLORS.textLight} />
+            <Text style={styles.detailText}>{item.items_count} items</Text>
           </View>
-          <View>
-            {/* Dropdown should be here */}
-            {actionMenuVisible === item.id && (
-              <View style={styles.dropdownMenu}>
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setActionMenuVisible(null);
-                    setPendingActionType("NEED_APPROVAL");
-                    openPendingModal(item.id);
-                  }}
-                >
-                  <Text style={styles.dropdownText}>Need Approval</Text>
-                </TouchableOpacity>
+          <View style={styles.detailItem}>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={COLORS.textLight}
+            />
+            <Text style={styles.detailText}>{item.created_at}</Text>
+          </View>
+        </View>
 
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setActionMenuVisible(null);
-                    setPendingActionType("BILLING_PENDING");
-                    openPendingModal(item.id);
-                  }}
-                >
-                  <Text style={styles.dropdownText}>Billing Pending</Text>
-                </TouchableOpacity>
+        {/* Amount */}
+        <View style={styles.amountRow}>
+          <Text style={styles.amountLabel}>Total Amount</Text>
+          <Text style={styles.amountValue}>₹{item.total_amount}</Text>
+        </View>
 
-                {/* <TouchableOpacity
+        {/* Action Buttons - Only for Pending */}
+        {activeTab === "3" && (
+          <>
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.rejectBtn]}
+                onPress={() => openRejectModal(item.id)}
+                disabled={actionLoading === item.id}
+              >
+                {actionLoading === item.id ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="close-outline" size={18} color="#fff" />
+                    <Text style={styles.actionBtnText}>Reject</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.approveBtn]}
+                onPress={() => handleApprove(item)}
+                disabled={actionLoading === item.id}
+              >
+                {actionLoading === item.id ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-outline" size={18} color="#fff" />
+                    <Text style={styles.actionBtnText}>Accept</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.moreBtn]}
+                onPress={() =>
+                  setActionMenuVisible(
+                    actionMenuVisible === item.id ? null : item.id,
+                  )
+                }
+              >
+                <Ionicons name="ellipsis-vertical" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>More</Text>
+              </TouchableOpacity>
+            </View>
+            <View>
+              {/* Dropdown should be here */}
+              {actionMenuVisible === item.id && (
+                <View style={styles.dropdownMenu}>
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setActionMenuVisible(null);
+                      setPendingActionType("NEED_APPROVAL");
+                      openPendingModal(item.id);
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>Need Approval</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setActionMenuVisible(null);
+                      setPendingActionType("BILLING_PENDING");
+                      openPendingModal(item.id);
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>Billing Pending</Text>
+                  </TouchableOpacity>
+
+                  {/* <TouchableOpacity
                   style={styles.dropdownItem}
                   onPress={() => {
                     setActionMenuVisible(null);
@@ -284,14 +305,12 @@ export default function BillingOrderList() {
                 >
                   <Text style={styles.dropdownText}>Pending</Text>
                 </TouchableOpacity> */}
-              </View>
-            )}
-          </View>
-        </>
-      )}
-   
-    </View>
-
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </View>
     </TouchableOpacity>
   );
 

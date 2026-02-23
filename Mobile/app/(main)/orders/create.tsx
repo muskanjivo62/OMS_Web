@@ -275,9 +275,7 @@ export default function CreateOrderScreen() {
       const mapAddr = (addr: PartyAddress) => ({
         label:
           (addr.address_id || "") +
-          (addr.address_name
-            ? ` - ${addr.address_name.substring(0, 30)}...`
-            : ""),
+          (addr.address_name ? `${addr.address_name}` : ""),
         value: addr.id,
         category: (addr as any).category,
       });
@@ -587,6 +585,8 @@ export default function CreateOrderScreen() {
           basic_price: Number(item.basicPrice),
         })),
       };
+
+      console.log("jsonfororder" + JSON.stringify(payload));
 
       const response = await orderService.createOrder(payload);
 

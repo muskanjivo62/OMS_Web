@@ -67,7 +67,9 @@ export default function OrderDetailsScreen() {
     <ScrollView style={styles.container}>
       {/* ===== Header ===== */}
       <LinearGradient
-        colors={[COLORS.primary, "#2a1eabff"]}
+        colors={[COLORS.primaryDark, COLORS.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.header}
       >
         <Text style={styles.orderNo}>{order.order_number}</Text>
@@ -124,7 +126,9 @@ export default function OrderDetailsScreen() {
 
       {/* ===== Total ===== */}
       <LinearGradient
-        colors={[COLORS.primary, "#2a1eabff"]}
+        colors={[COLORS.primaryDark, COLORS.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.totalCard}
       >
         <Text style={styles.totalLabel}>Total Amount</Text>

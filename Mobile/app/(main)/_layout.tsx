@@ -1,7 +1,8 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Drawer } from "expo-router/drawer";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
+import { TouchableOpacity } from "react-native";
 import CustomDrawer from "@/src/components/common/CustomDrawer";
 import { useAuth } from "@/src/context/AuthContext";
 import { COLORS, RADIUS } from "@/src/constants/theme";
@@ -20,6 +21,7 @@ export default function MainLayout() {
     "sap/party-product-assignment": ["admin"],
     "approver/pending_approval": ["approver"],
     "orders/ordertracking": ["manager"],
+    "orders/auditorapproval": ["auditor"],
   };
 
   const visibleStyle = {
@@ -39,11 +41,36 @@ export default function MainLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
         drawerContent={(props) => <CustomDrawer {...props} />}
-        screenOptions={
-          {
-            /* ...your existing screenOptions */
-          }
-        }
+        screenOptions={({ navigation, route }) => {
+          const isDashboard = route.name === "dashboard";
+
+          return {
+            headerShown: true,
+            swipeEnabled: isDashboard,
+            unmountOnBlur: !isDashboard,
+            headerLeft: () => (
+              <TouchableOpacity
+                onPress={() => {
+                  if (isDashboard) {
+                    navigation.toggleDrawer();
+                  } else {
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: "dashboard" as never }],
+                    });
+                  }
+                }}
+                style={{ marginLeft: 12 }}
+              >
+                <Ionicons
+                  name={isDashboard ? "menu-outline" : "arrow-back-outline"}
+                  size={24}
+                  color={COLORS.text}
+                />
+              </TouchableOpacity>
+            ),
+          };
+        }}
       >
         <Drawer.Screen
           name="dashboard"
@@ -158,6 +185,13 @@ export default function MainLayout() {
         />
 
         <Drawer.Screen
+          name="orders/orderprogress"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
+
+        <Drawer.Screen
           name="orders/ordertracking"
           options={{
             drawerLabel: "Order Tracking",
@@ -180,6 +214,20 @@ export default function MainLayout() {
               <Ionicons name="checkmark-done-outline" size={22} color={color} />
             ),
             drawerItemStyle: isVisible("approver/pending_approval")
+              ? visibleStyle
+              : hiddenStyle,
+          }}
+        />
+
+        <Drawer.Screen
+          name="orders/auditorapproval"
+          options={{
+            drawerLabel: "Pending Approvals",
+            title: "Pending Approvals",
+            drawerIcon: ({ color }) => (
+              <Ionicons name="checkmark-done-outline" size={22} color={color} />
+            ),
+            drawerItemStyle: isVisible("orders/auditorapproval")
               ? visibleStyle
               : hiddenStyle,
           }}

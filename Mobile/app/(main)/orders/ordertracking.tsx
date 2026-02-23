@@ -36,7 +36,7 @@ export default function OrderTrackingScreen() {
     try {
       setLoading(true);
       const data = await orderService.getOrderbyuserid();
-      
+
       console.log("datavalue" + JSON.stringify(data));
       setOrders(data);
     } catch (error) {
@@ -112,12 +112,12 @@ export default function OrderTrackingScreen() {
 
         <TouchableOpacity
           style={[styles.actionBtn, styles.progressBtn]}
-          // onPress={() => {
-          //   router.push({
-          //     pathname: "/orders/orderprogress",
-          //     params: { orderId: item.id },
-          //   });
-          // }}
+          onPress={() => {
+            router.push({
+              pathname: "/orders/orderprogress",
+              params: { orderId: item.id },
+            });
+          }}
         >
           <Ionicons name="git-branch-outline" size={18} color="#fff" />
           <Text style={styles.actionBtnText}>View Progress</Text>

@@ -364,8 +364,11 @@ export default function SapSyncScreen() {
   };
 
   const renderTabs = () => (
-    // <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollContainer}>
-    <View style={styles.tabContainer}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.tabContainer}
+    >
       {(
         [
           "status",
@@ -392,8 +395,7 @@ export default function SapSyncScreen() {
           </Text>
         </TouchableOpacity>
       ))}
-    </View>
-    // </ScrollView>
+    </ScrollView>
   );
 
   const renderStatus = () => (
@@ -1050,15 +1052,14 @@ export default function SapSyncScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>SAP Data Sync</Text>
       </View>
-
-      {renderTabs()}
+      <View style={styles.tabsWrapper}>{renderTabs()}</View>
 
       {loading && (activeTab === "status" || page === 1) ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3b82f6" />
         </View>
       ) : (
-        <>
+        <View style={{ flex: 1 }}>
           {activeTab === "status" && renderStatus()}
           {activeTab === "products" && renderProducts()}
           {activeTab === "parties" && renderParties()}
@@ -1066,8 +1067,15 @@ export default function SapSyncScreen() {
           {activeTab === "branches" && renderBranches()}
           {activeTab === "schedules" && renderSchedules()}
           {activeTab === "logs" && renderLogs()}
-        </>
+        </View>
       )}
+
+      {/* <CustomDialog
+        visible={dialogVisible}
+        title={dialogTitle}
+        message={dialogMessage}
+        onClose={() => setDialogVisible(false)}
+      /> */}
     </View>
   );
 }
@@ -1509,5 +1517,10 @@ const styles = StyleSheet.create({
   createButtonText: {
     color: "#fff",
     fontWeight: "bold",
+  },
+  tabsWrapper: {
+    height: 44,
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
 });
