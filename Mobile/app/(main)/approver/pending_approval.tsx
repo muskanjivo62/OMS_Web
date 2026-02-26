@@ -52,7 +52,7 @@ export default function PendingApprovalScreen() {
     try {
       setLoading(true);
       const data = await productService.getOrders(0, activeTab);
-
+        
       // console.log()
       setOrders(data);
     } catch (error) {

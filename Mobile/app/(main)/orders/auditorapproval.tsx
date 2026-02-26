@@ -289,7 +289,7 @@ export default function auditorapproval() {
       </Text>
     </View>
   );
-  
+
   return (
     <View style={styles.container}>
       {/* Orders Count */}
@@ -423,7 +423,6 @@ export default function auditorapproval() {
       </Modal>
     </View>
   );
-
 }
 
 const styles = StyleSheet.create({
