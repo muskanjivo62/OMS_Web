@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 class Parties(models.Model):
     card_code = models.CharField(max_length=100,primary_key=True)
@@ -52,6 +53,7 @@ class PartyAddress(models.Model):
     full_address = models.TextField(blank=True, null=True)
     address_name = models.TextField(blank=True,null=True)
     synced_at = models.DateTimeField()
+    category = models.CharField(max_length=50, blank=True, null=True)
     # created_at = models.DateTimeField()
     # party_id = models.BigIntegerField(blank=True, null=True)
 
@@ -108,7 +110,8 @@ class Order(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     delivery_date = models.CharField(max_length=255)
     sap_created = models.BooleanField(default=False)
-
+    remarks = models.TextField(blank=True, null=True)
+    
     class Meta:
         db_table = 'orders'
 
@@ -179,6 +182,50 @@ class Branches(models.Model):
 
     def __str__(self):
         return self.bpl_name
+
+# 1. Define SapProduct FIRST
+class SapProduct(models.Model):
+    item_code = models.CharField(max_length=50, primary_key=True)
+    item_name = models.CharField(max_length=255)
+    sal_factor2 = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True)
+    sal_pack_unit = models.CharField(max_length=50, null=True)
+    brand = models.CharField(max_length=100, null=True)
+    variety = models.CharField(max_length=100, null=True)
+    
+    class Meta:
+        db_table = 'sap_products'
+        managed = False  # Tells Django: "Don't try to create this table, it's already there"
+
+# 2. Define PartyProductAssignment SECOND
+class PartyProductAssignment(models.Model):
+    card_code = models.CharField(max_length=50)
+    
+    # We point directly to the class we defined above
+    item_code = models.ForeignKey(
+        SapProduct, 
+        on_delete=models.PROTECT, 
+        db_column='item_code',
+        related_name='assignments'
+    )
+    
+    category = models.CharField(max_length=100, blank=True, null=True)
+    basic_rate = models.DecimalField(max_digits=12, decimal_places=2)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    # Fix for E301: use settings.AUTH_USER_MODEL
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        db_column='assigned_by_id'
+    )
+
+    class Meta:
+        db_table = 'party_product_assignments'
+        managed = False
 
 # Helper function
 def log_order_action(order, action_name, user=None, remarks=''):

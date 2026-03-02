@@ -30,6 +30,7 @@ export default function MainLayout() {
     marginVertical: 2,
     paddingLeft: 8,
   };
+
   const hiddenStyle = { display: "none" as const };
 
   const isVisible = (screen: string) => {
@@ -43,7 +44,6 @@ export default function MainLayout() {
         drawerContent={(props) => <CustomDrawer {...props} />}
         screenOptions={({ navigation, route }) => {
           const isDashboard = route.name === "dashboard";
-
           return {
             headerShown: true,
             swipeEnabled: isDashboard,
@@ -54,14 +54,22 @@ export default function MainLayout() {
                   if (isDashboard) {
                     navigation.toggleDrawer();
                   } else {
-                    navigation.reset({
-                      index: 0,
-                      routes: [{ name: "dashboard" as never }],
-                    });
+                    const fromRoute = (route.params as any)?.from;
+                    if (fromRoute && typeof fromRoute === "string") {
+                      navigation.navigate(fromRoute as never);
+                      return;
+                    }
+                    if (navigation.canGoBack()) {
+                      navigation.goBack();
+                    } else {
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: "dashboard" as never }],
+                      });
+                    }
                   }
                 }}
-                style={{ marginLeft: 12 }}
-              >
+                style={{ marginLeft: 12 }}>
                 <Ionicons
                   name={isDashboard ? "menu-outline" : "arrow-back-outline"}
                   size={24}
@@ -70,8 +78,7 @@ export default function MainLayout() {
               </TouchableOpacity>
             ),
           };
-        }}
-      >
+        }}>
         <Drawer.Screen
           name="dashboard"
           options={{
@@ -85,7 +92,6 @@ export default function MainLayout() {
               : hiddenStyle,
           }}
         />
-
         <Drawer.Screen
           name="orders/create"
           options={{
@@ -99,7 +105,8 @@ export default function MainLayout() {
               : hiddenStyle,
           }}
         />
-
+{/* {"error":"HTTPSConnectionPool(host='103.89.45.192', port=50000): Max retries exceeded with url: /b1s/v2/Login (Caused by ConnectTimeoutError(<HTTPSConnection(host='103.89.45.192', port=50000) at 0x1082f38c0>, 'Connection to 103.89.45.192 timed out. (connect timeout=None)'))"} */}
+        
         <Drawer.Screen
           name="orders/orderlist"
           options={{
@@ -155,7 +162,7 @@ export default function MainLayout() {
               : hiddenStyle,
           }}
         />
-
+          
         <Drawer.Screen
           name="sap/party-product-assignment"
           options={{
@@ -180,6 +187,7 @@ export default function MainLayout() {
         <Drawer.Screen
           name="orders/orderdetails"
           options={{
+            title: "Order Details",
             drawerItemStyle: { display: "none" },
           }}
         />
@@ -187,6 +195,7 @@ export default function MainLayout() {
         <Drawer.Screen
           name="orders/orderprogress"
           options={{
+            title: "Order Progress",
             drawerItemStyle: { display: "none" },
           }}
         />

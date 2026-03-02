@@ -6,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import LoginSerializer, UserSerializer,StateSerializer, CompanySerializer,MainGroupSerializer,CreateUserSerializer
 from rest_framework.generics import ListAPIView
 from .models import State, Company, MainGroup,UserRole,User, UserPartyAssignment,PartyProductAssignment
+from sap_sync.models import Party, Product
 
 class PartyUsersView(APIView):
     permission_classes = [AllowAny]
@@ -146,7 +147,6 @@ class PartyProductsView(APIView):
             }
         })
 
-
 class AssignProductToPartyView(APIView):
     """
     Add single product to party with basic_rate
@@ -192,7 +192,6 @@ class AssignProductToPartyView(APIView):
                 'basic_rate': float(obj.basic_rate)
             }
         })
-
 
 class BulkAssignProductsToPartyView(APIView):
     """
@@ -255,7 +254,6 @@ class BulkAssignProductsToPartyView(APIView):
             'data': {'added': added, 'updated': updated, 'errors': errors}
         })
 
-
 class UpdateProductRateView(APIView):
     """Update basic_rate for a party-product"""
     permission_classes = [IsAuthenticated]
@@ -287,7 +285,6 @@ class UpdateProductRateView(APIView):
         except PartyProductAssignment.DoesNotExist:
             return Response({'success': False, 'message': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
 class RemoveProductFromPartyView(APIView):
     """Remove a product from party"""
     permission_classes = [IsAuthenticated]
@@ -312,7 +309,6 @@ class RemoveProductFromPartyView(APIView):
             return Response({'success': True, 'message': 'Product removed from party'})
         except PartyProductAssignment.DoesNotExist:
             return Response({'success': False, 'message': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
-
 
 class RemovePartyAssignmentView(APIView):
     permission_classes = [AllowAny]

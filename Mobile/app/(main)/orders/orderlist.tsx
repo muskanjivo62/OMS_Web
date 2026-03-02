@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -15,16 +15,17 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   ApproveOr,
   OrderItemList,
-  orderService,
   productService,
 } from "@/src/services/order.service";
 import { COLORS } from "@/constants/theme";
 import { router } from "expo-router";
+import Dropdown from "@/src/components/common/DropdownProps";
 
-const STATUS_TABS = [
-  { key: "6", label: "Pending", color: "#FF9800" },
-  { key: "2", label: "Approved", color: "#4CAF50" },
-  { key: "4", label: "Rejected", color: "#F44336" },
+type OrderListTab = "pending" | "others";
+
+const OTHER_STATUS_OPTIONS = [
+  { label: "Approved", value: "2" },
+  { label: "Rejected", value: "4" },
 ];
 
 export default function BillingOrderList() {
@@ -35,8 +36,12 @@ export default function BillingOrderList() {
   const [orders, setOrders] = useState<OrderItemList[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("3");
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<OrderListTab>("pending");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("2");
+  const [actionLoading, setActionLoading] = useState<{
+    id: number;
+    type: "approve" | "reject";
+  } | null>(null);
   const [actionMenuVisible, setActionMenuVisible] = useState<number | null>(
     null,
   );
@@ -49,20 +54,11 @@ export default function BillingOrderList() {
   const [pendingModalVisible, setPendingModalVisible] = useState(false);
   const [pendingReason, setPendingReason] = useState("");
 
-  useEffect(() => {
-    loadOrders();
-  }, [activeTab]);
-
-  const openPendingModal = (orderId: number) => {
-    setSelectedOrderId(orderId);
-    setPendingReason("");
-    setPendingModalVisible(true);
-  };
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await productService.getOrders(0, activeTab);
+      const statusFilter = activeTab === "pending" ? "3" : selectedOtherStatus;
+      const data = await productService.getOrders(0, statusFilter);
 
       console.log("datavalue" + JSON.stringify(data));
       setOrders(data);
@@ -73,11 +69,46 @@ export default function BillingOrderList() {
       setLoading(false);
       setRefreshing(false);
     }
+  }, [activeTab, selectedOtherStatus]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  const openPendingModal = (orderId: number) => {
+    setSelectedOrderId(orderId);
+    setPendingReason("");
+    setPendingModalVisible(true);
   };
 
   const onRefresh = () => {
     setRefreshing(true);
     loadOrders();
+  };
+
+  const formatDate = (value?: string) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString("en-GB");
+  };
+
+  const getCategoryText = (item: OrderItemList) => {
+    const fromCategories = item.categories || [];
+    const categories =
+      fromCategories.length > 0
+        ? fromCategories
+        : Array.from(
+            new Set(
+              (item.items || [])
+                .map((it: any) => String(it?.category || "").trim())
+                .filter(Boolean),
+            ),
+          );
+
+    if (categories.length === 0) return "-";
+    if (categories.length <= 2) return categories.join(", ");
+    return `${categories.slice(0, 2).join(", ")} +${categories.length - 2}`;
   };
 
   const handleApprove = (order: OrderItemList) => {
@@ -88,7 +119,7 @@ export default function BillingOrderList() {
         text: "Approve",
         onPress: async () => {
           try {
-            setActionLoading(order.id);
+            setActionLoading({ id: order.id, type: "approve" });
 
             const payload: ApproveOr = {
               order_id: order.id,
@@ -119,7 +150,7 @@ export default function BillingOrderList() {
                 const parsed = JSON.parse(res.error);
 
                 errorMessage = parsed?.error?.message || "Approval failed";
-              } catch (e) {
+              } catch {
                 // fallback if parsing fails
                 errorMessage = "Approval failed";
               }
@@ -159,7 +190,7 @@ export default function BillingOrderList() {
     }
 
     try {
-      setActionLoading(selectedOrderId);
+      setActionLoading({ id: selectedOrderId!, type: "reject" });
       await productService.updatestatus(selectedOrderId!, "7", rejectReason);
       setRejectModalVisible(false);
       Alert.alert("Success", "Order rejected");
@@ -177,162 +208,191 @@ export default function BillingOrderList() {
       onPress={() =>
         router.push({
           pathname: "/orders/orderdetails",
-          params: { orderId: item.id },
+          params: { orderId: item.id, from: "orders/orderlist" },
         })
       }
       style={styles.orderCard}
+      activeOpacity={0.85}
     >
-      <View style={styles.orderCard}>
-        {/* Header */}
-        <View style={styles.orderHeader}>
+      <View style={styles.orderHeader}>
+        <View style={styles.orderNumberWrap}>
           <Text style={styles.orderNumber}>{item.order_number}</Text>
-          {/* <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                STATUS_TABS.find((t) => t.key === item.status)?.color || "#666",
-            },
-          ]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
-        </View> */}
+          <Text style={styles.createdText}>
+            Created: {formatDate(item.created_at)}
+          </Text>
         </View>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusText}>
+            {(item as any).status_display || item.status}
+          </Text>
+        </View>
+      </View>
 
-        {/* Party Info */}
-        <Text style={styles.cardName}>{item.card_name}</Text>
-        <Text style={styles.cardCode}>{item.card_code}</Text>
+      <Text style={styles.cardName}>{item.card_name}</Text>
+      <Text style={styles.cardCode}>{item.card_code}</Text>
 
-        {/* Details Row */}
-        <View style={styles.detailsRow}>
-          <View style={styles.detailItem}>
-            <Ionicons name="cube-outline" size={16} color={COLORS.textLight} />
-            <Text style={styles.detailText}>{item.items_count} items</Text>
+      <View style={styles.metaWrap}>
+        <View style={styles.metaChip}>
+          <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>
+            Delivery: {formatDate(item.delivery_date)}
+          </Text>
+        </View>
+        <View style={styles.metaChip}>
+          <Ionicons name="cube-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>{item.items_count || 0} items</Text>
+        </View>
+      </View>
+
+      <View style={styles.metaWrap}>
+        <View style={styles.metaChip}>
+          <Ionicons name="pricetags-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>Category: {getCategoryText(item)}</Text>
+        </View>
+        <View style={styles.metaChip}>
+          <Ionicons
+            name="document-text-outline"
+            size={14}
+            color={COLORS.primary}
+          />
+          <Text style={styles.metaText}>PO: {item.po_number || "-"}</Text>
+        </View>
+      </View>
+
+      <View style={styles.amountRow}>
+        <Text style={styles.amountLabel}>Total Amount</Text>
+        <Text style={styles.amountValue}>₹{item.total_amount}</Text>
+      </View>
+
+      {activeTab === "pending" && (
+        <>
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.rejectBtn]}
+              onPress={() => openRejectModal(item.id)}
+              disabled={actionLoading !== null}
+            >
+              {actionLoading?.id === item.id && actionLoading.type === "reject" ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="close-outline" size={18} color="#fff" />
+                  <Text style={styles.actionBtnText}>Reject</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.approveBtn]}
+              onPress={() => handleApprove(item)}
+              disabled={actionLoading !== null}
+            >
+              {actionLoading?.id === item.id && actionLoading.type === "approve" ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-outline" size={18} color="#fff" />
+                  <Text style={styles.actionBtnText}>Accept</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.moreBtn]}
+              onPress={() =>
+                setActionMenuVisible(actionMenuVisible === item.id ? null : item.id)
+              }
+            >
+              <Ionicons name="ellipsis-vertical" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>More</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.detailItem}>
-            <Ionicons
-              name="calendar-outline"
-              size={16}
-              color={COLORS.textLight}
-            />
-            <Text style={styles.detailText}>{item.created_at}</Text>
-          </View>
-        </View>
-
-        {/* Amount */}
-        <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>Total Amount</Text>
-          <Text style={styles.amountValue}>₹{item.total_amount}</Text>
-        </View>
-
-        {/* Action Buttons - Only for Pending */}
-        {activeTab === "3" && (
-          <>
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.rejectBtn]}
-                onPress={() => openRejectModal(item.id)}
-                disabled={actionLoading === item.id}
-              >
-                {actionLoading === item.id ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="close-outline" size={18} color="#fff" />
-                    <Text style={styles.actionBtnText}>Reject</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.approveBtn]}
-                onPress={() => handleApprove(item)}
-                disabled={actionLoading === item.id}
-              >
-                {actionLoading === item.id ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-outline" size={18} color="#fff" />
-                    <Text style={styles.actionBtnText}>Accept</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.moreBtn]}
-                onPress={() =>
-                  setActionMenuVisible(
-                    actionMenuVisible === item.id ? null : item.id,
-                  )
-                }
-              >
-                <Ionicons name="ellipsis-vertical" size={18} color="#fff" />
-                <Text style={styles.actionBtnText}>More</Text>
-              </TouchableOpacity>
-            </View>
-            <View>
-              {/* Dropdown should be here */}
-              {actionMenuVisible === item.id && (
-                <View style={styles.dropdownMenu}>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setActionMenuVisible(null);
-                      setPendingActionType("NEED_APPROVAL");
-                      openPendingModal(item.id);
-                    }}
-                  >
-                    <Text style={styles.dropdownText}>Need Approval</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setActionMenuVisible(null);
-                      setPendingActionType("BILLING_PENDING");
-                      openPendingModal(item.id);
-                    }}
-                  >
-                    <Text style={styles.dropdownText}>Billing Pending</Text>
-                  </TouchableOpacity>
-
-                  {/* <TouchableOpacity
+          <View>
+            {actionMenuVisible === item.id && (
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity
                   style={styles.dropdownItem}
                   onPress={() => {
                     setActionMenuVisible(null);
+                    setPendingActionType("NEED_APPROVAL");
                     openPendingModal(item.id);
                   }}
                 >
-                  <Text style={styles.dropdownText}>Pending</Text>
-                </TouchableOpacity> */}
-                </View>
-              )}
-            </View>
-          </>
-        )}
-      </View>
+                  <Text style={styles.dropdownText}>Need Approval</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setActionMenuVisible(null);
+                    setPendingActionType("BILLING_PENDING");
+                    openPendingModal(item.id);
+                  }}
+                >
+                  <Text style={styles.dropdownText}>Billing Pending</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </>
+      )}
     </TouchableOpacity>
   );
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons
-        name={
-          activeTab === "3"
-            ? "checkmark-done-circle-outline"
-            : "document-text-outline"
-        }
+        name={activeTab === "pending" ? "checkmark-done-circle-outline" : "filter-outline"}
         size={64}
         color={COLORS.textLight}
       />
       <Text style={styles.emptyText}>
-        {activeTab === "3" ? "No pending orders" : `No ${activeTab} orders`}
+        {activeTab === "pending"
+          ? "No pending orders"
+          : `No ${OTHER_STATUS_OPTIONS.find((s) => s.value === selectedOtherStatus)?.label || "orders"}`}
       </Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "pending" && styles.activePendingTab]}
+          onPress={() => setActiveTab("pending")}
+        >
+          <Text
+            style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}
+          >
+            Pending
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "others" && styles.activeOthersTab]}
+          onPress={() => setActiveTab("others")}
+        >
+          <Text
+            style={[styles.tabText, activeTab === "others" && styles.activeTabText]}
+          >
+            Others
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === "others" && (
+        <View style={styles.filterWrap}>
+          <Dropdown
+            label="Status"
+            data={OTHER_STATUS_OPTIONS}
+            value={selectedOtherStatus}
+            onChange={setSelectedOtherStatus}
+            placeholder="Select status"
+            searchable={false}
+          />
+        </View>
+      )}
+
       {/* Orders Count */}
       {!loading && orders.length > 0 && (
         <View style={styles.countBar}>
@@ -397,7 +457,7 @@ export default function BillingOrderList() {
                 onPress={() => handleReject()}
                 disabled={actionLoading !== null}
               >
-                {actionLoading !== null ? (
+                {actionLoading?.type === "reject" ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={styles.confirmRejectText}>Reject Order</Text>
@@ -450,7 +510,7 @@ export default function BillingOrderList() {
                 onPress={handleReject}
                 disabled={actionLoading !== null}
               >
-                {actionLoading !== null ? (
+                {actionLoading?.type === "reject" ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={{ color: "#fff", fontWeight: "600" }}>
@@ -484,13 +544,24 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     alignItems: "center",
   },
+  activePendingTab: {
+    backgroundColor: COLORS.warning,
+  },
+  activeOthersTab: {
+    backgroundColor: COLORS.primary,
+  },
   tabText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   activeTabText: {
     color: "#fff",
+  },
+  filterWrap: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
   countBar: {
     backgroundColor: COLORS.primary,
@@ -513,33 +584,45 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 2,
   },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 8,
+  },
+  orderNumberWrap: {
+    flex: 1,
+    paddingRight: 8,
   },
   orderNumber: {
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.text,
   },
+  createdText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
   },
   statusText: {
-    color: "#fff",
+    color: COLORS.primaryDark,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -550,27 +633,35 @@ const styles = StyleSheet.create({
   },
   cardCode: {
     fontSize: 12,
-    color: COLORS.textLight,
-    marginBottom: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
   },
-  detailsRow: {
+  metaWrap: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
   },
-  detailItem: {
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  detailText: {
+  metaText: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   amountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,

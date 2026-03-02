@@ -35,17 +35,16 @@ export const orderService = {
   getAddresses: async (cardCode: string): Promise<AddressResponse> => {
     return await api.get(`/orders/addresses/?card_code=${cardCode}`);
   },
-  
-  
+    
   createOrder: async (payload: CreateOrderPayload) => {
     const token = await storage.getAccessToken();
     return await api.post('/orders/create/', payload, token || undefined);
   },
-  
+
   getPartyProducts: async (cardCode: string) => {
     return await api.get(`/orders/party-products/${cardCode}`);
   },
-  
+
   getorderstatus: async (cardCode: string) => {
     return await api.get(`/orders/party-products/${cardCode}`);
   },
@@ -53,7 +52,7 @@ export const orderService = {
   getbranch: async (company: string) => {
     return await api.get(`/orders/branch/`);
   },
-  
+
   getOrderLogs: async(orderId:number):Promise<any>=>{
     return await api.get(`/orders/${orderId}/orderlogs/`);
   },
@@ -115,6 +114,7 @@ export interface CreateOrderPayload {
   company: string;
   po_number: string;
   delivery_date:string;
+  remarks:string;
   items: {
     item_code: string;
     item_name: string;
@@ -205,11 +205,15 @@ export interface OrderItemList{
   card_code :string;
   card_name:string;
   total_amount :string;
-  status:string;
+  status:string | number;
+  status_name?: string;
+  status_display?: string;
   items_count :number;
   created_by :number;
   created_at:string;
+  delivery_date?: string;
   po_number:string;
+  categories?: string[];
   bill_to_address:string;
   ship_to_address:string;
   dispatch_from_id:number;

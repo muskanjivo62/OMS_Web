@@ -7,30 +7,33 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Modal,
-  TextInput,
   RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  ApproveOr,
-  OrderItemList,
-  orderService,
-  productService,
-} from "@/src/services/order.service";
+import { OrderItemList, orderService } from "@/src/services/order.service";
 import { COLORS } from "@/constants/theme";
-import { router } from "@/.expo/types/router";
 import { useRouter } from "expo-router";
+import Dropdown from "@/src/components/common/DropdownProps";
+
+type TrackingTab = "pending" | "others";
 
 export default function OrderTrackingScreen() {
   const [orders, setOrders] = useState<OrderItemList[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TrackingTab>("pending");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string | null>(
+    null,
+  );
   const router = useRouter();
 
   useEffect(() => {
     loadOrders();
   }, []);
+
+  useEffect(() => {
+    setSelectedOtherStatus(null);
+  }, [activeTab]);
 
   const loadOrders = async () => {
     try {
@@ -53,6 +56,45 @@ export default function OrderTrackingScreen() {
     loadOrders();
   };
 
+  const getStatusName = (item: any) => String(item?.status_name || "").trim();
+
+  const isPendingOrder = (item: any) =>
+    getStatusName(item).toLowerCase().includes("pending");
+
+  const formatDate = (value?: string) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString("en-GB");
+  };
+
+  const getCategoryText = (item: OrderItemList) => {
+    const categories = item.categories || [];
+    if (categories.length === 0) return "-";
+    if (categories.length <= 2) return categories.join(", ");
+    return `${categories.slice(0, 2).join(", ")} +${categories.length - 2}`;
+  };
+
+  const otherStatusOptions = [
+    ...new Set(
+      orders
+        .filter((item: any) => !isPendingOrder(item))
+        .map((item: any) => getStatusName(item))
+        .filter(Boolean),
+    ),
+  ]
+    .sort()
+    .map((status) => ({ label: status, value: status }));
+
+  const filteredOrders = orders.filter((item: any) => {
+    if (activeTab === "pending") return isPendingOrder(item);
+
+    const statusName = getStatusName(item);
+    if (!statusName || isPendingOrder(item)) return false;
+    if (!selectedOtherStatus) return true;
+    return statusName === selectedOtherStatus;
+  });
+
   const renderOrder = ({ item }: { item: OrderItemList }) => (
     <TouchableOpacity
       style={styles.orderCard}
@@ -66,27 +108,42 @@ export default function OrderTrackingScreen() {
     >
       {/* Header */}
       <View style={styles.orderHeader}>
-        <Text style={styles.orderNumber}>{item.order_number}</Text>
+        <View style={styles.orderNumberWrap}>
+          <Text style={styles.orderNumber}>{item.order_number}</Text>
+          <Text style={styles.createdText}>
+            Created: {formatDate(item.created_at)}
+          </Text>
+        </View>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusText}>{(item as any).status_name}</Text>
+        </View>
       </View>
 
       {/* Party Info */}
       <Text style={styles.cardName}>{item.card_name}</Text>
       <Text style={styles.cardCode}>{item.card_code}</Text>
 
-      {/* Details Row */}
-      <View style={styles.detailsRow}>
-        <View style={styles.detailItem}>
-          <Ionicons name="cube-outline" size={16} color={COLORS.textLight} />
-          <Text style={styles.detailText}>{item.items_count} items</Text>
+      <View style={styles.metaWrap}>
+        <View style={styles.metaChip}>
+          <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>
+            Delivery: {formatDate(item.delivery_date)}
+          </Text>
         </View>
+        <View style={styles.metaChip}>
+          <Ionicons name="cube-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>{item.items_count || 0} items</Text>
+        </View>
+      </View>
 
-        <View style={styles.detailItem}>
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={COLORS.textLight}
-          />
-          <Text style={styles.detailText}>{item.created_at}</Text>
+      <View style={styles.metaWrap}>
+        <View style={styles.metaChip}>
+          <Ionicons name="pricetags-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>Category: {getCategoryText(item)}</Text>
+        </View>
+        <View style={styles.metaChip}>
+          <Ionicons name="document-text-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>PO: {item.po_number || "-"}</Text>
         </View>
       </View>
 
@@ -102,7 +159,7 @@ export default function OrderTrackingScreen() {
           onPress={() => {
             router.push({
               pathname: "/orders/orderdetails",
-              params: { orderId: item.id },
+              params: { orderId: item.id, from: "orders/ordertracking" },
             });
           }}
         >
@@ -128,17 +185,61 @@ export default function OrderTrackingScreen() {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>"No pending orders"</Text>
+      <Text style={styles.emptyText}>
+        {activeTab === "pending"
+          ? "No pending orders"
+          : selectedOtherStatus
+            ? `No orders found for ${selectedOtherStatus}`
+            : "No other status orders"}
+      </Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "pending" && styles.activePendingTab]}
+          onPress={() => setActiveTab("pending")}
+        >
+          <Text
+            style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}
+          >
+            Pending
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "others" && styles.activeOthersTab]}
+          onPress={() => setActiveTab("others")}
+        >
+          <Text
+            style={[styles.tabText, activeTab === "others" && styles.activeTabText]}
+          >
+            Others
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === "others" && (
+        <View style={styles.filterWrap}>
+          <Dropdown
+            label="Other Status"
+            data={otherStatusOptions}
+            value={selectedOtherStatus}
+            onChange={setSelectedOtherStatus}
+            placeholder="All statuses"
+            searchable={false}
+          />
+        </View>
+      )}
+
       {/* Orders Count */}
-      {!loading && orders.length > 0 && (
+      {!loading && filteredOrders.length > 0 && (
         <View style={styles.countBar}>
           <Text style={styles.countText}>
-            {orders.length} order{orders.length > 1 ? "s" : ""} found
+            {filteredOrders.length} order{filteredOrders.length > 1 ? "s" : ""}{" "}
+            found
           </Text>
         </View>
       )}
@@ -150,7 +251,7 @@ export default function OrderTrackingScreen() {
         </View>
       ) : (
         <FlatList
-          data={orders}
+          data={filteredOrders}
           renderItem={renderOrder}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
@@ -212,6 +313,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     alignItems: "center",
   },
+  activePendingTab: {
+    backgroundColor: COLORS.pending,
+  },
+  activeOthersTab: {
+    backgroundColor: COLORS.primary,
+  },
   tabText: {
     fontSize: 14,
     fontWeight: "600",
@@ -224,6 +331,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     paddingVertical: 8,
     paddingHorizontal: 16,
+  },
+  filterWrap: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
   countText: {
     color: "#fff",
@@ -241,33 +353,45 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 2,
   },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 8,
+  },
+  orderNumberWrap: {
+    flex: 1,
+    paddingRight: 8,
   },
   orderNumber: {
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.text,
   },
+  createdText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
   },
   statusText: {
-    color: "#fff",
+    color: COLORS.primaryDark,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -278,27 +402,35 @@ const styles = StyleSheet.create({
   },
   cardCode: {
     fontSize: 12,
-    color: COLORS.textLight,
-    marginBottom: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
   },
-  detailsRow: {
+  metaWrap: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
   },
-  detailItem: {
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  detailText: {
+  metaText: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   amountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
@@ -313,21 +445,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
-  approveBtn: {
-    backgroundColor: COLORS.success,
-  },
-
-  pendingBtn: {
-    backgroundColor: COLORS.pending,
-  },
-
-  needapproveBtn: {
-    backgroundColor: COLORS.warning,
-  },
-
-  rejectBtn: {
-    backgroundColor: COLORS.error,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -340,104 +457,4 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  modalContent: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 24,
-    width: "90%",
-    maxWidth: 400,
-  },
-
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-
-  modalSubtitle: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    marginBottom: 16,
-  },
-
-  reasonInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 100,
-    marginBottom: 16,
-  },
-
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-
-  modalBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-
-  cancelBtn: {
-    backgroundColor: COLORS.background,
-  },
-
-  cancelBtnText: {
-    color: COLORS.text,
-    fontWeight: "600",
-  },
-
-  confirmRejectBtn: {
-    backgroundColor: COLORS.error,
-  },
-
-  confirmRejectText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  moreBtn: {
-    backgroundColor: "#607D8B",
-  },
-
-  dropdownMenu: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginTop: 8,
-    paddingVertical: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-
-  dropdownText: {
-    fontSize: 14,
-    color: "#333",
-    fontWeight: "500",
-  },
-  redCircle: {
-    backgroundColor: "#F44336",
-  },
-
-  redCard: {
-    backgroundColor: "#FFEBEE",
-  },
 });

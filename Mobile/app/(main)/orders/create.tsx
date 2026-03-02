@@ -35,12 +35,12 @@ interface ItemRow {
   selectedBrand: string | null;
   selectedVariety: string | null;
   selectedType: string | null;
-  selectedProduct: number | null;
+  selectedProduct: string | null;
   // dropdown option lists
   brands: { label: string; value: string }[];
   varieties: { label: string; value: string }[];
   types: { label: string; value: string }[];
-  products: { label: string; value: number }[];
+  products: { label: string; value: string }[];
   // numeric fields
   qty: string;
   pcs: string;
@@ -92,6 +92,24 @@ const emptyRow = (id: number): ItemRow => ({
   tax: "",
   itemTotal: "",
 });
+
+const dedupePartyProducts = (products: any[]) => {
+  const uniqueMap = new Map<string, any>();
+
+  for (const product of products || []) {
+    if (!product?.item_code) continue;
+
+    const key = `${String(product.item_code)}|${String(product.category || "")}`;
+    const existing = uniqueMap.get(key);
+
+    // Prefer records with a non-null tax_rate when duplicates exist.
+    if (!existing || (existing.tax_rate == null && product.tax_rate != null)) {
+      uniqueMap.set(key, product);
+    }
+  }
+
+  return Array.from(uniqueMap.values());
+};
 
 const getTodayDate = () => {
   return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -230,13 +248,13 @@ export default function CreateOrderScreen() {
    * We derive the user's category from their main_group name (adjust the
    * mapping below if your data uses different strings).
    */
+
   const getUserCategory = (): string | null => {
     if (!user?.main_group) return null;
     const raw = Array.isArray(user.main_group)
       ? user.main_group[0]?.name
       : user.main_group?.name;
     if (!raw) return null;
-    // Normalize: "OIL" / "Oil" / "oil" all map to the same key
     return raw.toLowerCase();
   };
 
@@ -251,7 +269,7 @@ export default function CreateOrderScreen() {
     const filtered = addresses.filter(
       (a: any) => !a.category || a.category.toLowerCase() === userCategory,
     );
-    return filtered.length > 0 ? filtered : addresses; // fallback to all if nothing matches
+    return filtered.length > 0 ? filtered : addresses;
   };
 
   const handlePartyChange = async (cardCode: string) => {
@@ -284,7 +302,7 @@ export default function CreateOrderScreen() {
         const filtered = list.filter(
           (a) => !a.category || a.category.toUpperCase() === ACTIVE_CATEGORY,
         );
-        return filtered.length > 0 ? filtered : list; // fallback to all
+        return filtered.length > 0 ? filtered : list;
       };
 
       const rawBillTo = filterOil((addressData.bill_to || []).map(mapAddr));
@@ -302,14 +320,19 @@ export default function CreateOrderScreen() {
 
       // Load party products — filter to OIL category + JIVO brand only
       const allProducts = await orderService.getPartyProducts(cardCode);
+      console.log(
+        "All products for party:",
+        JSON.stringify(allProducts, null, 2),
+      );
       const filteredProducts = allProducts.filter(
         (p: any) =>
           p.category?.toUpperCase() === ACTIVE_CATEGORY &&
           p.brand?.toUpperCase() === ACTIVE_BRAND,
       );
       // Fallback: if filter yields nothing, use all (avoids blank screen)
-      const products =
-        filteredProducts.length > 0 ? filteredProducts : allProducts;
+      const products = dedupePartyProducts(
+        filteredProducts.length > 0 ? filteredProducts : allProducts,
+      );
       setPartyProducts(products);
 
       // Only show OIL category in the dropdown
@@ -418,8 +441,10 @@ export default function CreateOrderScreen() {
     });
   };
 
-  const handleRowProductChange = (rowId: number, productId: number) => {
-    const product = partyProducts.find((p: any) => p.item_code === productId);
+  const handleRowProductChange = (rowId: number, productId: string) => {
+    const product = partyProducts.find(
+      (p: any) => String(p.item_code) === String(productId),
+    );
     if (product) {
       const pcs = product.sal_factor2?.toString() || "0";
       const salPackUnit = product.sal_pack_unit?.toString() || "0";
@@ -429,7 +454,7 @@ export default function CreateOrderScreen() {
         salPackUnit,
         tax: product.tax_rate ? product.tax_rate.toString() : "0",
         basePrice: product.basic_rate?.toString() || "0",
-        marketPrice: product.basic_rate?.toString() || "0",
+        // marketPrice: product.basic_rate?.toString() || "0",
       });
     }
   };
@@ -460,9 +485,24 @@ export default function CreateOrderScreen() {
     });
   };
 
-  // ─── Add / remove item rows ────────────────────────────────────────────────
-
   const addItem = () => {
+    const hasIncompleteRow = itemRows.some(
+      (row) =>
+        !row.selectedCategory ||
+        !row.selectedProduct ||
+        !row.qty ||
+        !row.marketPrice ||
+        !row.boxes,
+    );
+
+    if (hasIncompleteRow) {
+      Alert.alert(
+        "Incomplete Item",
+        "Please fill all fields in the current item row before adding a new row.",
+      );
+      return;
+    }
+
     const newId = Date.now();
     setItemRows((prev) => [...prev, emptyRow(newId)]);
   };
@@ -483,7 +523,7 @@ export default function CreateOrderScreen() {
     }
 
     const product = partyProducts.find(
-      (p: any) => p.item_code === row.selectedProduct,
+      (p: any) => String(p.item_code) === String(row.selectedProduct),
     );
     if (!product) return;
 
@@ -568,6 +608,7 @@ export default function CreateOrderScreen() {
         delivery_date: delivery,
         company: String(company ?? ""),
         po_number: String(poNumber ?? ""),
+        remarks: String(comment ?? ""),
         items: orderItems.map((item) => ({
           item_code: String(item.itemCode ?? ""),
           item_name: String(item.itemName ?? ""),
@@ -586,10 +627,8 @@ export default function CreateOrderScreen() {
         })),
       };
 
-      console.log("jsonfororder" + JSON.stringify(payload));
-
       const response = await orderService.createOrder(payload);
-
+      console.log("Create order response:", JSON.stringify(payload));
       // Backend returns: { id, order_number, message, needs_approval, ... }
       if (response?.order_number || response?.message?.includes("Order sent")) {
         setOrderResult({
@@ -633,8 +672,6 @@ export default function CreateOrderScreen() {
     setSelectedShipTo(null);
     setDeliveryDate("");
   };
-
-  // ─── Render ────────────────────────────────────────────────────────────────
 
   if (dataLoading) {
     return (
@@ -686,6 +723,7 @@ export default function CreateOrderScreen() {
                 icon="business-outline"
               />
             </View>
+
             <View style={styles.halfField}>
               <Dropdown
                 label="Company *"
@@ -744,7 +782,7 @@ export default function CreateOrderScreen() {
                   style={styles.webDateIcon}
                 />
                 <View style={styles.webDateInner}>
-                  <Text style={styles.webDateLabel}>Delivery Date</Text>
+                  <Text style={styles.webDateLabel}>Delivery Date *</Text>
                   {/* @ts-ignore — 'input' is valid on web */}
                   <input
                     type="date"
@@ -771,7 +809,7 @@ export default function CreateOrderScreen() {
                   onPress={() => setShowPicker(true)}
                 >
                   <TextInput
-                    label="Delivery Date "
+                    label="Delivery Date *"
                     value={delivery}
                     mode="outlined"
                     editable={false}
@@ -828,17 +866,6 @@ export default function CreateOrderScreen() {
           ) : (
             itemRows.map((row, index) => (
               <View key={row.id} style={styles.itemCard}>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemNumber}>Item {index + 1}</Text>
-                  <TouchableOpacity onPress={() => removeItem(row.id)}>
-                    <Ionicons
-                      name="trash-outline"
-                      size={20}
-                      color={COLORS.error}
-                    />
-                  </TouchableOpacity>
-                </View>
-
                 {/* Category */}
                 <View style={styles.field}>
                   <Dropdown
@@ -1033,6 +1060,7 @@ export default function CreateOrderScreen() {
                   />
                   <Text style={styles.addButtonText}>Confirm Item</Text>
                 </TouchableOpacity>
+                
               </View>
             ))
           )}

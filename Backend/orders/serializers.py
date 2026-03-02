@@ -32,6 +32,7 @@ class CreateOrderSerializer(serializers.Serializer):
     dispatch_from_name = serializers.CharField(required=False, allow_blank=True, default='')
     company = serializers.CharField(required=False, allow_blank=True, default='')
     po_number = serializers.CharField(required=False, allow_blank=True, default='')
+    remarks = serializers.CharField(required=False, allow_blank=True, default='')
     items = serializers.ListField(child=serializers.DictField())
     basic_price = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
     delivery_date = serializers.CharField(required=False)
@@ -47,6 +48,17 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
 
 class OrderListByUserIdSerializer(serializers.ModelSerializer):
     status_name = serializers.CharField(source="status.name")
+    items_count = serializers.IntegerField(source="items.count", read_only=True)
+    categories = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source="status.name", read_only=True)
+
+    def get_categories(self, obj):
+        return list(
+            obj.items.exclude(category__isnull=True)
+            .exclude(category__exact="")
+            .values_list("category", flat=True)
+            .distinct()
+        )
     
     class Meta:
         model = Order
@@ -58,7 +70,12 @@ class OrderListByUserIdSerializer(serializers.ModelSerializer):
             "total_amount",
             "status",
             "status_name",
+            "status_display",
             "created_at",
+            "delivery_date",
+            "po_number",
+            "items_count",
+            "categories",
         ]    
     
 class OrdersLogSerializer(serializers.ModelSerializer):

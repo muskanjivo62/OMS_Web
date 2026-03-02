@@ -2,7 +2,7 @@ from urllib import request
 from django.shortcuts import render
 import re
 from .serializers import OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer
-from .models import OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action
+from .models import PartyProductAssignment,OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -12,12 +12,14 @@ from datetime import datetime
 from functools import lru_cache
 from rest_framework.permissions import IsAdminUser
 import calendar
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count,F
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from collections import defaultdict
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions
+from .models import Order, OrderStatus
+from .models import PartyProductAssignment  # Ensure your models are imported
 
 def _get_base_orders(user):
     """Scope orders by user role:
@@ -221,22 +223,50 @@ class PartyProductsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, card_code):
-        from django.db import connection
-        cursor = connection.cursor()
-        cursor.execute("""
-            SELECT ppa.item_code, ppa.category, ppa.basic_rate,
-                   p.item_name, p.sal_factor2, p.tax_rate, p.sal_pack_unit,
-                   p.brand, p.variety
-            FROM party_product_assignments ppa
-            LEFT JOIN sap_products p ON ppa.item_code = p.item_code
-            WHERE ppa.card_code = %s AND ppa.is_active = true
-            ORDER BY ppa.category, p.item_name
-        """, [card_code])
+        # We use .values() to select specific fields and F() to rename related fields
+        results = (
+            PartyProductAssignment.objects.filter(
+                card_code=card_code, 
+                is_active=True
+            )
+            .select_related('item_code')  # Efficiently joins the tables
+            .values(
+                'item_code',
+                'category',
+                'basic_rate',
+                # Accessing fields from the related 'sap_products' table
+                item_name=F('item_code__item_name'),
+                sal_factor2=F('item_code__sal_factor2'),
+                tax_rate=F('item_code__tax_rate'),
+                sal_pack_unit=F('item_code__sal_pack_unit'),
+                brand=F('item_code__brand'),
+                variety=F('item_code__variety')
+            )
+            .order_by('category', 'item_code__item_name')
+        )
 
-        columns = [col[0] for col in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return Response(list(results))
+    
+# class PartyProductsView(APIView):
+#     permission_classes = [AllowAny]
 
-        return Response(rows)
+#     def get(self, request, card_code):
+#         from django.db import connection
+#         cursor = connection.cursor()
+#         cursor.execute("""
+#             SELECT ppa.item_code, ppa.category, ppa.basic_rate,
+#                    p.item_name, p.sal_factor2, p.tax_rate, p.sal_pack_unit,
+#                    p.brand, p.variety
+#             FROM party_product_assignments ppa
+#             LEFT JOIN sap_products p ON ppa.item_code = p.item_code
+#             WHERE ppa.card_code = %s AND ppa.is_active = true
+#             ORDER BY ppa.category, p.item_name
+#         """, [card_code])
+        
+#         columns = [col[0] for col in cursor.description]
+#         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+#         return Response(rows)
         
 class PartyView(APIView):
     permission_classes = [AllowAny]
@@ -280,12 +310,14 @@ class PartyAddressesView(APIView):
             
         bill_addresses = PartyAddress.objects.filter(
             card_code=card_code,
-            address_type='B'
+            address_type='B',
+            category='OIL'
         )
 
         ship_addresses = PartyAddress.objects.filter(
             card_code=card_code,
-            address_type='S'
+            address_type='S',
+            category='OIL'
         ) 
 
         if not bill_addresses.exists() and not ship_addresses.exists():
@@ -446,6 +478,8 @@ class CreateOrderView(APIView):
 
         data = serializer.validated_data
         items = data.pop('items', [])
+        # Keep remarks resilient even if serializer/view code drifts across deployments.
+        order_remarks = request.data.get('remarks', data.get('remarks', ''))
 
         if not items:
             return Response({'error': 'At least one item is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -489,13 +523,14 @@ class CreateOrderView(APIView):
             total_amount=total_amount,
             status=get_status('Order Created'),
             created_by=user_id,
-            delivery_date=data.get('delivery_date', '')
+            delivery_date=data.get('delivery_date', ''),
+            remarks=order_remarks
         )
             
         # Create order items + price check
         needs_approval = False
         flagged_items = []
-
+            
         for item in items:
             OrderItem.objects.create(
                 order=order,
@@ -512,7 +547,7 @@ class CreateOrderView(APIView):
                 basic_price=item.get('basic_price', 0),
                 market_price=item.get('market_price', 0),
                 total=item.get('total', 0),
-                tax_rate=item.get('tax_rate', 0),
+                tax_rate=item.get('tax_rate', 0)
             )
 
             bp = float(item.get('basic_price', 0))
@@ -520,7 +555,7 @@ class CreateOrderView(APIView):
             if bp > mp:
                 needs_approval = True
                 flagged_items.append(f"{item.get('item_name')}: Basic ₹{bp} > Market ₹{mp}")
-        
+
         # Log: Order created
         log_order_action(order, 'Order Created', user=user_id)
 
@@ -541,9 +576,10 @@ class CreateOrderView(APIView):
             'status': order.status.name,
             'needs_approval': needs_approval,
             'flagged_items': flagged_items if needs_approval else [],
+            'remarks': order.remarks or '',
             'message': 'Order sent for approval' if needs_approval else 'Order sent to auditor approval',
         }, status=status.HTTP_201_CREATED)
-
+        
 class OrderStatusList(APIView):
     permission_classes = [AllowAny]
 
@@ -559,8 +595,6 @@ class BranchView(APIView):
         serializer = BranchSerializer(branches, many=True)
         return Response(serializer.data) 
 
-from .models import Order, OrderStatus
-    
 class UpdateOrderStatusView(APIView):
 
     def post(self, request, order_id):
@@ -694,17 +728,22 @@ class OrderDetailsByOrderView(APIView):
 
         serializer = OrderDetailSerializer(order)
         return Response(serializer.data)
-        
+
 class OrdersByUserView(APIView):
     permission_classes = [AllowAny]
 
     def get(self,request, user_id):
-        orders = Order.objects.filter(created_by=user_id).order_by("-created_at")
+        orders = (
+            Order.objects.filter(created_by=user_id)
+            .select_related("status")
+            .prefetch_related("items")
+            .order_by("-created_at")
+        )
     
         serializer = OrderListByUserIdSerializer(orders, many=True)
 
         return Response(serializer.data)
-    
+        
 @lru_cache
 def get_status(name):
     return OrderStatus.objects.get(name=name)
@@ -803,10 +842,18 @@ class OrderListView(APIView):
                 'status_display': order.status.name,
                 'items_count': items_count,
                 'created_by': order.created_by,
+                'created_at': order.created_at,
+                'delivery_date': order.delivery_date,
                 'po_number': order.po_number,
                 'bill_to_address': order.bill_to_address,
                 'ship_to_address': order.ship_to_address,
                 'dispatch_from_id': order.dispatch_from_id,
+                'categories': list(
+                    items_qs.exclude(category__isnull=True)
+                    .exclude(category__exact='')
+                    .values_list('category', flat=True)
+                    .distinct()
+                ),
                 'items': list(items_qs.values())
             })
         

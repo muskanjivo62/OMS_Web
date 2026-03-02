@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,54 +12,87 @@ import {
   RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  ApproveOr,
-  OrderItemList,
-  orderService,
-  productService,
-} from "@/src/services/order.service";
+import { OrderItemList, productService } from "@/src/services/order.service";
 import { COLORS } from "@/constants/theme";
+import Dropdown from "@/src/components/common/DropdownProps";
 import { router } from "expo-router";
 
-export default function auditorapproval() {
-  const [pendingActionType, setPendingActionType] = useState<
-    "NEED_APPROVAL" | "BILLING_PENDING" | null
-  >(null);
+type AuditorTab = "pending" | "others";
 
+const OTHER_STATUS_OPTIONS = [
+  { label: "Approved", value: "approved" },
+  { label: "Rejected", value: "rejected" },
+];
+
+export default function AuditorApprovalScreen() {
   const [orders, setOrders] = useState<OrderItemList[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("10");
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
-  const [actionMenuVisible, setActionMenuVisible] = useState<number | null>(
-    null,
+  const [activeTab, setActiveTab] = useState<AuditorTab>("pending");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>(
+    "approved",
   );
+  const [actionLoading, setActionLoading] = useState<{
+    id: number;
+    type: "approve" | "reject";
+  } | null>(null);
 
-  // Reject Modal
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  const [pendingModalVisible, setPendingModalVisible] = useState(false);
-  const [pendingReason, setPendingReason] = useState("");
-
-  useEffect(() => {
-    loadOrders();
-  }, [activeTab]);
-
-  const openPendingModal = (orderId: number) => {
-    setSelectedOrderId(orderId);
-    setPendingReason("");
-    setPendingModalVisible(true);
+  const formatDate = (value?: string) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString("en-GB");
   };
 
-  const loadOrders = async () => {
-    try {
-      setLoading(true);
-      const data = await productService.getOrders(0, activeTab);
+  const getCategoryText = (item: OrderItemList) => {
+    const fromCategories = item.categories || [];
+    const categories =
+      fromCategories.length > 0
+        ? fromCategories
+        : Array.from(
+            new Set(
+              (item.items || [])
+                .map((it: any) => String(it?.category || "").trim())
+                .filter(Boolean),
+            ),
+          );
 
-      console.log("datavalue" + JSON.stringify(data));
-      setOrders(data);
+    if (categories.length === 0) return "-";
+    if (categories.length <= 2) return categories.join(", ");
+    return `${categories.slice(0, 2).join(", ")} +${categories.length - 2}`;
+  };
+
+  const loadOrders = useCallback(async () => {
+
+    try {
+
+      setLoading(true);
+      if (activeTab === "pending") {
+        const data = await productService.getOrders(0, "10");
+        setOrders(data || []);
+        return;
+      }
+
+      const data = await productService.getOrders(0);
+      const allOrders = data || [];
+      const filtered = allOrders.filter((o: any) => {
+        const statusText = String(o?.status_display || o?.status_name || "")
+          .trim()
+          .toLowerCase();
+
+        if (!statusText || statusText.includes("pending")) return false;
+
+        if (selectedOtherStatus === "approved") {
+          return statusText.includes("approved") || statusText.includes("billing");
+        }
+        return statusText.includes("rejected");
+
+      });
+      setOrders(filtered);
     } catch (error) {
       console.log("Error loading orders:", error);
       Alert.alert("Error", "Failed to load orders");
@@ -67,49 +100,34 @@ export default function auditorapproval() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [activeTab, selectedOtherStatus]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadOrders();
   };
 
-  const handleApprove = (order: OrderItemList) => {
-    console.log("Approve order:", order.id);
-    Alert.alert("Approve Order", `Approve order ${order.order_number}?`, [
+  const handleApprove = (orderId: number, orderNumber: string) => {
+    Alert.alert("Approve Order", `Approve order ${orderNumber}?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Approve",
         onPress: async () => {
           try {
-            setActionLoading(order.id);
-
-            const payload: ApproveOr = {
-              order_id: order.id,
-              card_code: order.card_code,
-              created_at: order.created_at,
-              po_number: order.order_number,
-              ship_to_address: order.ship_to_address,
-              bill_to_address: order.bill_to_address,
-              dispatch_from_id: order.dispatch_from_id,
-              items: order.items || [],
-            };
-
-            const ap_res = await productService.updatestatus(
-              order.id,
-              "10",
-              "Approved",
+            setActionLoading({ id: orderId, type: "approve" });
+            await productService.updatestatus(
+              orderId,
+              "2",
+              "Approved by auditor",
             );
-
-            console.log("Approval response:", JSON.stringify(ap_res));
-            // if (ap_res.status !== "success") {
-            //   throw new Error("Approval failed");
-            // } else {
-            //   Alert.alert("Success", "Order approved");
-            // }
+            Alert.alert("Success", "Order approved");
             loadOrders();
-          } catch (err) {
-            console.log(err);
+          } catch (error) {
+            console.log("Error approving:", error);
             Alert.alert("Error", "Approval failed");
           } finally {
             setActionLoading(null);
@@ -132,8 +150,12 @@ export default function auditorapproval() {
     }
 
     try {
-      setActionLoading(selectedOrderId);
-      await productService.updatestatus(selectedOrderId!, "7", rejectReason);
+      setActionLoading({ id: selectedOrderId!, type: "reject" });
+      await productService.updatestatus(
+        selectedOrderId!,
+        "4",
+        rejectReason,
+      );
       setRejectModalVisible(false);
       Alert.alert("Success", "Order rejected");
       loadOrders();
@@ -150,149 +172,162 @@ export default function auditorapproval() {
       onPress={() =>
         router.push({
           pathname: "/orders/orderdetails",
-          params: { orderId: item.id },
+          params: { orderId: item.id, from: "orders/auditorapproval" },
         })
       }
       style={styles.orderCard}
+      activeOpacity={0.85}
     >
-      <View style={styles.orderCard}>
-        {/* Header */}
-        <View style={styles.orderHeader}>
+      <View style={styles.orderHeader}>
+        <View style={styles.orderNumberWrap}>
           <Text style={styles.orderNumber}>{item.order_number}</Text>
-          {/* <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                STATUS_TABS.find((t) => t.key === item.status)?.color || "#666",
-            },
-          ]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
-        </View> */}
+          <Text style={styles.createdText}>
+            Created: {formatDate(item.created_at)}
+          </Text>
         </View>
-
-        {/* Party Info */}
-        <Text style={styles.cardName}>{item.card_name}</Text>
-        <Text style={styles.cardCode}>{item.card_code}</Text>
-
-        {/* Details Row */}
-        <View style={styles.detailsRow}>
-          <View style={styles.detailItem}>
-            <Ionicons name="cube-outline" size={16} color={COLORS.textLight} />
-            <Text style={styles.detailText}>{item.items_count} items</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons
-              name="calendar-outline"
-              size={16}
-              color={COLORS.textLight}
-            />
-            <Text style={styles.detailText}>{item.created_at}</Text>
-          </View>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusText}>
+            {(item as any).status_display || item.status_name || item.status}
+          </Text>
         </View>
-
-        {/* Amount */}
-        <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>Total Amount</Text>
-          <Text style={styles.amountValue}>₹{item.total_amount}</Text>
-        </View>
-
-        {/* Action Buttons - Only for Pending */}
-        <>
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.rejectBtn]}
-              onPress={() => openRejectModal(item.id)}
-              disabled={actionLoading === item.id}
-            >
-              {actionLoading === item.id ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="close-outline" size={18} color="#fff" />
-                  <Text style={styles.actionBtnText}>Reject</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.approveBtn]}
-              onPress={() => handleApprove(item)}
-              disabled={actionLoading === item.id}
-            >
-              {actionLoading === item.id ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-outline" size={18} color="#fff" />
-                  <Text style={styles.actionBtnText}>Accept</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-          <View>
-            {/* Dropdown should be here */}
-            {actionMenuVisible === item.id && (
-              <View style={styles.dropdownMenu}>
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setActionMenuVisible(null);
-                    setPendingActionType("NEED_APPROVAL");
-                    openPendingModal(item.id);
-                  }}
-                >
-                  <Text style={styles.dropdownText}>Need Approval</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setActionMenuVisible(null);
-                    setPendingActionType("BILLING_PENDING");
-                    openPendingModal(item.id);
-                  }}
-                >
-                  <Text style={styles.dropdownText}>Billing Pending</Text>
-                </TouchableOpacity>
-
-                {/* <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setActionMenuVisible(null);
-                    openPendingModal(item.id);
-                  }}
-                >
-                  <Text style={styles.dropdownText}>Pending</Text>
-                </TouchableOpacity> */}
-              </View>
-            )}
-          </View>
-        </>
       </View>
+
+      <Text style={styles.cardName}>{item.card_name}</Text>
+      <Text style={styles.cardCode}>{item.card_code}</Text>
+
+      <View style={styles.metaWrap}>
+        <View style={styles.metaChip}>
+          <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>
+            Delivery: {formatDate(item.delivery_date)}
+          </Text>
+        </View>
+        <View style={styles.metaChip}>
+          <Ionicons name="cube-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>{item.items_count || 0} items</Text>
+        </View>
+      </View>
+
+      <View style={styles.metaWrap}>
+        <View style={styles.metaChip}>
+          <Ionicons name="pricetags-outline" size={14} color={COLORS.primary} />
+          <Text style={styles.metaText}>Category: {getCategoryText(item)}</Text>
+        </View>
+        <View style={styles.metaChip}>
+          <Ionicons
+            name="document-text-outline"
+            size={14}
+            color={COLORS.primary}
+          />
+          <Text style={styles.metaText}>PO: {item.po_number || "-"}</Text>
+        </View>
+      </View>
+
+      <View style={styles.amountRow}>
+        <Text style={styles.amountLabel}>Total Amount</Text>
+        <Text style={styles.amountValue}>₹{item.total_amount}</Text>
+      </View>
+
+      {activeTab === "pending" && (
+        <View style={styles.actionRow}>
+          {(() => {
+            const isRejectLoading =
+              actionLoading?.id === item.id && actionLoading.type === "reject";
+            const isApproveLoading =
+              actionLoading?.id === item.id && actionLoading.type === "approve";
+            return (
+              <>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.rejectBtn]}
+            onPress={() => openRejectModal(item.id)}
+            disabled={actionLoading !== null}
+          >
+            {isRejectLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="close-outline" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Reject</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.approveBtn]}
+            onPress={() => handleApprove(item.id, item.order_number)}
+            disabled={actionLoading !== null}
+          >
+            {isApproveLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-outline" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Approve</Text>
+              </>
+            )}
+          </TouchableOpacity>
+              </>
+            );
+          })()}
+        </View>
+      )}
     </TouchableOpacity>
   );
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons
-        name={
-          activeTab === "3"
-            ? "checkmark-done-circle-outline"
-            : "document-text-outline"
-        }
-        size={64}
-        color={COLORS.textLight}
+        name={activeTab === "pending" ? "hourglass-outline" : "filter-outline"}
+        size={52}
+        color={COLORS.textSecondary}
       />
       <Text style={styles.emptyText}>
-        {activeTab === "3" ? "No pending orders" : `No ${activeTab} orders`}
+        {activeTab === "pending"
+          ? "No pending orders"
+          : `No ${OTHER_STATUS_OPTIONS.find((s) => s.value === selectedOtherStatus)?.label || "orders"}`}
       </Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* Orders Count */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "pending" && styles.activePendingTab]}
+          onPress={() => setActiveTab("pending")}
+        >
+          <Text
+            style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}
+          >
+            Pending
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "others" && styles.activeOthersTab]}
+          onPress={() => setActiveTab("others")}
+        >
+          <Text
+            style={[styles.tabText, activeTab === "others" && styles.activeTabText]}
+          >
+            Others
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === "others" && (
+        <View style={styles.filterWrap}>
+          <Dropdown
+            label="Auditor Status"
+            data={OTHER_STATUS_OPTIONS}
+            value={selectedOtherStatus}
+            onChange={setSelectedOtherStatus}
+            placeholder="Select status"
+            searchable={false}
+          />
+        </View>
+      )}
+
       {!loading && orders.length > 0 && (
         <View style={styles.countBar}>
           <Text style={styles.countText}>
@@ -301,7 +336,6 @@ export default function auditorapproval() {
         </View>
       )}
 
-      {/* Orders List */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -319,7 +353,6 @@ export default function auditorapproval() {
         />
       )}
 
-      {/* Reject Modal */}
       <Modal
         visible={rejectModalVisible}
         transparent
@@ -353,68 +386,13 @@ export default function auditorapproval() {
 
               <TouchableOpacity
                 style={[styles.modalBtn, styles.confirmRejectBtn]}
-                onPress={() => handleReject()}
-                disabled={actionLoading !== null}
-              >
-                {actionLoading !== null ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.confirmRejectText}>Reject Order</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Pending Modal */}
-      <Modal
-        visible={pendingModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setPendingModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={{ color: "#000", fontWeight: "600" }}>
-              {pendingActionType?.toUpperCase() === "NEED_APPROVAL"
-                ? "Mark as Need Approval"
-                : "Mark as Billing Pending"}
-            </Text>
-
-            <Text style={styles.modalSubtitle}>
-              Please provide pending reason:
-            </Text>
-
-            <TextInput
-              style={styles.reasonInput}
-              placeholder="Enter reason..."
-              value={pendingReason}
-              onChangeText={setPendingReason}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.cancelBtn]}
-                onPress={() => setPendingModalVisible(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.pendingBtn]}
                 onPress={handleReject}
                 disabled={actionLoading !== null}
               >
-                {actionLoading !== null ? (
+                {actionLoading?.type === "reject" ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>
-                    Mark Pending
-                  </Text>
+                  <Text style={styles.confirmRejectText}>Reject Order</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -443,13 +421,24 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     alignItems: "center",
   },
+  activePendingTab: {
+    backgroundColor: COLORS.warning,
+  },
+  activeOthersTab: {
+    backgroundColor: COLORS.primary,
+  },
   tabText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   activeTabText: {
     color: "#fff",
+  },
+  filterWrap: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
   countBar: {
     backgroundColor: COLORS.primary,
@@ -472,33 +461,45 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 2,
   },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 8,
+  },
+  orderNumberWrap: {
+    flex: 1,
+    paddingRight: 8,
   },
   orderNumber: {
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.text,
   },
+  createdText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
   },
   statusText: {
-    color: "#fff",
+    color: COLORS.primaryDark,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -509,34 +510,42 @@ const styles = StyleSheet.create({
   },
   cardCode: {
     fontSize: 12,
-    color: COLORS.textLight,
-    marginBottom: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 10,
   },
-  detailsRow: {
+  metaWrap: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
   },
-  detailItem: {
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  detailText: {
+  metaText: {
     fontSize: 12,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   amountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
   amountLabel: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   amountValue: {
     fontSize: 20,
@@ -545,8 +554,7 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: 12,
     marginTop: 16,
   },
   actionBtn: {
@@ -558,47 +566,34 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 6,
   },
-
   approveBtn: {
     backgroundColor: COLORS.success,
   },
-
-  pendingBtn: {
-    backgroundColor: COLORS.pending,
-  },
-
-  needapproveBtn: {
-    backgroundColor: COLORS.warning,
-  },
-
   rejectBtn: {
     backgroundColor: COLORS.error,
   },
-
   actionBtnText: {
     color: "#fff",
     fontWeight: "600",
   },
-
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 60,
+    gap: 10,
   },
   emptyText: {
     fontSize: 16,
-    color: COLORS.textLight,
-    marginTop: 16,
+    color: COLORS.textSecondary,
+    marginTop: 6,
   },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
-
   modalContent: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
@@ -606,20 +601,17 @@ const styles = StyleSheet.create({
     width: "90%",
     maxWidth: 400,
   },
-
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.text,
     marginBottom: 8,
   },
-
   modalSubtitle: {
     fontSize: 14,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
     marginBottom: 16,
   },
-
   reasonInput: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -628,61 +620,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 100,
     marginBottom: 16,
+    color: COLORS.text,
   },
-
   modalActions: {
     flexDirection: "row",
     gap: 12,
   },
-
   modalBtn: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
   },
-
   cancelBtn: {
     backgroundColor: COLORS.background,
   },
-
   cancelBtnText: {
     color: COLORS.text,
     fontWeight: "600",
   },
-
   confirmRejectBtn: {
     backgroundColor: COLORS.error,
   },
-
   confirmRejectText: {
     color: "#fff",
     fontWeight: "600",
-  },
-  moreBtn: {
-    backgroundColor: "#607D8B",
-  },
-
-  dropdownMenu: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginTop: 8,
-    paddingVertical: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-
-  dropdownText: {
-    fontSize: 14,
-    color: "#333",
-    fontWeight: "500",
   },
 });

@@ -14,19 +14,27 @@ import { COLORS } from "@/constants/theme";
 import { orderService } from "@/src/services/order.service";
 
 export default function OrderDetailsScreen() {
+  
   const { orderId } = useLocalSearchParams();
-
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
 
   useEffect(() => {
-    fetchOrder();
-  }, []);
+    const parsedOrderId = Number(Array.isArray(orderId) ? orderId[0] : orderId);
+    if (!parsedOrderId) {
+      setOrder(null);
+      setLoading(false);
+      return;
+    }
+    fetchOrder(parsedOrderId);
+  }, [orderId]);
 
-  const fetchOrder = async () => {
+  const fetchOrder = async (id: number) => {
     try {
-      console.log("Fetching details for order ID:", orderId);
-      const res = await orderService.getorderdetailsbyid(Number(orderId));
+      setLoading(true);
+      setOrder(null);
+      console.log("Fetching details for order ID:", id);
+      const res = await orderService.getorderdetailsbyid(id);
       setOrder(res);
     } catch {
       setOrder(null);

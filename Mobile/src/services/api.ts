@@ -10,7 +10,6 @@ const BASE_URL = Platform.select({
   // ios: 'http://localhost:8000/api',
   // web: 'http://localhost:8000/api',
   // default: 'http://localhost:8000/api',
-
 });
 
 export const api = {
@@ -56,6 +55,7 @@ export const api = {
     console.log('Fetch Error:', error);
     return [];
   }
+  
 },
 
 
