@@ -454,35 +454,42 @@ export default function CreateOrderScreen() {
         salPackUnit,
         tax: product.tax_rate ? product.tax_rate.toString() : "0",
         basePrice: product.basic_rate?.toString() || "0",
-        // marketPrice: product.basic_rate?.toString() || "0",
       });
     }
   };
 
-  const handleRowQtyChange = (rowId: number, value: string, row: ItemRow) => {
-    const qtyNum = parseFloat(value) || 0;
-    const pcsNum = parseFloat(row.pcs) || 0;
-    const packUnit = parseFloat(row.salPackUnit) || 0;
-    const priceNum = parseFloat(row.marketPrice) || 0;
-    updateRow(rowId, {
-      qty: value,
-      boxes: (qtyNum * pcsNum).toString(),
-      ltrs: (qtyNum * packUnit).toFixed(2),
-      itemTotal: (qtyNum * priceNum).toFixed(2),
-    });
+  const handleRowQtyChange = (rowId: number, value: string) => {
+    setItemRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const qtyNum = parseFloat(value) || 0;
+        const pcsNum = parseFloat(r.pcs) || 0;
+        const packUnit = parseFloat(r.salPackUnit) || 0;
+        const priceNum = parseFloat(r.marketPrice) || parseFloat(r.basePrice) || 0;
+        return {
+          ...r,
+          qty: value,
+          boxes: (qtyNum * pcsNum).toString(),
+          ltrs: (qtyNum * packUnit).toFixed(2),
+          itemTotal: (qtyNum * priceNum).toFixed(2),
+        };
+      }),
+    );
   };
 
-  const handleRowMarketPriceChange = (
-    rowId: number,
-    value: string,
-    row: ItemRow,
-  ) => {
-    const qtyNum = parseFloat(row.qty) || 0;
-    const priceNum = parseFloat(value) || 0;
-    updateRow(rowId, {
-      marketPrice: value,
-      itemTotal: (qtyNum * priceNum).toFixed(2),
-    });
+  const handleRowMarketPriceChange = (rowId: number, value: string) => {
+    setItemRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const qtyNum = parseFloat(r.qty) || 0;
+        const priceNum = parseFloat(value) || parseFloat(r.basePrice) || 0;
+        return {
+          ...r,
+          marketPrice: value,
+          itemTotal: (qtyNum * priceNum).toFixed(2),
+        };
+      }),
+    );
   };
 
   const addItem = () => {
@@ -491,7 +498,7 @@ export default function CreateOrderScreen() {
         !row.selectedCategory ||
         !row.selectedProduct ||
         !row.qty ||
-        !row.marketPrice ||
+        (!row.marketPrice && !row.basePrice) ||
         !row.boxes,
     );
 
@@ -527,6 +534,9 @@ export default function CreateOrderScreen() {
     );
     if (!product) return;
 
+    const effectiveMarketPrice = parseFloat(row.marketPrice) || parseFloat(row.basePrice) || 0;
+    const effectiveTotal = parseFloat(row.itemTotal) || (parseFloat(row.qty) || 0) * effectiveMarketPrice;
+
     const newItem: OrderItemType = {
       id: Date.now(),
       itemCode: product.item_code || "",
@@ -539,8 +549,8 @@ export default function CreateOrderScreen() {
       pcs: parseFloat(row.pcs) || 0,
       boxes: parseFloat(row.boxes) || 0,
       ltrs: parseFloat(row.ltrs) || 0,
-      marketPrice: parseFloat(row.marketPrice) || 0,
-      total: parseFloat(row.itemTotal) || 0,
+      marketPrice: effectiveMarketPrice,
+      total: effectiveTotal,
       taxRate: parseFloat(row.tax) || 0,
       basicPrice: parseFloat(row.basePrice) || product.basic_rate || 0,
     };
@@ -985,7 +995,7 @@ export default function CreateOrderScreen() {
                       textColor={COLORS.black}
                       value={row.qty}
                       onChangeText={(val) =>
-                        handleRowQtyChange(row.id, val, row)
+                        handleRowQtyChange(row.id, val)
                       }
                       mode="outlined"
                       keyboardType="numeric"
@@ -1025,11 +1035,11 @@ export default function CreateOrderScreen() {
                   </View>
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="Market Price *"
+                      label="Market Price"
                       textColor={COLORS.black}
                       value={row.marketPrice}
                       onChangeText={(val) =>
-                        handleRowMarketPriceChange(row.id, val, row)
+                        handleRowMarketPriceChange(row.id, val)
                       }
                       mode="outlined"
                       keyboardType="numeric"
@@ -1041,7 +1051,7 @@ export default function CreateOrderScreen() {
                 </View>
 
                 {/* Item subtotal */}
-                {!!row.itemTotal && (
+                {!!(row.itemTotal && parseFloat(row.itemTotal) > 0) && (
                   <View style={styles.itemSubtotalRow}>
                     <Text style={styles.itemSubtotalLabel}>Item Total:</Text>
                     <Text style={styles.itemSubtotalValue}>
