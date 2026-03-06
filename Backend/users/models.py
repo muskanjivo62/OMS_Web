@@ -118,25 +118,62 @@ class User(AbstractUser):
     first_name = None
     last_name = None
     
-    name = models.CharField(max_length = 150)
-    email = models.EmailField(max_length=15, blank=True, null=True)
-    phone = models.CharField(max_length = 15, blank = True, null= True)
+    username = models.CharField(max_length=150, unique=True)
+    name = models.CharField(max_length=150)
+    email = models.EmailField(max_length=150, blank=True, null=True)
+    phone = models.CharField(max_length=15, blank=True, null=True)
+    
     role = models.ForeignKey(
-    'users.UserRole',
-    on_delete=models.PROTECT,
-    related_name='users',
-    null=True,
-    blank=True,
+        'users.UserRole',
+        on_delete=models.PROTECT,
+        related_name='users',
+        null=True,
+        blank=True
     )
     
-    company = models.ManyToManyField(Company, blank=True, related_name='users')
-    main_group = models.ManyToManyField(MainGroup, blank=True, related_name='users')
-    state = models.ManyToManyField(State, blank=True, related_name='users')
+    company = models.ForeignKey(
+        'Company',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='users'
+    )
+    
+    main_group = models.ForeignKey(
+        'MainGroup',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='users'
+    )
+    
+    state = models.ForeignKey(
+        'State',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='users'
+    )
     
     is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
+    
+    date_joined = models.DateTimeField(auto_now_add=True)
+    last_login = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    created_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, blank=True, null=True, related_name='created_users'
+    )
+    updated_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, blank=True, null=True, related_name='updated_users'
+    )
+    
+    class Meta:
+        db_table = 'users_user'
+
     def __str__(self):  
         return self.username
 

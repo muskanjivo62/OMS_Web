@@ -18,8 +18,6 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=30, unique=True)),
-                ('display_name', models.CharField(max_length=100)),
-                ('is_active', models.BooleanField(default=True)),
             ],
             options={
                 'db_table': 'order_statuses',

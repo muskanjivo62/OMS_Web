@@ -35,7 +35,7 @@ class CreateOrderSerializer(serializers.Serializer):
     remarks = serializers.CharField(required=False, allow_blank=True, default='')
     items = serializers.ListField(child=serializers.DictField())
     basic_price = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
-    delivery_date = serializers.CharField(required=False)
+    delivery_date = serializers.DateField(required=False, allow_null=True)
 
 class BranchSerializer(serializers.ModelSerializer):
     class Meta:
@@ -111,5 +111,3 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = "__all__"
-
-

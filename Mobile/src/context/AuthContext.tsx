@@ -64,10 +64,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         return { success: true, message: "Login successful" };
       }
 
-      return { success: false, message: response.message || "Login failed" };
+      const nonFieldErrors =
+        (response as any)?.errors?.non_field_errors?.[0] ||
+        (response as any)?.data?.errors?.non_field_errors?.[0];
+      const technicalError = (response as any)?.error;
+
+      return {
+        success: false,
+        message:
+          nonFieldErrors ||
+          (technicalError
+            ? `${response?.message || "Login failed"} (${technicalError})`
+            : response?.message || "Login failed"),
+      };
     } catch (error) {
       console.log("Login error:", error);
-      return { success: false, message: "Network error. Please try again." };
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Network error. Please try again.",
+      };
     }
   };
 

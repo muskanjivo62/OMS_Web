@@ -1,11 +1,11 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, Company, MainGroup, State
+from .models import User, Company, MainGroup, State, UserRole
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Company
-        fields = ['id', 'name']
+        model = UserRole
+        fields = ['id', 'name', 'display_name']
 
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,9 +23,9 @@ class StateSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'code']
 
 class UserSerializer(serializers.ModelSerializer):
-    company = CompanySerializer(read_only=True)
-    main_groups = MainGroupSerializer(many=True, read_only=True)
-    states = StateSerializer(many=True, read_only=True)
+    company = serializers.SerializerMethodField()
+    main_group = serializers.SerializerMethodField()
+    state = serializers.SerializerMethodField()
     role = serializers.CharField(source='role.name', read_only=True)
     role_display = serializers.CharField(source='role.display_name', default=None, read_only=True)
 
@@ -33,8 +33,23 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'name', 'username', 'email', 'phone',
-            'role','role_display', 'company', 'main_groups', 'states', 'is_active'
+            'role','role_display', 'company', 'main_group', 'state', 'is_active'
         ]
+
+    def get_company(self, obj):
+        if not obj.company:
+            return None
+        return CompanySerializer(obj.company).data
+
+    def get_main_group(self, obj):
+        if not obj.main_group:
+            return None
+        return MainGroupSerializer(obj.main_group).data
+
+    def get_state(self, obj):
+        if not obj.state:
+            return None
+        return StateSerializer(obj.state).data
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
@@ -58,10 +73,12 @@ class CreateUserSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, min_length=6)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
     phone = serializers.CharField(max_length=15, required=False, allow_blank=True, allow_null=True)
-    role = serializers.IntegerField(required=False, allow_null=True)
-    company = serializers.IntegerField(required=False, allow_null=True)
-    main_group = serializers.CharField(required=False, allow_blank=True)
-    state = serializers.CharField(required=False, allow_blank=True)
+
+    # Accept integer IDs for foreign keys
+    role = serializers.PrimaryKeyRelatedField(queryset=UserRole.objects.all(), required=False, allow_null=True)
+    company = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all(), required=False, allow_null=True)
+    main_group = serializers.PrimaryKeyRelatedField(queryset=MainGroup.objects.all(), required=False, allow_null=True)
+    state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all(), required=False, allow_null=True)
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -73,52 +90,10 @@ class CreateUserSerializer(serializers.Serializer):
             raise serializers.ValidationError('Email already exists')
         return value
 
-    def validate_company(self, value):
-        """Convert single integer to list"""
-        if not value:
-            return []
-        return [value]
-
-    def validate_main_group(self, value):
-        """Convert comma-separated string to list of IDs"""
-        if not value:
-            return []
-        try:
-            ids = [int(x.strip()) for x in value.split(',') if x.strip()]
-            return ids
-        except ValueError:
-            raise serializers.ValidationError('Use comma-separated IDs like 1,2,3')
-
-    def validate_state(self, value):
-        """Convert comma-separated string to list of IDs"""
-        if not value:
-            return []
-        try:
-            ids = [int(x.strip()) for x in value.split(',') if x.strip()]
-            return ids
-        except ValueError:
-            raise serializers.ValidationError('Use comma-separated IDs like 1,2,3')
-
     def create(self, validated_data):
-        company_ids = validated_data.pop('company', [])
-        main_group_ids = validated_data.pop('main_group', [])
-        state_ids = validated_data.pop('state', [])
         password = validated_data.pop('password')
-        role_id = validated_data.pop('role', None)
-        
-        user = User(**validated_data)
+        user = User.objects.create(**validated_data)
         user.set_password(password)
-        if role_id:
-            user.role_id = role_id 
         user.save()
-
-        # Set ManyToMany fields after save
-        if company_ids:
-            user.company.set(company_ids)
-        if main_group_ids:
-            user.main_group.set(main_group_ids)
-        if state_ids:
-            user.state.set(state_ids)
-
         return user
    

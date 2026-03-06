@@ -24,9 +24,18 @@ import Dropdown from "@/src/components/common/DropdownProps";
 type OrderListTab = "pending" | "others";
 
 const OTHER_STATUS_OPTIONS = [
-  { label: "Approved", value: "2" },
-  { label: "Rejected", value: "4" },
+  { label: "Approved", value: "6" },
+  { label: "Rejected", value: "7" },
 ];
+
+const PENDING_STATUS_CODES = new Set([
+  "CREATED",
+  "RATE_APPROVAL",
+  "BILLING",
+  "NEED_APPROVAL",
+  "BILLING_PENDING",
+  "AUDITOR_APPROVAL",
+]);
 
 export default function BillingOrderList() {
   const [pendingActionType, setPendingActionType] = useState<
@@ -37,7 +46,7 @@ export default function BillingOrderList() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<OrderListTab>("pending");
-  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("2");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("6");
   const [actionLoading, setActionLoading] = useState<{
     id: number;
     type: "approve" | "reject";
@@ -57,11 +66,19 @@ export default function BillingOrderList() {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const statusFilter = activeTab === "pending" ? "3" : selectedOtherStatus;
+      const statusFilter = activeTab === "pending" ? undefined : selectedOtherStatus;
       const data = await productService.getOrders(0, statusFilter);
 
-      console.log("datavalue" + JSON.stringify(data));
-      setOrders(data);
+      const normalized = Array.isArray(data) ? data : [];
+      const filtered =
+        activeTab === "pending"
+          ? normalized.filter((order) =>
+              PENDING_STATUS_CODES.has(String(order.status || "").toUpperCase()),
+            )
+          : normalized;
+
+      console.log("datavalue" + JSON.stringify(filtered));
+      setOrders(filtered);
     } catch (error) {
       console.log("Error loading orders:", error);
       Alert.alert("Error", "Failed to load orders");
@@ -142,23 +159,13 @@ export default function BillingOrderList() {
             console.log("Approval response:", JSON.stringify(res));
             console.log("Approval response:", JSON.stringify(res));
 
-            if (res.status !== "success") {
-              let errorMessage = "Approval failed";
-
-              try {
-                // res.error is a JSON string
-                const parsed = JSON.parse(res.error);
-
-                errorMessage = parsed?.error?.message || "Approval failed";
-              } catch {
-                // fallback if parsing fails
-                errorMessage = "Approval failed";
-              }
-
+            if (!res?.success) {
+              const errorMessage =
+                res?.message || res?.error || res?.data?.error || "Approval failed";
               throw new Error(errorMessage);
-            } else {
-              Alert.alert("Success", "Order approved");
             }
+
+            Alert.alert("Success", "Order approved");
 
             loadOrders();
           } catch (err) {

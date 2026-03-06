@@ -6,28 +6,53 @@ logger = logging.getLogger(__name__)
 
 
 class SAPConnection:
+    @staticmethod
+    def _clean(value):
+        if value is None:
+            return value
+        return str(value).strip().strip("'").strip('"')
+
     def __init__(self):
-        self.host = getattr(settings, 'SAP_DB_HOST', '103.89.45.75')
-        self.database = getattr(settings, 'SAP_DB_NAME', 'Jivo_All_Branches_Live')
-        self.username = getattr(settings, 'SAP_DB_USER', 'ab')
-        self.password = getattr(settings, 'SAP_DB_PASSWORD', 'Jivo@!@#$')
+        self.host = self._clean(getattr(settings, 'SAP_DB_HOST', '103.89.45.75'))
+        self.port = int(getattr(settings, 'SAP_DB_PORT', 1433))
+        self.database = self._clean(getattr(settings, 'SAP_DB_NAME', 'Jivo_All_Branches_Live'))
+        self.username = self._clean(getattr(settings, 'SAP_DB_USER', 'ab'))
+        self.password = self._clean(getattr(settings, 'SAP_DB_PASSWORD', 'Jivo@!@#$'))
         self.connection = None
         self.cursor = None
     
     def connect(self):
-        try:
-            self.connection = pymssql.connect(
-                server=self.host,
-                user=self.username,
-                password=self.password,
-                database=self.database,
-                timeout=60,
-                login_timeout=30
-            )
-            self.cursor = self.connection.cursor(as_dict=True)
-            return True
-        except Exception as e:
-            raise ConnectionError(f"SAP connection failed: {str(e)}")
+        attempts = [
+            {"server": f"{self.host},{self.port}"},
+            {"server": f"{self.host}:{self.port}"},
+            {"server": self.host, "port": self.port},
+        ]
+        last_error = None
+
+        for params in attempts:
+            try:
+                self.connection = pymssql.connect(
+                    user=self.username,
+                    password=self.password,
+                    database=self.database,
+                    timeout=60,
+                    login_timeout=30,
+                    tds_version="7.4",
+                    **params,
+                )
+                self.cursor = self.connection.cursor(as_dict=True)
+                return True
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "SAP DB connect attempt failed (%s): %s",
+                    params,
+                    str(e),
+                )
+
+        raise ConnectionError(
+            f"SAP connection failed ({self.host}:{self.port}/{self.database}): {str(last_error)}"
+        )
     
     def disconnect(self):
         if self.cursor:

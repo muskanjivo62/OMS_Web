@@ -13,15 +13,36 @@ class SyncService:
     def __init__(self, triggered_by='manual'):
         self.triggered_by = triggered_by
         self.connection = SAPConnection()
+        self.sap_timeout = (
+            getattr(settings, "HANA_CONNECT_TIMEOUT", None) or 15,
+            getattr(settings, "HANA_READ_TIMEOUT", None) or 120,
+        )
 
     def _post_with_ssl_fallback(self, url, payload):
         try:
-            return self.sap_session.post(url, json=payload, verify=self.sap_verify)
+            return self.sap_session.post(
+                url,
+                json=payload,
+                verify=self.sap_verify,
+                timeout=self.sap_timeout,
+            )
         except requests.exceptions.SSLError:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             self.sap_verify = False
             self.sap_session.verify = False
-            return self.sap_session.post(url, json=payload, verify=False)
+            return self.sap_session.post(
+                url,
+                json=payload,
+                verify=False,
+                timeout=self.sap_timeout,
+            )
+
+    @staticmethod
+    def _as_trimmed(value, max_len=None):
+        text = '' if value is None else str(value).strip()
+        if max_len and len(text) > max_len:
+            return text[:max_len]
+        return text
     
     def sync_all(self):
         log = SyncLog.objects.create(
@@ -251,6 +272,7 @@ class SyncService:
         created_count = 0
         updated_count = 0
         processed_count = 0
+        row_errors = []
 
         try:
             with self.connection as conn:
@@ -259,40 +281,47 @@ class SyncService:
 
                 for row in results:
                     processed_count += 1
-                    card_code = row.get('CardCode')
-                    address_name = row.get('Address')   # ✅ SAP column name is "Address"
-                    category = row.get('Category')       # ✅ OIL/BEVERAGES/MART
+                    card_code = self._as_trimmed(row.get('CardCode'), 50)
+                    address_name = self._as_trimmed(row.get('Address'), 100)
+                    category = self._as_trimmed(row.get('Category'), 20)
 
                     if not card_code:
                         continue
 
-                    address_data = {
-                        'address_type': row.get('AdresType') or 'B',
-                        'gst_number': row.get('GSTRegnNo') or '',
-                        'state': row.get('State') or '',              # ✅ ADD
-                        'city': row.get('City') or '',                # ✅ ADD
-                        'zip_code': row.get('ZipCode') or '',         # ✅ ADD
-                        'country': row.get('Country') or '',          # ✅ ADD
-                        'full_address': (row.get('MainAddress') or '').strip(),
-                        'category': category or '',                    # ✅ ADD
-                    }
+                    try:
+                        address_data = {
+                            'address_type': self._as_trimmed(row.get('AdresType') or 'B', 1) or 'B',
+                            'gst_number': self._as_trimmed(row.get('GSTRegnNo'), 50),
+                            'state': self._as_trimmed(row.get('State'), 100),
+                            'city': self._as_trimmed(row.get('City'), 100),
+                            'zip_code': self._as_trimmed(row.get('ZipCode'), 20),
+                            'country': self._as_trimmed(row.get('Country'), 50),
+                            'full_address': self._as_trimmed(row.get('MainAddress')),
+                            'category': category,
+                        }
 
-                    party_address, created = PartyAddress.objects.update_or_create(
-                        card_code=card_code,
-                        address_name=address_name or '',  # ✅ FIXED
-                        category=category or '',           # ✅ ADD to lookup
-                        defaults=address_data
-                    )
+                        _, created = PartyAddress.objects.update_or_create(
+                            card_code=card_code,
+                            address_name=address_name,
+                            category=category,
+                            defaults=address_data
+                        )
 
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                        if created:
+                            created_count += 1
+                        else:
+                            updated_count += 1
+                    except Exception as row_error:
+                        row_errors.append(
+                            f"{card_code}/{address_name or '-'}: {str(row_error)}"
+                        )
 
             log.status = 'SUCCESS'
             log.records_processed = processed_count
             log.records_created = created_count
             log.records_updated = updated_count
+            if row_errors:
+                log.error_message = '\n'.join(row_errors[:25])
             log.completed_at = timezone.now()
             log.save()
 
@@ -300,7 +329,8 @@ class SyncService:
                 'success': True,
                 'processed': processed_count,
                 'created': created_count,
-                'updated': updated_count
+                'updated': updated_count,
+                'warnings': row_errors[:25]
             }
 
         except Exception as e:
@@ -407,7 +437,12 @@ class SyncService:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self.sap_session.verify = self.sap_verify
         
-        response = self._post_with_ssl_fallback(login_url, payload)
+        try:
+            response = self._post_with_ssl_fallback(login_url, payload)
+        except requests.RequestException as e:
+            raise Exception(
+                f"SAP Login connection failed ({login_url}, timeout={self.sap_timeout}): {str(e)}"
+            )
 
         if response.status_code != 200:
             raise Exception(f"SAP Login Failed: {response.text}")

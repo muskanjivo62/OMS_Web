@@ -145,7 +145,6 @@ class Migration(migrations.Migration):
                 ('market_price', models.DecimalField(decimal_places=2, default=0, max_digits=10)),
                 ('total', models.DecimalField(decimal_places=2, default=0, max_digits=12)),
                 ('tax_rate', models.DecimalField(decimal_places=2, default=0, max_digits=5)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('order', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='items', to='orders.order')),
             ],
             options={

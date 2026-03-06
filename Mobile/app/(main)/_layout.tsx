@@ -23,7 +23,7 @@ export default function MainLayout() {
     "orders/ordertracking": ["manager"],
     "orders/auditorapproval": ["auditor"],
   };
-
+  
   const visibleStyle = {
     borderRadius: RADIUS.md,
     marginHorizontal: 8,
@@ -105,8 +105,7 @@ export default function MainLayout() {
               : hiddenStyle,
           }}
         />
-{/* {"error":"HTTPSConnectionPool(host='103.89.45.192', port=50000): Max retries exceeded with url: /b1s/v2/Login (Caused by ConnectTimeoutError(<HTTPSConnection(host='103.89.45.192', port=50000) at 0x1082f38c0>, 'Connection to 103.89.45.192 timed out. (connect timeout=None)'))"} */}
-        
+               
         <Drawer.Screen
           name="orders/orderlist"
           options={{

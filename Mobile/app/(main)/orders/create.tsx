@@ -623,7 +623,7 @@ export default function CreateOrderScreen() {
           market_price: Number(item.marketPrice) || 0,
           total: Number(item.total) || 0,
           tax_rate: Number(item.taxRate) || 0,
-          basic_price: Number(item.basicPrice),
+          basic_price: Number(item.basicPrice) || 0,
         })),
       };
 
@@ -640,6 +640,7 @@ export default function CreateOrderScreen() {
         // Reset form
         handleClear();
       } else {
+        console.log("response of creation "+JSON.stringify(response));
         if (Platform.OS === "web") {
           window.alert("Something went wrong. Please try again.");
         } else {

@@ -23,10 +23,17 @@ class SyncAllView(APIView):
         try:
             sync_service = SyncService(triggered_by='manual')
             result = sync_service.sync_all()
+            success = bool(result.get('success'))
+            error_list = result.get('errors') or []
+            message = (
+                'Sync completed successfully'
+                if success
+                else f"Sync failed: {'; '.join(error_list)}" if error_list else 'Sync failed'
+            )
             
             return Response({
-                'success': True,
-                'message': 'Sync completed successfully',
+                'success': success,
+                'message': message,
                 'data': result
             })
         except Exception as e:
@@ -45,10 +52,16 @@ class SyncProductsView(APIView):
         try:
             sync_service = SyncService(triggered_by='manual')
             result = sync_service.sync_products()
+            error_detail = result.get('error')
+            message = (
+                'Products sync completed'
+                if result['success']
+                else f'Products sync failed: {error_detail}' if error_detail else 'Products sync failed'
+            )
             
             return Response({
                 'success': result['success'],
-                'message': 'Products sync completed' if result['success'] else 'Products sync failed',
+                'message': message,
                 'data': result
             })
         except Exception as e:
@@ -67,10 +80,16 @@ class SyncPartiesView(APIView):
         try:
             sync_service = SyncService(triggered_by='manual')
             result = sync_service.sync_parties()
+            error_detail = result.get('error')
+            message = (
+                'Parties sync completed'
+                if result['success']
+                else f'Parties sync failed: {error_detail}' if error_detail else 'Parties sync failed'
+            )
             
             return Response({
                 'success': result['success'],
-                'message': 'Parties sync completed' if result['success'] else 'Parties sync failed',
+                'message': message,
                 'data': result
             })
         except Exception as e:
@@ -89,10 +108,16 @@ class SyncPartyAddressesView(APIView):
         try:
             sync_service = SyncService(triggered_by='manual')
             result = sync_service.sync_party_addresses()
+            error_detail = result.get('error')
+            message = (
+                'Party addresses sync completed'
+                if result['success']
+                else f'Party addresses sync failed: {error_detail}' if error_detail else 'Party addresses sync failed'
+            )
             
             return Response({
                 'success': result['success'],
-                'message': 'Party addresses sync completed' if result['success'] else 'Party addresses sync failed',
+                'message': message,
                 'data': result
             })
         except Exception as e:

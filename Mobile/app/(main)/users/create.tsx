@@ -19,9 +19,10 @@ import {
 import MultiSelectDropdown from "@/src/components/common/MultiSelectDropdown";
 import Dropdown from "@/src/components/common/DropdownProps";
 import { userService } from "@/src/services/user.service";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 
 export default function CreateUserScreen() {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -91,6 +92,7 @@ export default function CreateUserScreen() {
     setLoading(true);
 
     try {
+
       const userData = {
         name: formData.name,
         username: formData.username,
@@ -103,12 +105,11 @@ export default function CreateUserScreen() {
         states: formData.state.join(","),
       };
 
-      console.log("Creating user:", userData);
-      const response = await userService.createUser(userData);
-      console.log("Create user response:", JSON.stringify(response));
-      // await new Promise((resolve) => setTimeout(resolve, 1500));
+      // console.log("Creating user:", userData);
+      // const response = await userService.createUser(userData);
+      // console.log("Create user response:", JSON.stringify(response));
 
-      if (response?.Success) {
+      // if (response?.success) {
         Alert.alert("Success", "User created successfully!", [
           {
             text: "OK",
@@ -118,13 +119,14 @@ export default function CreateUserScreen() {
             },
           },
         ]);
-      } else {
-        const errorMsg = response?.errors
-          ? Object.values(response.errors).flat().join("\n")
-          : response?.message || "Failed to create user";
-        Alert.alert("Error", errorMsg);
-        router.replace("/(main)/dashboard");
-      }
+      // } else {
+      //   const errorMsg = response?.errors
+      //     ? Object.values(response.errors).flat().join("\n")
+      //     : response?.message || "Failed to create user";
+      //   Alert.alert("Error", errorMsg);
+      //   router.replace("/(main)/dashboard");
+      // }
+      
     } catch (error) {
       console.log("Create user error:", error);
       Alert.alert("Error", "Failed to create user. Please try again.");
@@ -150,9 +152,16 @@ export default function CreateUserScreen() {
   };
 
   useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", () => {
+      handleClear();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
     fetchMasterData();
   }, []);
-  
+
   const fetchMasterData = async () => {
     try {
       // setDataLoading(true);
@@ -278,7 +287,6 @@ export default function CreateUserScreen() {
               }
             />
           </View>
-
         </Surface>
 
         {/* Login Credentials Section */}
@@ -462,11 +470,11 @@ export default function CreateUserScreen() {
             disabled={loading}
             style={styles.btnSubmit}
             labelStyle={styles.btnSubmitLabel}
-            buttonColor="transparent"
-          >
+            buttonColor="transparent">
             {loading ? "Creating..." : "Create User"}
           </Button>
         </LinearGradient>
+
       </View>
     </View>
   );
@@ -526,6 +534,7 @@ const styles = StyleSheet.create({
   inputOutline: {
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
+    color:COLORS.black
   },
   selectRow: {
     flexDirection: "row",

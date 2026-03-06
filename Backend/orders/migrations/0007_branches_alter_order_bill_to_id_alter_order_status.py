@@ -15,12 +15,13 @@ class Migration(migrations.Migration):
             name='Branches',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('bpl_id', models.CharField(blank=True, max_length=100, null=True)),
+                ('bpl_id', models.CharField(blank=True, max_length=50, null=True)),
                 ('bpl_name', models.CharField(blank=True, max_length=100, null=True)),
-                ('category', models.CharField(blank=True, max_length=100, null=True)),
+                ('category', models.CharField(blank=True, max_length=50, null=True)),
             ],
             options={
                 'db_table': 'branches',
+                'managed': False,
             },
         ),
         migrations.AlterField(

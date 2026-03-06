@@ -35,7 +35,7 @@ def _get_base_orders(user):
     if role_name == 'manager':
         return Order.objects.filter(created_by=user.id)
     if role_name == 'approver':
-        return Order.objects.filtcer(status__code__in=['NEED_APPROVAL', 'RATE_APPROVAL'])
+        return Order.objects.filter(status__code__in=['NEED_APPROVAL', 'RATE_APPROVAL'])
     if role_name == 'billing':
         return Order.objects.filter(status__code__in=['BILLING', 'BILLING_PENDING'])
     return Order.objects.none()
@@ -471,6 +471,14 @@ class CreateOrderView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
+        def _to_float(value, default=0.0):
+            try:
+                if value in (None, ''):
+                    return float(default)
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
+
         serializer = CreateOrderSerializer(data=request.data)
 
         if not serializer.is_valid():
@@ -499,15 +507,10 @@ class CreateOrderView(APIView):
         order_number = f'ORD-{today}-{new_num:04d}'
 
         # Calculate total
-        total_amount = sum(float(item.get('total', 0)) for item in items)
+        total_amount = sum(_to_float(item.get('total', 0)) for item in items)
 
         user = request.user if request.user.is_authenticated else None
-        user_id = user.id if user else None
-        print("AUTH HEADER:", request.headers.get("Authorization"))
-        print("USER:", request.user)
-        print("AUTHENTICATED:", request.user.is_authenticated)
 
-        # Create order
         order = Order.objects.create(
             order_number=order_number,
             card_code=data.get('card_code', ''),
@@ -522,8 +525,8 @@ class CreateOrderView(APIView):
             po_number=data.get('po_number', ''),
             total_amount=total_amount,
             status=get_status('Order Created'),
-            created_by=user_id,
-            delivery_date=data.get('delivery_date', ''),
+            created_by=user,
+            delivery_date=data.get('delivery_date'),
             remarks=order_remarks
         )
             
@@ -540,30 +543,30 @@ class CreateOrderView(APIView):
                 brand=item.get('brand', ''),
                 variety=item.get('variety', ''),
                 item_type=item.get('item_type', ''),
-                qty=item.get('qty', 0),
-                pcs=item.get('pcs', 0),
-                boxes=item.get('boxes', 0),
-                ltrs=item.get('ltrs', 0),
-                basic_price=item.get('basic_price', 0),
-                market_price=item.get('market_price', 0),
-                total=item.get('total', 0),
-                tax_rate=item.get('tax_rate', 0)
+                qty=_to_float(item.get('qty', 0)),
+                pcs=_to_float(item.get('pcs', 0)),
+                boxes=_to_float(item.get('boxes', 0)),
+                ltrs=_to_float(item.get('ltrs', 0)),
+                basic_price=_to_float(item.get('basic_price', 0)),
+                market_price=_to_float(item.get('market_price', 0)),
+                total=_to_float(item.get('total', 0)),
+                tax_rate=_to_float(item.get('tax_rate', 0))
             )
 
-            bp = float(item.get('basic_price', 0))
-            mp = float(item.get('market_price', 0))
+            bp = _to_float(item.get('basic_price', 0))
+            mp = _to_float(item.get('market_price', 0))
             if bp > mp:
                 needs_approval = True
                 flagged_items.append(f"{item.get('item_name')}: Basic ₹{bp} > Market ₹{mp}")
 
         # Log: Order created
-        log_order_action(order, 'Order Created', user=user_id)
+        log_order_action(order, 'Order Created', user=user)
 
         # Route based on price check
         if needs_approval:
-            order.status = get_status('Rate_Approval')
+            order.status = get_status('Rate Approval')
             order.save()
-            log_order_action(order, 'Rate_Approval', user=None, remarks='; '.join(flagged_items))
+            log_order_action(order, 'Rate Approval', user=None, remarks='; '.join(flagged_items))
         else:
             order.status = get_status('Auditor Approval')
             order.save()
@@ -757,14 +760,14 @@ class ApproveOrderView(APIView):
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        if order.status != 'submitted':
+        if order.status.name != 'Order Created':
             return Response(
-                {'error': f'Cannot approve. Current status: {order.status}'}, 
+                {'error': f'Cannot approve. Current status: {order.status.name}'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        order.status = 'approved'
-        order.approved_by = request.user.id if request.user.is_authenticated else 2
+        order.status = get_status('Approved')
+        order.approved_by = request.user if request.user.is_authenticated else None
         order.approved_at = datetime.now()
         order.save()
         
@@ -783,9 +786,9 @@ class RejectOrderView(APIView):
         except Order.DoesNotExist:
             return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        if order.status != 'submitted':
+        if order.status.name != 'Order Created':
             return Response(
-                {'error': f'Cannot reject. Current status: {order.status}'}, 
+                {'error': f'Cannot reject. Current status: {order.status.name}'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -797,8 +800,8 @@ class RejectOrderView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        order.status = 'rejected'
-        order.rejected_by = request.user.id if request.user.is_authenticated else 2
+        order.status = get_status('Rejected')
+        order.rejected_by = request.user if request.user.is_authenticated else None
         order.rejected_at = datetime.now()
         order.rejection_reason = reason
         order.save()

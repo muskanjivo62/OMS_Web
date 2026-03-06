@@ -256,7 +256,17 @@ export default function SapSyncScreen() {
         );
         loadData(true);
       } else {
-        setMessage(`❌ Sync failed: ${res.message}`);
+        console.log("Sync failed response:", JSON.stringify(res, null, 2));
+        const details = [
+          res.message,
+          res.error,
+          res.data?.error,
+          Array.isArray(res.errors) ? res.errors.join("; ") : undefined,
+          res.baseUrlTried,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        setMessage(`❌ Sync failed: ${details}`);
       }
     } catch (error) {
       setMessage("❌ Sync failed: Network error");
@@ -314,7 +324,7 @@ export default function SapSyncScreen() {
       alert("Error creating schedule");
     }
   };
-
+  
   const deleteSchedule = async (scheduleId: number) => {
     try {
       const token = await getToken();
