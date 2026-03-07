@@ -20,8 +20,8 @@ import { router } from "expo-router";
 type AuditorTab = "pending" | "others";
 
 const OTHER_STATUS_OPTIONS = [
-  { label: "Approved", value: "approved" },
-  { label: "Rejected", value: "rejected" },
+  { label: "Approved by Auditor", value: "3" },
+  { label: "Rejected by Auditor", value: "4" },
 ];
 
 export default function AuditorApprovalScreen() {
@@ -29,9 +29,7 @@ export default function AuditorApprovalScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<AuditorTab>("pending");
-  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>(
-    "approved",
-  );
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("3");
   const [actionLoading, setActionLoading] = useState<{
     id: number;
     type: "approve" | "reject";
@@ -67,32 +65,11 @@ export default function AuditorApprovalScreen() {
   };
 
   const loadOrders = useCallback(async () => {
-
     try {
-
       setLoading(true);
-      if (activeTab === "pending") {
-        const data = await productService.getOrders(0, "10");
-        setOrders(data || []);
-        return;
-      }
-
-      const data = await productService.getOrders(0);
-      const allOrders = data || [];
-      const filtered = allOrders.filter((o: any) => {
-        const statusText = String(o?.status_display || o?.status_name || "")
-          .trim()
-          .toLowerCase();
-
-        if (!statusText || statusText.includes("pending")) return false;
-
-        if (selectedOtherStatus === "approved") {
-          return statusText.includes("approved") || statusText.includes("billing");
-        }
-        return statusText.includes("rejected");
-
-      });
-      setOrders(filtered);
+      const statusFilter = activeTab === "pending" ? "10" : selectedOtherStatus;
+      const data = await productService.getOrders(0, statusFilter);
+      setOrders(data || []);
     } catch (error) {
       console.log("Error loading orders:", error);
       Alert.alert("Error", "Failed to load orders");
@@ -121,7 +98,7 @@ export default function AuditorApprovalScreen() {
             setActionLoading({ id: orderId, type: "approve" });
             await productService.updatestatus(
               orderId,
-              "2",
+              "10",
               "Approved by auditor",
             );
             Alert.alert("Success", "Order approved");

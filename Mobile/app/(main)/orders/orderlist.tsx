@@ -29,12 +29,8 @@ const OTHER_STATUS_OPTIONS = [
 ];
 
 const PENDING_STATUS_CODES = new Set([
-  "CREATED",
-  "RATE_APPROVAL",
   "BILLING",
-  "NEED_APPROVAL",
   "BILLING_PENDING",
-  "AUDITOR_APPROVAL",
 ]);
 
 export default function BillingOrderList() {

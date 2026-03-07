@@ -564,19 +564,23 @@ class CreateOrderView(APIView):
 
         # Route based on price check
         if needs_approval:
-            order.status = get_status('Rate Approval')
-            order.save()
+            next_status = get_status('Rate Approval')
+            if next_status:
+                order.status = next_status
+                order.save()
             log_order_action(order, 'Rate Approval', user=None, remarks='; '.join(flagged_items))
         else:
-            order.status = get_status('Auditor Approval')
-            order.save()
+            next_status = get_status('Auditor Approval')
+            if next_status:
+                order.status = next_status
+                order.save()
             log_order_action(order, 'Auditor Approval', user=None)
 
         return Response({
             'id': order.id,
             'order_number': order.order_number,
             'total_amount': str(order.total_amount),
-            'status': order.status.name,
+            'status': order.status.name if order.status else '',
             'needs_approval': needs_approval,
             'flagged_items': flagged_items if needs_approval else [],
             'remarks': order.remarks or '',
@@ -644,6 +648,41 @@ class UpdateOrderStatusView(APIView):
             and (status_obj.id == 3 or "billing" in new_name)
         )
 
+        is_rate_to_auditor = (
+            prev_name == "rate approval"
+            and status_obj.id == 10
+        )
+
+        if is_rate_to_auditor:
+            # Close the Rate Approval pending log
+            rate_pending_log = (
+                OrdersLog.objects
+                .filter(order=order, action=previous_status, performed_by__isnull=True)
+                .order_by("-created_at")
+                .first()
+            )
+            if rate_pending_log:
+                rate_pending_log.performed_by = user
+                if reason:
+                    rate_pending_log.remarks = reason
+                rate_pending_log.save(update_fields=["performed_by", "remarks"])
+
+            # Create pending Auditor Approval log
+            auditor_pending_log = (
+                OrdersLog.objects
+                .filter(order=order, action=status_obj, performed_by__isnull=True)
+                .order_by("-created_at")
+                .first()
+            )
+            if not auditor_pending_log:
+                log_order_action(order=order, action_name=status_obj.name, user=None, remarks="")
+
+            return Response({
+                "message": "Order status updated successfully",
+                "order_id": order.id,
+                "status": status_obj.name
+            })
+
         if is_auditor_to_billing:
             
             auditor_pending_log = (
@@ -681,6 +720,7 @@ class UpdateOrderStatusView(APIView):
 
         # If a placeholder row exists for this status (created earlier with no performer),
         # update it instead of inserting a duplicate row.
+        
         pending_log = (
             OrdersLog.objects
             .filter(order=order, action=status_obj, performed_by__isnull=True)
@@ -747,9 +787,15 @@ class OrdersByUserView(APIView):
 
         return Response(serializer.data)
         
-@lru_cache
+_status_cache = {}
+
 def get_status(name):
-    return OrderStatus.objects.get(name=name)
+    if name not in _status_cache:
+        try:
+            _status_cache[name] = OrderStatus.objects.get(name=name)
+        except OrderStatus.DoesNotExist:
+            return None
+    return _status_cache[name]
 
 class ApproveOrderView(APIView):
     permission_classes = [AllowAny]
@@ -814,13 +860,12 @@ class RejectOrderView(APIView):
 
 class OrderListView(APIView):
     permission_classes = [AllowAny]
-
+        
     def get(self, request):
         
-        status_filter = request.query_params.get('status', None) #optional 
-        user_id = request.query_params.get('user_id', None) #optional parameter
+        status_filter = request.query_params.get('status', None) 
+        user_id = request.query_params.get('user_id', None) 
         
-        # orders = Order.objects.all().order_by('-created_at')
         orders = Order.objects.filter(sap_created=False).order_by('-created_at')
         
         # Filter by user_id
@@ -859,5 +904,5 @@ class OrderListView(APIView):
                 ),
                 'items': list(items_qs.values())
             })
-        
-        return Response(data)   
+
+        return Response(data)  

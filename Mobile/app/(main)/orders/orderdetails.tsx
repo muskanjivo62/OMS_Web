@@ -33,10 +33,12 @@ export default function OrderDetailsScreen() {
     try {
       setLoading(true);
       setOrder(null);
-      console.log("Fetching details for order ID:", id);
+     
       const res = await orderService.getorderdetailsbyid(id);
+      console.log("Fetching details for order ID:", JSON.stringify(res));
       setOrder(res);
-    } catch {
+    } catch (error) {
+      console.error("Error fetching order details:", error);
       setOrder(null);
     } finally {
       setLoading(false);
@@ -78,8 +80,7 @@ export default function OrderDetailsScreen() {
         colors={[COLORS.primaryDark, COLORS.primary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
+        style={styles.header}>
         <Text style={styles.orderNo}>{order.order_number}</Text>
         <Text style={styles.party}>{order.card_name}</Text>
 
@@ -111,22 +112,24 @@ export default function OrderDetailsScreen() {
           scrollEnabled={false}
           renderItem={({ item }) => (
             <View style={styles.itemRow}>
+
               <View style={{ flex: 1 }}>
+
                 <InfoRow label="Item Name" value={item.item_name} />
                 <InfoRow label="Item Code" value={item.item_code} />
+                <InfoRow label="Price" value={`₹${item.market_price}`} />
                 <InfoRow label="Qty" value={item.qty} />
                 <InfoRow label="Box" value={item.boxes} />
                 <InfoRow label="Ltrs" value={item.ltrs} />
+                <InfoRow label="Total" value={`₹${item.total}`} />
 
-                {/* <Text style={styles.itemQty}>
-                  Qty {item.qty} | Box {item.boxes} | Ltrs {item.ltrs}
-                </Text> */}
               </View>
 
-              <View style={styles.priceWrap}>
+              {/* <View style={styles.priceWrap}>
                 <Text style={styles.price}>₹{item.market_price}</Text>
                 <Text style={styles.lineTotal}>₹{item.total}</Text>
-              </View>
+              </View> */}
+          
             </View>
           )}
         />

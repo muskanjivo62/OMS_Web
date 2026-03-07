@@ -19,8 +19,8 @@ import Dropdown from "@/src/components/common/DropdownProps";
 type ApprovalTab = "pending" | "others";
 
 const OTHER_STATUS_OPTIONS = [
-  { label: "Approved", value: "2" },
-  { label: "Rejected", value: "4" },
+  { label: "Approved by Rate Approver", value: "6" },
+  { label: "Rejected by Rate Approver", value: "7" },
 ];
 
 export default function PendingApprovalScreen() {
@@ -28,7 +28,7 @@ export default function PendingApprovalScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ApprovalTab>("pending");
-  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("2");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("6");
   const [actionLoading, setActionLoading] = useState<{
     id: number;
     type: "approve" | "reject";
@@ -66,7 +66,7 @@ export default function PendingApprovalScreen() {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const statusFilter = activeTab === "pending" ? "6" : selectedOtherStatus;
+      const statusFilter = activeTab === "pending" ? "2" : selectedOtherStatus;
       const data = await productService.getOrders(0, statusFilter);
       setOrders(data || []);
     } catch (error) {
@@ -255,7 +255,7 @@ export default function PendingApprovalScreen() {
       <Text style={styles.emptyText}>
         {activeTab === "pending"
           ? "No pending orders"
-          : `No ${OTHER_STATUS_OPTIONS.find((s) => s.value === selectedOtherStatus)?.label || "orders"}`}
+          : `No ${OTHER_STATUS_OPTIONS.find((s) => s.value === selectedOtherStatus)?.label?.toLowerCase() || ""} orders found`}
       </Text>
     </View>
   );
@@ -264,17 +264,11 @@ export default function PendingApprovalScreen() {
     <View style={styles.container}>
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "pending" && styles.activePendingTab,
-          ]}
+          style={[styles.tab, activeTab === "pending" && styles.activePendingTab]}
           onPress={() => setActiveTab("pending")}
         >
           <Text
-            style={[
-              styles.tabText,
-              activeTab === "pending" && styles.activeTabText,
-            ]}
+            style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}
           >
             Pending
           </Text>
@@ -285,10 +279,7 @@ export default function PendingApprovalScreen() {
           onPress={() => setActiveTab("others")}
         >
           <Text
-            style={[
-              styles.tabText,
-              activeTab === "others" && styles.activeTabText,
-            ]}
+            style={[styles.tabText, activeTab === "others" && styles.activeTabText]}
           >
             Others
           </Text>
@@ -298,7 +289,7 @@ export default function PendingApprovalScreen() {
       {activeTab === "others" && (
         <View style={styles.filterWrap}>
           <Dropdown
-            label="Auditor Status"
+            label="Status"
             data={OTHER_STATUS_OPTIONS}
             value={selectedOtherStatus}
             onChange={setSelectedOtherStatus}

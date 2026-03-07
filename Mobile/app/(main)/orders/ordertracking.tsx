@@ -15,25 +15,16 @@ import { COLORS } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import Dropdown from "@/src/components/common/DropdownProps";
 
-type TrackingTab = "pending" | "others";
-
 export default function OrderTrackingScreen() {
   const [orders, setOrders] = useState<OrderItemList[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TrackingTab>("pending");
-  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string | null>(
-    null,
-  );
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     loadOrders();
   }, []);
-
-  useEffect(() => {
-    setSelectedOtherStatus(null);
-  }, [activeTab]);
 
   const loadOrders = async () => {
     try {
@@ -58,9 +49,6 @@ export default function OrderTrackingScreen() {
 
   const getStatusName = (item: any) => String(item?.status_name || "").trim();
 
-  const isPendingOrder = (item: any) =>
-    getStatusName(item).toLowerCase().includes("pending");
-
   const formatDate = (value?: string) => {
     if (!value) return "-";
     const parsed = new Date(value);
@@ -75,10 +63,9 @@ export default function OrderTrackingScreen() {
     return `${categories.slice(0, 2).join(", ")} +${categories.length - 2}`;
   };
 
-  const otherStatusOptions = [
+  const statusOptions = [
     ...new Set(
       orders
-        .filter((item: any) => !isPendingOrder(item))
         .map((item: any) => getStatusName(item))
         .filter(Boolean),
     ),
@@ -87,12 +74,8 @@ export default function OrderTrackingScreen() {
     .map((status) => ({ label: status, value: status }));
 
   const filteredOrders = orders.filter((item: any) => {
-    if (activeTab === "pending") return isPendingOrder(item);
-
-    const statusName = getStatusName(item);
-    if (!statusName || isPendingOrder(item)) return false;
-    if (!selectedOtherStatus) return true;
-    return statusName === selectedOtherStatus;
+    if (!selectedStatus) return true;
+    return getStatusName(item) === selectedStatus;
   });
 
   const renderOrder = ({ item }: { item: OrderItemList }) => (
@@ -186,53 +169,25 @@ export default function OrderTrackingScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyText}>
-        {activeTab === "pending"
-          ? "No pending orders"
-          : selectedOtherStatus
-            ? `No orders found for ${selectedOtherStatus}`
-            : "No other status orders"}
+        {selectedStatus
+          ? `No orders found for ${selectedStatus}`
+          : "No orders found"}
       </Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "pending" && styles.activePendingTab]}
-          onPress={() => setActiveTab("pending")}
-        >
-          <Text
-            style={[styles.tabText, activeTab === "pending" && styles.activeTabText]}
-          >
-            Pending
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "others" && styles.activeOthersTab]}
-          onPress={() => setActiveTab("others")}
-        >
-          <Text
-            style={[styles.tabText, activeTab === "others" && styles.activeTabText]}
-          >
-            Others
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.filterWrap}>
+        <Dropdown
+          label="Filter by Status"
+          data={statusOptions}
+          value={selectedStatus}
+          onChange={setSelectedStatus}
+          placeholder="All statuses"
+          searchable={false}
+        />
       </View>
-
-      {activeTab === "others" && (
-        <View style={styles.filterWrap}>
-          <Dropdown
-            label="Other Status"
-            data={otherStatusOptions}
-            value={selectedOtherStatus}
-            onChange={setSelectedOtherStatus}
-            placeholder="All statuses"
-            searchable={false}
-          />
-        </View>
-      )}
 
       {/* Orders Count */}
       {!loading && filteredOrders.length > 0 && (
@@ -299,33 +254,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: COLORS.white,
-    padding: 12,
-    gap: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: COLORS.background,
-    alignItems: "center",
-  },
-  activePendingTab: {
-    backgroundColor: COLORS.pending,
-  },
-  activeOthersTab: {
-    backgroundColor: COLORS.primary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textLight,
-  },
-  activeTabText: {
-    color: "#fff",
   },
   countBar: {
     backgroundColor: COLORS.primary,
