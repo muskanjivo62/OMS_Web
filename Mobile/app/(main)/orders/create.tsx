@@ -877,6 +877,17 @@ export default function CreateOrderScreen() {
           ) : (
             itemRows.map((row, index) => (
               <View key={row.id} style={styles.itemCard}>
+                <View style={styles.itemHeader}>
+                  <Text style={styles.itemNumber}>New Item {index + 1}</Text>
+                  <TouchableOpacity onPress={() => removeItem(row.id)}>
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color={COLORS.error}
+                    />
+                  </TouchableOpacity>
+                </View>
+
                 {/* Category */}
                 <View style={styles.field}>
                   <Dropdown
