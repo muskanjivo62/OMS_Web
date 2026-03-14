@@ -78,8 +78,13 @@ export default function CreateUserScreen() {
       newErrors.company = "Company is required";
     }
 
-    // Optional fields → no validation
-    // email, phone, mainGroup, state
+    // Email: optional but must be valid if provided
+    if (formData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email.trim())) {
+        newErrors.email = "Enter a valid email address";
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -105,28 +110,27 @@ export default function CreateUserScreen() {
         states: formData.state.join(","),
       };
 
-      // console.log("Creating user:", userData);
+      console.log("Creating user:", userData);
       // const response = await userService.createUser(userData);
       // console.log("Create user response:", JSON.stringify(response));
 
       // if (response?.success) {
-        Alert.alert("Success", "User created successfully!", [
-          {
-            text: "OK",
-            onPress: () => {
-              handleClear();
-              router.replace("/(main)/dashboard");
-            },
-          },
-        ]);
+      //   Alert.alert("Success", "User created successfully!", [
+      //     {
+      //       text: "OK",
+      //       onPress: () => {
+      //         handleClear();
+      //         router.replace("/(main)/dashboard");
+      //       },
+      //     },
+      //   ]);
       // } else {
       //   const errorMsg = response?.errors
       //     ? Object.values(response.errors).flat().join("\n")
       //     : response?.message || "Failed to create user";
       //   Alert.alert("Error", errorMsg);
-      //   router.replace("/(main)/dashboard");
       // }
-      
+
     } catch (error) {
       console.log("Create user error:", error);
       Alert.alert("Error", "Failed to create user. Please try again.");
@@ -257,7 +261,13 @@ export default function CreateUserScreen() {
                   color={COLORS.textSecondary}
                 />
               }
+              error={!!errors.email}
             />
+            {errors.email ? (
+              <HelperText type="error" visible={true}>
+                {errors.email}
+              </HelperText>
+            ) : null}
           </View>
 
           <View style={styles.field}>

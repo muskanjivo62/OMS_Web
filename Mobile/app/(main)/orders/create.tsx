@@ -135,7 +135,7 @@ export default function CreateOrderScreen() {
   const [branch, setBranch] = useState<number | null>(null);
   const [poNumber, setPoNumber] = useState("");
   const [comment, setComment] = useState("");
-  const [delivery, setDeliveryDate] = useState(getTodayDate());
+  const [delivery, setDeliveryDate] = useState("");
   const [showPicker, setShowPicker] = useState(false);
 
   // ── Address dropdowns ─────────────────────────────────────────────────────
@@ -590,6 +590,7 @@ export default function CreateOrderScreen() {
     // if (!selectedBillTo) return Alert.alert("Error", "Select bill to address");
     if (!selectedShipTo) return Alert.alert("Error", "Select ship to address");
     if (!poNumber) return Alert.alert("Error", "Select Po Number");
+    if (!delivery) return Alert.alert("Error", "Select delivery date");
     if (!branch) return Alert.alert("Error", "Select dispatch location");
 
     if (orderItems.length === 0)
@@ -1033,7 +1034,7 @@ export default function CreateOrderScreen() {
                 <View style={styles.row}>
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="Base Price"
+                      label="Basic Price"
                       textColor={COLORS.black}
                       value={row.basePrice}
                       editable={false}
