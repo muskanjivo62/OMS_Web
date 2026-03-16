@@ -78,7 +78,7 @@ export default function AuditorApprovalScreen() {
       setRefreshing(false);
     }
   }, [activeTab, selectedOtherStatus]);
-
+  
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);

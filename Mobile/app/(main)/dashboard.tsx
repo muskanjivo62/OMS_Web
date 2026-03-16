@@ -11,7 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Dropdown } from "react-native-element-dropdown";
 import { useAuth } from "@/src/context/AuthContext";
-import { COLORS, SPACING, RADIUS } from "@/src/constants/theme";
+import { COLORS, SPACING, RADIUS, SHADOWS } from "@/src/constants/theme";
 import { api } from "@/src/services/api";
 import { storage } from "@/src/utils/storage";
 import { DashboardChartsData } from "@/src/types/dashboard";
@@ -44,17 +44,15 @@ interface DashboardData {
   };
 }
 
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const { width: screenWidth } = useWindowDimensions();
-  const isNarrow = screenWidth < 400;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<DashboardChartsData | null>(null);
   const [chartLoading, setChartLoading] = useState(true);
-  // Line chart: year only
   const [lineYear, setLineYear] = useState(new Date().getFullYear());
-  // Donut charts: year + month (0 = year-to-date)
   const [donutYear, setDonutYear] = useState(new Date().getFullYear());
   const [donutMonth, setDonutMonth] = useState(0);
 
@@ -70,14 +68,10 @@ export default function DashboardScreen() {
   const fetchDashboard = async () => {
     try {
       const token = await storage.getAccessToken();
-      const result = await api.get(
-        "/orders/dashboard/",
-        token || undefined,
-      );
-
-      console.log("Dashboard fetch result:", JSON.stringify(result));
-      if (result && !result.error && result.total_orders !== undefined) {
-        setData(result);
+      const result = await api.get("/orders/dashboard/", token || undefined);
+      const payload = result?.data ?? result;
+      if (payload && !payload.error && payload.total_orders !== undefined) {
+        setData(payload);
       }
     } catch (error) {
       console.log("Dashboard fetch error:", error);
@@ -94,8 +88,9 @@ export default function DashboardScreen() {
         `/orders/dashboard/charts/?line_year=${ly}&year=${dy}&month=${dm}`,
         token || undefined,
       );
-      if (result && !result.error && result.monthly_sales) {
-        setChartData(result);
+      const payload = result?.data ?? result;
+      if (payload && !payload.error && payload.monthly_sales) {
+        setChartData(payload);
       }
     } catch (error) {
       console.log("Chart data fetch error:", error);
@@ -104,103 +99,125 @@ export default function DashboardScreen() {
     }
   };
 
-  const stats = data
-    ? [
-        {
-          title: "Revenue",
-          value: `₹${Number(data.total_revenue).toLocaleString("en-IN")}`,
-          icon: "cash",
-          color: "#059669",
-        },
-        {
-          title: "Today",
-          value: String(data.today_orders),
-          icon: "today",
-          color: "#8B5CF6",
-        },
-        {
-          title: "This Month",
-          value: String(data.this_month_orders),
-          icon: "calendar",
-          color: "#0891B2",
-        },
-        {
-          title: "Total Orders",
-          value: String(data.total_orders),
-          icon: "document-text",
-          color: "#2563EB",
-        },
-      ]
-    : [];
+  const statValues: Record<string, string> = data
+    ? {
+        revenue: `₹${Number(data.total_revenue).toLocaleString("en-IN")}`,
+        today: String(data.today_orders),
+        month: String(data.this_month_orders),
+        total: String(data.total_orders),
+      }
+    : {};
+
+  const cardWidth = (screenWidth - SPACING.lg * 2 - SPACING.sm) / 2;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: SPACING.xl }}
+    >
+      {/* Welcome Banner */}
       <LinearGradient
         colors={[COLORS.primaryDark, COLORS.primary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.welcomeCard}
-      >
-        <View style={styles.decorCircle1} />
-        <View style={styles.decorCircle2} />
-        <Text style={styles.welcomeText}>Welcome back,</Text>
-        <Text style={styles.userName}>{user?.name || user?.username}!</Text>
-        <Text style={styles.welcomeSubtext}>
-          Here's what's happening with your orders today.
-        </Text>
+        style={styles.banner}>
+        <View style={styles.bannerCircle1} />
+        <View style={styles.bannerCircle2} />
+        <View style={styles.bannerCircle3} />
+        {/* <View style={styles.bannerContent}>
+          <View>
+            <Text style={styles.bannerGreeting}>Welcome back 👋</Text>
+            <Text style={styles.bannerName}>
+              {user?.name || user?.username}
+            </Text>
+            <Text style={styles.bannerSub}>
+              Here's your business overview for today
+            </Text>
+          </View>
+          <View style={styles.bannerBadge}>
+            <Ionicons name="shield-checkmark" size={16} color="#fff" />
+            <Text style={styles.bannerBadgeText}>Admin</Text>
+          </View>
+        </View> */}
       </LinearGradient>
 
-      {/* Analytics Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Analytics</Text>
+      {/* Stats Section */}
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionAccent} />
+        <Text style={styles.sectionTitle}>Analytics Overview</Text>
       </View>
 
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primary}
-          style={{ marginTop: SPACING.xl }}
-        />
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
       ) : (
-        <View style={[styles.statsGrid, isNarrow && styles.statsGridWrap]}>
-          {stats.map((stat, index) => (
-            <AnimatedCard
-              key={index}
-              style={[
-                styles.statCard,
-                isNarrow && { width: (screenWidth - SPACING.md * 2 - SPACING.sm) / 2 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: `${stat.color}15` },
-                ]}
+        <View style={styles.statsGrid}>
+          {/* Revenue — full width */}
+          {data && (
+            <AnimatedCard style={styles.revenueCard}>
+              <LinearGradient
+                colors={[COLORS.primaryDark, COLORS.primary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.revenueGradient}
               >
-                <Ionicons
-                  name={stat.icon as any}
-                  size={24}
-                  color={stat.color}
-                />
-              </View>
-              <AnimatedNumber value={stat.value} style={styles.statValue} />
-              <Text style={styles.statTitle}>{stat.title}</Text>
+                <View style={styles.revenueCircle} />
+                <View style={styles.revenueRow}>
+                  <View>
+                    <Text style={styles.revenueLabel}>Total Revenue</Text>
+                    <AnimatedNumber
+                      value={statValues.revenue}
+                      style={styles.revenueValue}
+                    />
+                  </View>
+                  <View style={styles.revenueIconBox}>
+                    <Ionicons name="cash-outline" size={28} color="#fff" />
+                  </View>
+                </View>
+              </LinearGradient>
             </AnimatedCard>
+          )}
+
+          {/* 3 smaller cards */}
+          {[
+            { key: "today", label: "Today's Orders", icon: "today-outline", color: "#7C3AED", bg: "#F5F3FF" },
+            { key: "month", label: "This Month", icon: "calendar-outline", color: "#0891B2", bg: "#ECFEFF" },
+            { key: "total", label: "Total Orders", icon: "document-text-outline", color: "#059669", bg: "#F0FDF4" },
+          ].map((s) => (
+            data && (
+              <AnimatedCard
+                key={s.key}
+                style={[styles.smallCard, { width: cardWidth }]}
+              >
+                <View style={[styles.smallCardIcon, { backgroundColor: s.bg }]}>
+                  <Ionicons name={s.icon as any} size={22} color={s.color} />
+                </View>
+                <AnimatedNumber
+                  value={statValues[s.key]}
+                  style={StyleSheet.flatten([styles.smallCardValue, { color: s.color }])}
+                />
+                <Text style={styles.smallCardLabel}>{s.label}</Text>
+              </AnimatedCard>
+            )
           ))}
         </View>
       )}
-      
+
+      {/* Charts Section */}
       {chartLoading ? (
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primary}
-          style={{ marginVertical: SPACING.xl }}
-        />
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading charts...</Text>
+        </View>
       ) : chartData ? (
-        <View style={styles.chartsContainer}>
-          {/* Line chart with its own year picker */}
-          <View style={styles.lineChartHeader}>
-            <Text style={styles.chartSectionLabel}>Revenue Trend</Text>
+        <View style={styles.chartsSection}>
+          {/* Revenue Trend */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Revenue Trend</Text>
+            <View style={{ flex: 1 }} />
             <Dropdown
               data={YEAR_OPTIONS}
               labelField="label"
@@ -213,9 +230,10 @@ export default function DashboardScreen() {
           </View>
           <SalesLineChart data={chartData.monthly_sales} />
 
-          {/* Donut charts with their own month+year filter */}
-          <View style={styles.donutFilterRow}>
-            <Text style={styles.chartSectionLabel}>Overview</Text>
+          {/* Overview */}
+          <View style={[styles.sectionHeader, { marginTop: SPACING.lg }]}>
+            <View style={styles.sectionAccent} />
+            <Text style={styles.sectionTitle}>Overview</Text>
           </View>
           <MonthPicker
             year={donutYear}
@@ -223,34 +241,18 @@ export default function DashboardScreen() {
             onChangeYear={setDonutYear}
             onChangeMonth={setDonutMonth}
           />
-          <View style={styles.chartsGrid}>
-            <View style={[styles.chartsRow, isNarrow && styles.chartsRowWrap]}>
+          <View style={styles.chartsRow}>
+            <View style={styles.chartHalf}>
               <StatusPieChart data={chartData.status_distribution} />
+            </View>
+            <View style={styles.chartHalf}>
               <CategorySalesChart data={chartData.category_sales} />
             </View>
-            <TopPartiesChart data={chartData.top_parties} />
-            <StatewiseBarChart data={chartData.statewise_orders} />
           </View>
+          <TopPartiesChart data={chartData.top_parties} />
+          <StatewiseBarChart data={chartData.statewise_orders} />
         </View>
       ) : null}
-
-      {/* <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionsRow}>
-          <Surface style={styles.actionCard}>
-            <Ionicons name="add-circle" size={28} color={COLORS.primary} />
-            <Text style={styles.actionText}>New Order</Text>
-          </Surface>
-          <Surface style={styles.actionCard}>
-            <Ionicons name="search" size={28} color={COLORS.primary} />
-            <Text style={styles.actionText}>Search</Text>
-          </Surface>
-          <Surface style={styles.actionCard}>
-            <Ionicons name="stats-chart" size={28} color={COLORS.primary} />
-            <Text style={styles.actionText}>Reports</Text>
-          </Surface>
-        </View>
-      </View> */}
     </ScrollView>
   );
 }
@@ -260,153 +262,212 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  welcomeCard: {
+
+  // Banner
+  banner: {
     margin: SPACING.lg,
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.xl,
+    overflow: "hidden",
+    ...SHADOWS.button,
+  },
+  bannerCircle1: {
+    position: "absolute",
+    top: -40,
+    right: -40,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  bannerCircle2: {
+    position: "absolute",
+    bottom: -25,
+    left: -25,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  bannerCircle3: {
+    position: "absolute",
+    top: 20,
+    right: 80,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  bannerContent: {
+    padding: SPACING.lg,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  bannerGreeting: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    marginBottom: 4,
+  },
+  bannerName: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  bannerSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.65)",
+  },
+  bannerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  bannerBadgeText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  // Section Header
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+
+  // Stats
+  loadingBox: {
+    alignItems: "center",
+    paddingVertical: SPACING.xl,
+    gap: SPACING.sm,
+  },
+  loadingText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  statsGrid: {
+    paddingHorizontal: SPACING.lg,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  revenueCard: {
+    width: "100%",
+    borderRadius: RADIUS.lg,
+    overflow: "hidden",
+    ...SHADOWS.card,
+  },
+  revenueGradient: {
     padding: SPACING.lg,
     borderRadius: RADIUS.lg,
-    position: "relative",
     overflow: "hidden",
   },
-  decorCircle1: {
+  revenueCircle: {
     position: "absolute",
-    top: -30,
-    right: -30,
+    top: -20,
+    right: -20,
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
-  decorCircle2: {
-    position: "absolute",
-    bottom: -20,
-    left: -20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.8)",
-  },
-  userName: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: COLORS.textLight,
-    marginTop: 4,
-  },
-  welcomeSubtext: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 8,
-  },
-  statsGrid: {
+  revenueRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: SPACING.md,
-    gap: SPACING.sm,
-  },
-  statsGridWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
-  },
-  statCard: {
-    flex: 1,
-    minWidth: 70,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    elevation: 2,
     alignItems: "center",
   },
-  statIcon: {
-    width: 36,
-    height: 36,
+  revenueLabel: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.75)",
+    marginBottom: 4,
+  },
+  revenueValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  revenueIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  smallCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    alignItems: "flex-start",
+    ...SHADOWS.card,
+  },
+  smallCardIcon: {
+    width: 40,
+    height: 40,
     borderRadius: RADIUS.sm,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.text,
-  },
-  statTitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-    textAlign: "center",
-  },
-  chartsContainer: {
-    paddingHorizontal: SPACING.lg,
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  lineChartHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: SPACING.sm,
   },
-  chartSectionLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.text,
+  smallCardValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  smallCardLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
+  },
+
+  // Charts
+  chartsSection: {
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.md,
   },
   yearDropdown: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.primaryLighter,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    width: 100,
+    borderColor: COLORS.borderBlue,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    width: 90,
   },
   yearDropdownText: {
-    fontSize: 15,
-    color: COLORS.text,
-  },
-  donutFilterRow: {
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xs,
-  },
-  chartsGrid: {
-    gap: SPACING.sm,
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: "600",
   },
   chartsRow: {
     flexDirection: "row",
     gap: SPACING.sm,
   },
-  chartsRowWrap: {
-    flexDirection: "column",
-  },
-  section: {
-    padding: SPACING.lg,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: SPACING.md,
-  },
-  actionCard: {
+  chartHalf: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    alignItems: "center",
-    elevation: 2,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.text,
-    marginTop: SPACING.sm,
   },
 });

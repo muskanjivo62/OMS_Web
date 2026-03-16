@@ -110,14 +110,20 @@ export default function OrderDetailsScreen() {
           data={order.items}
           keyExtractor={(i) => i.id.toString()}
           scrollEnabled={false}
-          renderItem={({ item }) => (
-            <View style={styles.itemRow}>
+          renderItem={({ item }) => {
+            const bp = parseFloat(item.basic_price) || 0;
+            const mp = parseFloat(item.market_price) || 0;
+            const isFlagged = mp > 0 && mp < bp;
+
+            return (
+            <View style={[styles.itemRow, isFlagged && styles.flaggedItem]}>
 
               <View style={{ flex: 1 }}>
 
                 <InfoRow label="Item Name" value={item.item_name} />
                 <InfoRow label="Item Code" value={item.item_code} />
-                <InfoRow label="Price" value={`₹${item.market_price}`} />
+                <InfoRow label="Basic Price" value={`₹${item.basic_price}`} />
+                <InfoRow label="Market Price" value={`₹${item.market_price}`} highlight={isFlagged} />
                 <InfoRow label="Qty" value={item.qty} />
                 <InfoRow label="Box" value={item.boxes} />
                 <InfoRow label="Ltrs" value={item.ltrs} />
@@ -129,9 +135,10 @@ export default function OrderDetailsScreen() {
                 <Text style={styles.price}>₹{item.market_price}</Text>
                 <Text style={styles.lineTotal}>₹{item.total}</Text>
               </View> */}
-          
+
             </View>
-          )}
+          );
+          }}
         />
       </View>
 
@@ -158,11 +165,11 @@ const SectionTitle = ({ icon, title }: any) => (
   </View>
 );
 
-const InfoRow = ({ label, value }: any) =>
+const InfoRow = ({ label, value, highlight }: any) =>
   value ? (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={[styles.infoValue, highlight && { color: COLORS.error, fontWeight: "800" }]}>{value}</Text>
     </View>
   ) : null;
 
@@ -254,6 +261,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
+  },
+
+  flaggedItem: {
+    backgroundColor: "#FFF3F3",
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.error,
+    paddingLeft: 10,
+    borderRadius: 6,
   },
 
   itemName: { fontWeight: "700", fontSize: 14 },

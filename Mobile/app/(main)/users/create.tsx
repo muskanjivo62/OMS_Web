@@ -44,7 +44,7 @@ export default function CreateUserScreen() {
   const [companies, setCompanies] = useState<Company[]>();
   const [mainGroups, setMainGroups] = useState<MainGroup[]>();
   const [roles, setRoles] = useState<UserRole[]>([]);
-
+  
   const updateField = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
     if (errors[field]) {
@@ -111,25 +111,25 @@ export default function CreateUserScreen() {
       };
 
       console.log("Creating user:", userData);
-      // const response = await userService.createUser(userData);
-      // console.log("Create user response:", JSON.stringify(response));
+      const response = await userService.createUser(userData);
+      console.log("Create user response:", JSON.stringify(response));
 
-      // if (response?.success) {
-      //   Alert.alert("Success", "User created successfully!", [
-      //     {
-      //       text: "OK",
-      //       onPress: () => {
-      //         handleClear();
-      //         router.replace("/(main)/dashboard");
-      //       },
-      //     },
-      //   ]);
-      // } else {
-      //   const errorMsg = response?.errors
-      //     ? Object.values(response.errors).flat().join("\n")
-      //     : response?.message || "Failed to create user";
-      //   Alert.alert("Error", errorMsg);
-      // }
+      if (response?.success) {
+        Alert.alert("Success", "User created successfully!", [
+          {
+            text: "OK",
+            onPress: () => {
+              handleClear();
+              router.replace("/(main)/dashboard");
+            },
+          },
+        ]);
+      } else {
+        const errorMsg = response?.errors
+          ? Object.values(response.errors).flat().join("\n")
+          : response?.message || "Failed to create user";
+        Alert.alert("Error", errorMsg);
+      }
 
     } catch (error) {
       console.log("Create user error:", error);
@@ -191,10 +191,12 @@ export default function CreateUserScreen() {
     label: s.name,
     value: s.id,
   }));
+
   const companyOptions = (companies || []).map((c) => ({
     label: c.name,
     value: c.id,
   }));
+
   const mainGroupOptions = (mainGroups || []).map((g) => ({
     label: g.name,
     value: g.id,
@@ -488,6 +490,7 @@ export default function CreateUserScreen() {
       </View>
     </View>
   );
+
 }
 
 const styles = StyleSheet.create({

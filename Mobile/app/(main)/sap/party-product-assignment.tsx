@@ -10,8 +10,8 @@ import {
   Platform,
   Modal,
   Alert,
+  FlatList,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { storage } from "@/src/utils/storage";
@@ -46,11 +46,10 @@ interface SelectedProduct {
 const CATEGORIES = ["ALL", "OIL", "BEVERAGES", "MART"];
 
 export default function PartyProductAssignmentScreen() {
-  // Key to force re-render picker
-  const [pickerKey, setPickerKey] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [parties, setParties] = useState<Party[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCardCode, setSelectedCardCode] = useState<string | null>(null);
@@ -61,6 +60,8 @@ export default function PartyProductAssignmentScreen() {
   const [modalCategoryFilter, setModalCategoryFilter] = useState("ALL");
   const [message, setMessage] = useState("");
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showPartyModal, setShowPartyModal] = useState(false);
+  const [partyModalSearch, setPartyModalSearch] = useState("");
 
   const [selectedProducts, setSelectedProducts] = useState<
     Map<string, SelectedProduct>
@@ -74,9 +75,6 @@ export default function PartyProductAssignmentScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log("Screen focused - full reset");
-
-      // Force picker to re-render by changing key
-      setPickerKey((prev) => prev + 1);
 
       // Reset all state
       setSelectedCardCode(null);
@@ -114,6 +112,7 @@ export default function PartyProductAssignmentScreen() {
   };
 
   const loadAllProducts = async () => {
+    setProductsLoading(true);
     try {
       const token = await getToken();
       const res = await api.get("/sap/products/", token);
@@ -121,6 +120,8 @@ export default function PartyProductAssignmentScreen() {
       setProducts(list);
     } catch (error) {
       console.log("Load products error:", error);
+    } finally {
+      setProductsLoading(false);
     }
   };
 
@@ -389,33 +390,16 @@ export default function PartyProductAssignmentScreen() {
         {/* Party Selection */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Select Party</Text>
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={20} color="#999" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search party..."
-              value={partySearchQuery}
-              onChangeText={setPartySearchQuery}
-            />
-          </View>
-          <View style={styles.pickerContainer}>
-            {/* Key forces Picker to re-render on screen focus */}
-            <Picker
-              key={pickerKey}
-              selectedValue={selectedCardCode}
-              onValueChange={handlePartyChange}
-              style={styles.picker}
-            >
-              <Picker.Item label="-- Select Party --" value={null} />
-              {filteredParties.slice(0, 100).map((party) => (
-                <Picker.Item
-                  key={party.card_code}
-                  label={`${party.card_code} - ${party.card_name}`}
-                  value={party.card_code}
-                />
-              ))}
-            </Picker>
-          </View>
+          <TouchableOpacity
+            style={styles.partySelectBtn}
+            onPress={() => { setPartyModalSearch(""); setShowPartyModal(true); }}
+          >
+            <Ionicons name="business-outline" size={20} color="#1e3a5f" />
+            <Text style={[styles.partySelectBtnText, !selectedCardCode && { color: "#999" }]}>
+              {selectedParty ? `${selectedParty.card_code} - ${selectedParty.card_name}` : "-- Select Party --"}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color="#999" />
+          </TouchableOpacity>
         </View>
 
         {message ? (
@@ -427,10 +411,10 @@ export default function PartyProductAssignmentScreen() {
         {selectedParty && (
           <View style={styles.card}>
             <View style={styles.partyHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 10 }}>
                 <Text style={styles.partyCode}>{selectedParty.card_code}</Text>
-                <Text style={styles.partyName}>{selectedParty.card_name}</Text>
-                <Text style={styles.partyMeta}>
+                <Text style={styles.partyName} numberOfLines={2}>{selectedParty.card_name}</Text>
+                <Text style={styles.partyMeta} numberOfLines={1}>
                   {selectedParty.state || "-"} •{" "}
                   {selectedParty.main_group || "-"}
                 </Text>
@@ -575,6 +559,79 @@ export default function PartyProductAssignmentScreen() {
         )}
       </ScrollView>
 
+      {/* Party Selection Modal */}
+      <Modal
+        visible={showPartyModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPartyModal(false)}
+      >
+        <View style={styles.partyModalOverlay}>
+          <View style={styles.partyModalSheet}>
+            <View style={styles.partyModalHeader}>
+              <Text style={styles.partyModalTitle}>Select Party</Text>
+              <TouchableOpacity onPress={() => setShowPartyModal(false)}>
+                <Ionicons name="close" size={26} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalSearchBox}>
+              <Ionicons name="search" size={20} color="#999" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search party..."
+                value={partyModalSearch}
+                onChangeText={setPartyModalSearch}
+                autoFocus
+              />
+              {partyModalSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setPartyModalSearch("")}>
+                  <Ionicons name="close-circle" size={18} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList
+              data={parties.filter(
+                (p) =>
+                  p.card_code?.toLowerCase().includes(partyModalSearch.toLowerCase()) ||
+                  p.card_name?.toLowerCase().includes(partyModalSearch.toLowerCase()) ||
+                  p.state?.toLowerCase().includes(partyModalSearch.toLowerCase())
+              )}
+              keyExtractor={(item) => item.card_code}
+              style={styles.partyModalList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.partyModalItem,
+                    selectedCardCode === item.card_code && styles.partyModalItemActive,
+                  ]}
+                  onPress={() => {
+                    handlePartyChange(item.card_code);
+                    setShowPartyModal(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.partyModalItemCode}>{item.card_code}</Text>
+                    <Text style={styles.partyModalItemName}>{item.card_name}</Text>
+                    {item.state ? <Text style={styles.partyModalItemMeta}>{item.state}</Text> : null}
+                  </View>
+                  {selectedCardCode === item.card_code && (
+                    <Ionicons name="checkmark-circle" size={22} color="#1e3a5f" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setShowPartyModal(false)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Assign Modal */}
       <Modal
         visible={showAssignModal}
@@ -641,79 +698,58 @@ export default function PartyProductAssignmentScreen() {
             </Text>
           </View>
 
-          <ScrollView style={styles.modalList}>
-            {filteredModalProducts.map((product) => {
-              const key = getProductKey(product.item_code, product.category);
-              const isSelected = selectedProducts.has(key);
-              const selectedData = selectedProducts.get(key);
-
-              return (
-                <View
-                  key={key}
-                  style={[
-                    styles.selectItem,
-                    isSelected && styles.selectItemActive,
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={styles.selectItemLeft}
-                    onPress={() => toggleProductSelection(product)}
-                  >
-                    <View
-                      style={[
-                        styles.checkbox,
-                        isSelected && styles.checkboxActive,
-                      ]}
+          {productsLoading ? (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
+              <ActivityIndicator size="large" color="#1e3a5f" />
+              <Text style={{ marginTop: 12, color: "#666", fontSize: 14 }}>Loading products...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredModalProducts}
+              keyExtractor={(item) => getProductKey(item.item_code, item.category)}
+              style={styles.modalList}
+              extraData={selectedProducts}
+              renderItem={({ item: product }) => {
+                const key = getProductKey(product.item_code, product.category);
+                const isSelected = selectedProducts.has(key);
+                const selectedData = selectedProducts.get(key);
+                return (
+                  <View style={[styles.selectItem, isSelected && styles.selectItemActive]}>
+                    <TouchableOpacity
+                      style={styles.selectItemLeft}
+                      onPress={() => toggleProductSelection(product)}
                     >
-                      {isSelected && (
-                        <Ionicons name="checkmark" size={16} color="#fff" />
-                      )}
-                    </View>
-                    <View style={styles.selectItemInfo}>
-                      <View style={styles.productRow}>
-                        <Text style={styles.selectItemCode}>
-                          {product.item_code}
-                        </Text>
-                        <View
-                          style={[
-                            styles.badgeSmall,
-                            {
-                              backgroundColor: getCategoryColor(
-                                product.category,
-                              ),
-                            },
-                          ]}
-                        >
-                          <Text style={styles.badgeSmallText}>
-                            {product.category}
-                          </Text>
-                        </View>
+                      <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+                        {isSelected && <Ionicons name="checkmark" size={16} color="#fff" />}
                       </View>
-                      <Text style={styles.selectItemName}>
-                        {product.item_name}
-                      </Text>
-                      <Text style={styles.selectItemMeta}>
-                        {product.brand || "-"} • {product.variety || "-"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {isSelected && (
-                    <View style={styles.rateInputBox}>
-                      <Text style={styles.rateInputLabel}>₹</Text>
-                      <TextInput
-                        style={styles.rateInput}
-                        placeholder="0.00"
-                        keyboardType="numeric"
-                        value={String(selectedData?.basic_rate || "")}
-                        onChangeText={(text) => updateProductRate(key, text)}
-                      />
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </ScrollView>
+                      <View style={styles.selectItemInfo}>
+                        <View style={styles.productRow}>
+                          <Text style={styles.selectItemCode}>{product.item_code}</Text>
+                          <View style={[styles.badgeSmall, { backgroundColor: getCategoryColor(product.category) }]}>
+                            <Text style={styles.badgeSmallText}>{product.category}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.selectItemName}>{product.item_name}</Text>
+                        <Text style={styles.selectItemMeta}>{product.brand || "-"} • {product.variety || "-"}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    {isSelected && (
+                      <View style={styles.rateInputBox}>
+                        <Text style={styles.rateInputLabel}>₹</Text>
+                        <TextInput
+                          style={styles.rateInput}
+                          placeholder="0.00"
+                          keyboardType="numeric"
+                          value={String(selectedData?.basic_rate || "")}
+                          onChangeText={(text) => updateProductRate(key, text)}
+                        />
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+            />
+          )}
 
           <View style={styles.modalFooter}>
             <TouchableOpacity
@@ -861,6 +897,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    flexShrink: 0,
+    alignSelf: "flex-start",
   },
   addButtonText: { color: "#fff", fontWeight: "bold", marginLeft: 4 },
   statsRow: { flexDirection: "row", gap: 8 },
@@ -1081,4 +1119,53 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rateModalSaveText: { color: "#fff", fontWeight: "bold" },
+  partySelectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  partySelectBtnText: {
+    flex: 1,
+    fontSize: 15,
+    color: "#333",
+  },
+  partyModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  partyModalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "80%",
+  },
+  partyModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  partyModalTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
+  partyModalList: { flexGrow: 0 },
+  partyModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  partyModalItemActive: { backgroundColor: "#eff6ff" },
+  partyModalItemCode: { fontSize: 13, fontWeight: "bold", color: "#1e3a5f" },
+  partyModalItemName: { fontSize: 15, color: "#333", marginTop: 2 },
+  partyModalItemMeta: { fontSize: 12, color: "#888", marginTop: 1 },
 });

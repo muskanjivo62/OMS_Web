@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { OrderItemList, productService } from "@/src/services/order.service";
 import { COLORS } from "@/constants/theme";
 import Dropdown from "@/src/components/common/DropdownProps";
+import { router } from "expo-router";
 
 type ApprovalTab = "pending" | "others";
 
@@ -148,7 +149,16 @@ export default function PendingApprovalScreen() {
   };
 
   const renderOrder = ({ item }: { item: OrderItemList }) => (
-    <View style={styles.orderCard}>
+    <TouchableOpacity
+      onPress={() =>
+        router.push({
+          pathname: "/orders/orderdetails",
+          params: { orderId: item.id, from: "approver/pending_approval" },
+        })
+      }
+      style={styles.orderCard}
+      activeOpacity={0.85}
+    >
       <View style={styles.orderHeader}>
         <View style={styles.orderNumberWrap}>
           <Text style={styles.orderNumber}>{item.order_number}</Text>
@@ -242,7 +252,7 @@ export default function PendingApprovalScreen() {
           })()}
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   const renderEmpty = () => (

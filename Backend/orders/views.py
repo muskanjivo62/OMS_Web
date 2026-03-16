@@ -18,6 +18,7 @@ from django.utils import timezone
 from collections import defaultdict
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions
+from sap_sync.models import Party as SapParty, PartyAddress as SapPartyAddress
 from .models import Order, OrderStatus
 from .models import PartyProductAssignment  # Ensure your models are imported
 
@@ -223,29 +224,22 @@ class PartyProductsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, card_code):
-        # We use .values() to select specific fields and F() to rename related fields
-        results = (
-            PartyProductAssignment.objects.filter(
-                card_code=card_code, 
-                is_active=True
-            )
-            .select_related('item_code')  # Efficiently joins the tables
-            .values(
-                'item_code',
-                'category',
-                'basic_rate',
-                # Accessing fields from the related 'sap_products' table
-                item_name=F('item_code__item_name'),
-                sal_factor2=F('item_code__sal_factor2'),
-                tax_rate=F('item_code__tax_rate'),
-                sal_pack_unit=F('item_code__sal_pack_unit'),
-                brand=F('item_code__brand'),
-                variety=F('item_code__variety')
-            )
-            .order_by('category', 'item_code__item_name')
-        )
+        from django.db import connection
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT ppa.item_code, ppa.category, ppa.basic_rate,
+                   p.item_name, p.sal_factor2, p.tax_rate, p.sal_pack_unit,
+                   p.brand, p.variety
+            FROM party_product_assignments ppa
+            LEFT JOIN sap_products p ON ppa.item_code = p.item_code AND ppa.category = p.category
+            WHERE ppa.card_code = %s AND ppa.is_active = true
+            ORDER BY ppa.category, p.item_name
+        """, [card_code])
 
-        return Response(list(results))
+        columns = [col[0] for col in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        return Response(rows)
     
 # class PartyProductsView(APIView):
 #     permission_classes = [AllowAny]
@@ -269,24 +263,25 @@ class PartyProductsView(APIView):
 #         return Response(rows)
         
 class PartyView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user_id = request.user.id if request.user.is_authenticated else 2
-
+        user_id = request.user.id
+        
         assigned_card_codes = UserPartyAssignment.objects.filter(
             user_id=user_id,
             is_active=True
         ).values_list('card_code', flat=True).distinct()
 
-        parties = Parties.objects.filter(
+        parties = SapParty.objects.filter(
             card_code__in=assigned_card_codes
         ).distinct().order_by('card_name')
 
         data = [
             {
                 'value': p.card_code,
-                'label': f"{p.card_name} ({p.card_code})"
+                'label': f"{p.card_name} ({p.card_code})",
+                'category': p.category,
             }
             for p in parties
         ]
@@ -296,7 +291,7 @@ class PartyView(APIView):
 class DispatchLocationListView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = DispatchLocationSerializer
-    queryset = DispatchLocation.objects.all().order_by('name')
+    queryset = DispatchLocation.objects.filter(is_active=True, name__icontains='FACTORY').order_by('name')
 
 class PartyAddressesView(APIView):
 
@@ -308,13 +303,13 @@ class PartyAddressesView(APIView):
         if not card_code:
             return Response({'error': 'card_code is required'}, status=400)
             
-        bill_addresses = PartyAddress.objects.filter(
+        bill_addresses = SapPartyAddress.objects.filter(
             card_code=card_code,
             address_type='B',
             category='OIL'
         )
 
-        ship_addresses = PartyAddress.objects.filter(
+        ship_addresses = SapPartyAddress.objects.filter(
             card_code=card_code,
             address_type='S',
             category='OIL'
@@ -555,9 +550,9 @@ class CreateOrderView(APIView):
 
             bp = _to_float(item.get('basic_price', 0))
             mp = _to_float(item.get('market_price', 0))
-            if bp > mp:
+            if mp > 0 and mp < bp:
                 needs_approval = True
-                flagged_items.append(f"{item.get('item_name')}: Basic ₹{bp} > Market ₹{mp}")
+                flagged_items.append(f"{item.get('item_name')}: Market ₹{mp} < Basic ₹{bp}")
 
         # Log: Order created
         log_order_action(order, 'Order Created', user=user)
@@ -648,13 +643,13 @@ class UpdateOrderStatusView(APIView):
             and (status_obj.id == 3 or "billing" in new_name)
         )
 
-        is_rate_to_auditor = (
+        is_rate_approved = (
             prev_name == "rate approval"
-            and status_obj.id == 10
+            and status_obj.id == 6
         )
 
-        if is_rate_to_auditor:
-            # Close the Rate Approval pending log
+        if is_rate_approved:
+            # Close the Rate Approval pending log with the approver
             rate_pending_log = (
                 OrdersLog.objects
                 .filter(order=order, action=previous_status, performed_by__isnull=True)
@@ -667,20 +662,21 @@ class UpdateOrderStatusView(APIView):
                     rate_pending_log.remarks = reason
                 rate_pending_log.save(update_fields=["performed_by", "remarks"])
 
-            # Create pending Auditor Approval log
-            auditor_pending_log = (
-                OrdersLog.objects
-                .filter(order=order, action=status_obj, performed_by__isnull=True)
-                .order_by("-created_at")
-                .first()
-            )
-            if not auditor_pending_log:
-                log_order_action(order=order, action_name=status_obj.name, user=None, remarks="")
+            # Log the rate approved action
+            log_order_action(order=order, action_name=status_obj.name, user=user, remarks=reason)
+
+            # Move order to Auditor Approval (status 10)
+            auditor_status = OrderStatus.objects.filter(id=10).first()
+            if auditor_status:
+                order.status = auditor_status
+                order.save()
+                # Create pending Auditor Approval log
+                log_order_action(order=order, action_name=auditor_status.name, user=None, remarks="")
 
             return Response({
-                "message": "Order status updated successfully",
+                "message": "Rate approved, order sent to auditor",
                 "order_id": order.id,
-                "status": status_obj.name
+                "status": auditor_status.name if auditor_status else status_obj.name
             })
 
         if is_auditor_to_billing:
@@ -889,7 +885,7 @@ class OrderListView(APIView):
                 'status': order.status.code,
                 'status_display': order.status.name,
                 'items_count': items_count,
-                'created_by': order.created_by,
+                'created_by': order.created_by.name if order.created_by else None,
                 'created_at': order.created_at,
                 'delivery_date': order.delivery_date,
                 'po_number': order.po_number,

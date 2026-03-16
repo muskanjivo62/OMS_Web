@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Parties,DispatchLocation,PartyAddress,ProductDetails,OrderItem,Branches,OrdersLog,Order
+from sap_sync.models import PartyAddress as SapPartyAddress
 
 class PartiesSerializer(serializers.ModelSerializer):
     class Meta:
@@ -13,8 +14,8 @@ class DispatchLocationSerializer(serializers.ModelSerializer):
 
 class PartyAddressSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PartyAddress
-        fields = ['id','full_address', 'gst_number','address_type','address_name']
+        model = SapPartyAddress
+        fields = ['id','full_address', 'gst_number','address_type','address_name','category']
         
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:

@@ -24,7 +24,7 @@ type TabType =
   | "parties"
   | "addresses"
   | "branches"
-  | "schedules"
+  // | "schedules"
   | "logs";
 
 interface Product {
@@ -179,9 +179,11 @@ export default function SapSyncScreen() {
         endpoint = `/sap/addresses/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       } else if (activeTab === "branches") {
         endpoint = `/sap/branches/?page=${currentPage}&page_size=${PAGE_SIZE}`;
-      } else if (activeTab === "schedules") {
-        endpoint = `/sap/schedules/?page=${currentPage}&page_size=${PAGE_SIZE}`;
-      } else if (activeTab === "logs") {
+      } 
+      // else if (activeTab === "schedules") {
+      //   endpoint = `/sap/schedules/?page=${currentPage}&page_size=${PAGE_SIZE}`;
+      // }
+       else if (activeTab === "logs") {
         endpoint = `/sap/logs/?page=${currentPage}&page_size=${PAGE_SIZE}`;
       }
 
@@ -200,7 +202,7 @@ export default function SapSyncScreen() {
         if (activeTab === "parties") setParties(newData);
         if (activeTab === "addresses") setAddresses(newData);
         if (activeTab === "branches") setBranches(newData);
-        if (activeTab === "schedules") setSchedules(newData);
+        // if (activeTab === "schedules") setSchedules(newData);
         if (activeTab === "logs") setLogs(newData);
         setPage(2);
         setHasMore(true);
@@ -213,8 +215,8 @@ export default function SapSyncScreen() {
           setAddresses((prev) => [...prev, ...newData]);
         if (activeTab === "branches")
           setBranches((prev) => [...prev, ...newData]);
-        if (activeTab === "schedules")
-          setSchedules((prev) => [...prev, ...newData]);
+        // if (activeTab === "schedules")
+        //   setSchedules((prev) => [...prev, ...newData]);
         if (activeTab === "logs") setLogs((prev) => [...prev, ...newData]);
         setPage((prev) => prev + 1);
       }
@@ -386,7 +388,7 @@ export default function SapSyncScreen() {
           "parties",
           "addresses",
           "branches",
-          "schedules",
+          // "schedules",
           "logs",
         ] as TabType[]
       ).map((tab) => (
@@ -1075,7 +1077,6 @@ export default function SapSyncScreen() {
           {activeTab === "parties" && renderParties()}
           {activeTab === "addresses" && renderAddresses()}
           {activeTab === "branches" && renderBranches()}
-          {activeTab === "schedules" && renderSchedules()}
           {activeTab === "logs" && renderLogs()}
         </View>
       )}

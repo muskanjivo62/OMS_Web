@@ -387,9 +387,9 @@ class LoginView(APIView):
     
 class UserListForAssignmentView(APIView):
     permission_classes = [AllowAny]
-
+    
     def get(self, request):
-        users = User.objects.filter(is_active=True).values('id', 'username', 'name', 'email', 'role')
+        users = User.objects.filter(is_active=True,role_id='2').values('id', 'username', 'name', 'email', 'role')
         return Response({'success': True, 'data': list(users)})
 
 class ProfileView(APIView):

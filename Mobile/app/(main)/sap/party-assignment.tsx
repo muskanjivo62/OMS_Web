@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   ActivityIndicator,
   TextInput,
   Platform,
   Modal,
   Alert,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '@/src/utils/storage';
 import { api } from '@/src/services/api';
@@ -22,6 +23,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  role_id: number;
 }
 
 interface Party {
@@ -43,6 +45,8 @@ export default function PartyAssignmentScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showUserPicker, setShowUserPicker] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -57,6 +61,19 @@ export default function PartyAssignmentScreen() {
     }
   }, [selectedUserId]);
 
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setSelectedUserId(null);
+        setAssignedCardCodes(new Set());
+        setTempSelectedCodes(new Set());
+        setMessage('');
+        setShowAssignModal(false);
+        setShowUserPicker(false);
+      };
+    }, [])
+  );
+
   const getToken = async (): Promise<string | undefined> => {
     const token = await storage.getAccessToken();
     return token || undefined;
@@ -66,9 +83,16 @@ export default function PartyAssignmentScreen() {
     try {
       const token = await getToken();
       const res = await api.get('/auth/users/list/', token);
-      console.log('Users response:', res);
-      if (res && res.success) {
-        setUsers(res.data || []);
+      if (res) {
+        const list = Array.isArray(res) ? res : (res.data || res.results || []);
+        console.log('First user sample:', JSON.stringify(list[0]));
+        const managers = list.filter((u: any) =>
+          u.role_id === 2 ||
+          Number(u.role) === 2 ||
+          u.role?.toLowerCase() === 'manager'
+        );
+        console.log(`Total users: ${list.length}, Managers: ${managers.length}`);
+        setUsers(managers);
       }
     } catch (error) {
       console.log('Load users error:', error);
@@ -222,7 +246,7 @@ export default function PartyAssignmentScreen() {
 
   const assignedParties = parties.filter(p => assignedCardCodes.has(p.card_code));
   const selectedUser = users.find(u => u.id === selectedUserId);
-
+  
   return (
     <View style={styles.container}>
       {/* <View style={styles.header}>
@@ -234,26 +258,17 @@ export default function PartyAssignmentScreen() {
         {/* User Selection */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Select User</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedUserId}
-              onValueChange={(value) => {
-                console.log('User selected:', value);
-                setSelectedUserId(value);
-                setMessage('');
-              }}
-              style={styles.picker}
-            >
-              <Picker.Item label="-- Select User --" value={null} />
-              {users.map(user => (
-                <Picker.Item
-                  key={user.id}
-                  label={`${user.name || user.username} (${user.role || 'User'})`}
-                  value={user.id}
-                />
-              ))}
-            </Picker>
-          </View>
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => { setUserSearch(''); setShowUserPicker(true); }}
+          >
+            <Text style={selectedUserId ? styles.pickerButtonText : styles.pickerButtonPlaceholder}>
+              {selectedUser
+                ? `${selectedUser.name || selectedUser.username} (${selectedUser.role || 'User'})`
+                : '-- Select User --'}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color="#666" />
+          </TouchableOpacity>
         </View>
 
         {/* Message */}
@@ -269,7 +284,7 @@ export default function PartyAssignmentScreen() {
             <View style={styles.userInfoHeader}>
               <View>
                 <Text style={styles.userName}>{selectedUser?.name || selectedUser?.username}</Text>
-                <Text style={styles.userRole}>{selectedUser?.role || 'User'}</Text>
+                {/* <Text style={styles.userRole}>{selectedUser?.role || 'User'}</Text> */}
               </View>
               <TouchableOpacity
                 style={styles.assignButton}
@@ -329,6 +344,73 @@ export default function PartyAssignmentScreen() {
         )}
       </ScrollView>
 
+      {/* User Picker Bottom Sheet */}
+      <Modal
+        visible={showUserPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowUserPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowUserPicker(false)}
+        >
+          <View style={styles.pickerModalSheet}>
+            <View style={styles.pickerModalToolbar}>
+              <Text style={styles.pickerModalTitle}>Select User</Text>
+              <TouchableOpacity onPress={() => setShowUserPicker(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search user..."
+                value={userSearch}
+                onChangeText={setUserSearch}
+              />
+              {userSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setUserSearch('')}>
+                  <Ionicons name="close-circle" size={18} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList
+              data={users.filter(u =>
+                u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                u.username?.toLowerCase().includes(userSearch.toLowerCase())
+              )}
+              keyExtractor={item => String(item.id)}
+              style={styles.userPickerList}
+              renderItem={({ item: user }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.userPickerItem,
+                    selectedUserId === user.id && styles.userPickerItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedUserId(user.id);
+                    setMessage('');
+                    setShowUserPicker(false);
+                  }}
+                >
+                  <View style={styles.userPickerInfo}>
+                    <Text style={styles.userPickerName}>
+                      {user.name || user.username}
+                    </Text>
+                  </View>
+                  {selectedUserId === user.id && (
+                    <Ionicons name="checkmark" size={20} color="#1e3a5f" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Assign Modal */}
       <Modal
         visible={showAssignModal}
@@ -339,10 +421,21 @@ export default function PartyAssignmentScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select Parties</Text>
-            <TouchableOpacity onPress={() => setShowAssignModal(false)}>
+            <TouchableOpacity onPress={() => setShowAssignModal(false)} disabled={saving}>
               <Ionicons name="close" size={28} color="#333" />
             </TouchableOpacity>
           </View>
+
+          {/* Saving overlay */}
+          {saving && (
+            <View style={styles.savingOverlay}>
+              <View style={styles.savingBox}>
+                <ActivityIndicator size="large" color="#1e3a5f" />
+                <Text style={styles.savingText}>Saving assignments...</Text>
+                <Text style={styles.savingSubtext}>{tempSelectedCodes.size} parties selected</Text>
+              </View>
+            </View>
+          )}
 
           {/* Search */}
           <View style={styles.searchContainer}>
@@ -369,12 +462,24 @@ export default function PartyAssignmentScreen() {
           </View>
 
           {/* Parties List */}
-          <ScrollView style={styles.modalList}>
-            {filteredParties.map(party => {
+          {loading ? (
+            <View style={styles.modalLoadingContainer}>
+              <ActivityIndicator size="large" color="#1e3a5f" />
+              <Text style={styles.modalLoadingText}>Loading parties...</Text>
+            </View>
+          ) : (
+          <FlatList
+            data={filteredParties}
+            keyExtractor={item => item.card_code}
+            style={styles.modalList}
+            extraData={tempSelectedCodes}
+            initialNumToRender={20}
+            maxToRenderPerBatch={20}
+            windowSize={10}
+            renderItem={({ item: party }) => {
               const isSelected = tempSelectedCodes.has(party.card_code);
               return (
                 <TouchableOpacity
-                  key={party.card_code}
                   style={[styles.partySelectItem, isSelected && styles.partySelectItemSelected]}
                   onPress={() => togglePartySelection(party.card_code)}
                 >
@@ -390,8 +495,9 @@ export default function PartyAssignmentScreen() {
                   </View>
                 </TouchableOpacity>
               );
-            })}
-          </ScrollView>
+            }}
+          />
+          )}
 
           {/* Save Button */}
           <View style={styles.modalFooter}>
@@ -722,5 +828,125 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  pickerButtonText: {
+    fontSize: 15,
+    color: '#333',
+  },
+  pickerButtonPlaceholder: {
+    fontSize: 15,
+    color: '#999',
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 30,
+  },
+  pickerModalToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
+  },
+  pickerModalTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  pickerModalDone: {
+    fontSize: 16,
+    color: '#1e3a5f',
+    fontWeight: 'bold',
+  },
+  savingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  savingBox: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  savingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e3a5f',
+  },
+  savingSubtext: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#666',
+  },
+  modalLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  modalLoadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#666',
+  },
+  userPickerList: {
+    maxHeight: 350,
+  },
+  userPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  userPickerItemSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  userPickerInfo: {
+    flex: 1,
+  },
+  userPickerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  userPickerRole: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 2,
   },
 });

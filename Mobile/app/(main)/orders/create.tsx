@@ -24,7 +24,7 @@ import {
   Product,
   CreateOrderPayload,
 } from "@/src/services/order.service";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import { Pressable } from "react-native-gesture-handler";
 
 // ─── Per-item state (isolated for each row) ─────────────────────────────────
@@ -126,6 +126,7 @@ export default function CreateOrderScreen() {
   } | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const router = useRouter();
+  const navigation = useNavigation();
 
   const today = new Date().toLocaleDateString("en-GB");
 
@@ -135,7 +136,7 @@ export default function CreateOrderScreen() {
   const [branch, setBranch] = useState<number | null>(null);
   const [poNumber, setPoNumber] = useState("");
   const [comment, setComment] = useState("");
-  const [delivery, setDeliveryDate] = useState("");
+  const [delivery, setDeliveryDate] = useState(getTodayDate());
   const [showPicker, setShowPicker] = useState(false);
 
   // ── Address dropdowns ─────────────────────────────────────────────────────
@@ -209,13 +210,14 @@ export default function CreateOrderScreen() {
       setDataLoading(true);
 
       const partiesData = await orderService.getParties();
-      // Filter: show only Oil-category parties
-      const oilParties = (partiesData || []).filter(
+      console.log("getallparties"+JSON.stringify(partiesData));
+      const partiesList = Array.isArray(partiesData) ? partiesData : [];
+      const oilParties = partiesList.filter(
         (p: any) => p.category?.toUpperCase() === ACTIVE_CATEGORY,
       );
       // Fallback: if API doesn't return category on party, show all
       setParties(
-        (oilParties.length > 0 ? oilParties : partiesData || []).map((p) => ({
+        (oilParties.length > 0 ? oilParties : partiesList).map((p) => ({
           label: p.label,
           value: p.value,
         })),
@@ -549,7 +551,7 @@ export default function CreateOrderScreen() {
       pcs: parseFloat(row.pcs) || 0,
       boxes: parseFloat(row.boxes) || 0,
       ltrs: parseFloat(row.ltrs) || 0,
-      marketPrice: effectiveMarketPrice,
+      marketPrice: parseFloat(row.marketPrice) || 0,
       total: effectiveTotal,
       taxRate: parseFloat(row.tax) || 0,
       basicPrice: parseFloat(row.basePrice) || product.basic_rate || 0,
@@ -566,13 +568,16 @@ export default function CreateOrderScreen() {
 
   // ─── Totals (FIX 5) ────────────────────────────────────────────────────────
 
+  const getEffectivePrice = (item: OrderItemType) =>
+    item.marketPrice || item.basicPrice || 0;
+
   const totalWithoutTax = orderItems
-    .reduce((sum, item) => sum + item.marketPrice * item.qty, 0)
+    .reduce((sum, item) => sum + getEffectivePrice(item) * item.qty, 0)
     .toFixed(2);
 
   const totalTaxAmount = orderItems
     .reduce((sum, item) => {
-      const base = item.marketPrice * item.qty;
+      const base = getEffectivePrice(item) * item.qty;
       return sum + (base * item.taxRate) / 100;
     }, 0)
     .toFixed(2);
@@ -669,7 +674,6 @@ export default function CreateOrderScreen() {
       setLoading(false);
     }
   };
-
   const handleClear = () => {
     setPartyName(null);
     setBranch(null);
@@ -682,8 +686,27 @@ export default function CreateOrderScreen() {
     setShipToAddresses([]);
     setSelectedBillTo(null);
     setSelectedShipTo(null);
-    setDeliveryDate("");
+    setDeliveryDate(getTodayDate());
+    setPartyProducts([]);
+    setCategories([]);
+    setSuccessModal(false);
+    setOrderResult(null);
   };
+
+  const handleBack = () => {
+    handleClear();
+    router.back();
+  };
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={handleBack} style={{ marginLeft: 10 }}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.black} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   if (dataLoading) {
     return (

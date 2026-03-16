@@ -31,7 +31,7 @@ export const orderService = {
   getParties: async (): Promise<Party[]> => {
     return await api.get('/orders/parties/');
   },
-
+  
   getAddresses: async (cardCode: string): Promise<AddressResponse> => {
     return await api.get(`/orders/addresses/?card_code=${cardCode}`);
   },
