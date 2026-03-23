@@ -1,0 +1,423 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+/* PAGE */
+
+.au-page{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  width:100%;
+}
+
+/* HEADER */
+
+.au-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin-bottom:20px;
+}
+
+.au-title{
+  font-size:1.4rem;
+  font-weight:600;
+  color:#1e293b;
+  margin: 10px;
+}
+
+/* BUTTON */
+
+.au-toggle-btn{
+  padding:8px 14px;
+  background:#1d4ed8;
+  color:white;
+  border:none;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.05em;
+  cursor:pointer;
+  transition:.2s;
+}
+
+.au-toggle-btn:hover{
+  background:#1e40af;
+}
+
+/* TABLE CARD */
+
+.au-table-card{
+  background:white;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  overflow:hidden;
+  box-shadow:0 1px 6px rgba(0,0,0,0.05);
+}
+
+.au-table-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 20px;
+  border-bottom:1px solid #f1f5f9;
+  background:#f8fafc;
+}
+
+.au-table-title{
+  font-size:13px;
+  font-weight:700;
+  color:#1e293b;
+  margin:0 0 2px 0;
+}
+
+.au-table-sub{
+  font-size:12px;
+  color:#94a3b8;
+  margin:0;
+}
+
+/* TABLE */
+
+.au-table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+.au-table thead{
+  background:#1e293b;
+}
+
+.au-table th{
+  padding:11px 16px;
+  text-align:left;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.55);
+}
+
+.au-table td{
+  padding:13px 16px;
+  font-size:13px;
+  border-bottom:1px solid #f1f5f9;
+  color:#374151;
+}
+
+.au-table tbody tr:last-child td{
+  border-bottom:none;
+}
+
+.au-table tbody tr:hover{
+  background:#f8fafc;
+}
+
+.au-name{
+  font-weight:600;
+  color:#1e293b;
+}
+
+.au-muted{
+  font-size:12px;
+  color:#94a3b8;
+  font-weight:500;
+}
+
+.au-empty{
+  text-align:center;
+  padding:3rem 1rem;
+  color:#94a3b8;
+  font-size:13px;
+}
+
+/* PAGINATION */
+
+.au-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 16px;
+  border-top:1px solid #f1f5f9;
+  background:#f8fafc;
+}
+
+.au-page-info{
+  font-size:12px;
+  color:#94a3b8;
+}
+
+.au-page-btns{
+  display:flex;
+  gap:4px;
+}
+
+.au-page-btn{
+  min-width:30px;
+  height:30px;
+  padding:0 8px;
+  border:1.5px solid #e2e8f0;
+  background:white;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:500;
+  color:#475569;
+  cursor:pointer;
+  transition:.15s;
+}
+
+.au-page-btn:hover:not(:disabled){
+  background:#f1f5f9;
+  border-color:#cbd5e1;
+}
+
+.au-page-btn:disabled{
+  opacity:.35;
+  cursor:default;
+}
+
+.au-page-active{
+  background:#1d4ed8;
+  border-color:#1d4ed8;
+  color:white;
+}
+
+/* STATUS */
+
+.au-active{
+  font-size:10px;
+  font-weight:600;
+  text-transform:uppercase;
+  color:#16a34a;
+  background:rgba(22,163,74,.08);
+  padding:2px 7px;
+  border-radius:4px;
+}
+
+.au-inactive{
+  font-size:10px;
+  font-weight:600;
+  text-transform:uppercase;
+  color:#64748b;
+  background:#f1f5f9;
+  padding:2px 7px;
+  border-radius:4px;
+}
+
+/* FORM CARD */
+
+.au-form-card{
+  background:white;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  width:100%;
+  overflow:hidden;
+  box-shadow:0 2px 12px rgba(0,0,0,0.06);
+}
+
+/* FORM HEADER */
+
+.au-form-header{
+  padding:20px 28px;
+  border-bottom:1px solid #f1f5f9;
+  background:linear-gradient(135deg,#1e293b 0%,#1e3a5f 100%);
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+.au-form-header-icon{
+  width:38px;
+  height:38px;
+  background:rgba(255,255,255,0.1);
+  border-radius:9px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:17px;
+  flex-shrink:0;
+}
+
+.au-form-header-title{
+  font-size:14px;
+  font-weight:700;
+  color:#fff;
+  margin:0 0 3px 0;
+  letter-spacing:.01em;
+}
+
+.au-form-header-sub{
+  font-size:12px;
+  color:rgba(255,255,255,.5);
+  margin:0;
+}
+
+/* FORM BODY */
+
+.au-form-body{
+  padding:28px;
+  display:flex;
+  flex-direction:column;
+}
+
+/* SECTION LABEL */
+
+.au-section-label{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:#1d4ed8;
+  margin:0 0 16px 0;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.au-section-label::before{
+  content:'';
+  display:inline-block;
+  width:3px;
+  height:13px;
+  background:#1d4ed8;
+  border-radius:2px;
+}
+
+.au-section-label::after{
+  content:'';
+  flex:1;
+  height:1px;
+  background:#f1f5f9;
+}
+
+/* GRID */
+
+.au-form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px 24px;
+  margin-bottom:10px;
+}
+
+.au-full{
+  grid-column:1/-1;
+}
+
+/* FIELDS */
+
+.au-field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.au-label{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.03em;
+  color:#475569;
+  text-align:left;
+}
+
+.au-input-wrap{
+  position:relative;
+}
+
+.au-input-wrap input,
+.au-input-wrap select{
+  width:100%;
+  border:1.5px solid #e2e8f0;
+  border-radius:8px;
+  outline:none;
+  background:#f8fafc;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13px;
+  font-weight:500;
+  color:#1e293b;
+  padding:10px 14px;
+  transition:border-color .2s, background .2s, box-shadow .2s;
+  box-sizing:border-box;
+  height:42px;
+}
+
+.au-input-wrap input:focus,
+.au-input-wrap select:focus{
+  border-color:#2563eb;
+  background:white;
+  box-shadow:0 0 0 3px rgba(37,99,235,.1);
+}
+
+.au-input-wrap input:hover:not(:focus),
+.au-input-wrap select:hover:not(:focus){
+  border-color:#cbd5e1;
+  background:white;
+}
+
+.au-input-wrap input::placeholder{
+  color:#cbd5e1;
+  font-weight:400;
+}
+
+.au-focus-line{ display:none; }
+
+/* FORM FOOTER */
+
+.au-form-footer{
+  padding:18px 28px;
+  border-top:1px solid #f1f5f9;
+  background:#f8fafc;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+}
+
+.au-form-footer-note{
+  font-size:12px;
+  color:#94a3b8;
+  flex:1;
+}
+
+/* SUBMIT */
+
+.au-submit{
+  padding:11px 28px;
+  background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%);
+  color:white;
+  border:none;
+  border-radius:8px;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:.03em;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  transition:transform .15s, box-shadow .15s;
+  box-shadow:0 2px 8px rgba(29,78,216,.25);
+}
+
+.au-submit:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(29,78,216,.35);
+}
+
+.au-submit:active{
+  transform:translateY(0);
+  box-shadow:0 2px 8px rgba(29,78,216,.25);
+}
+
+/* MOBILE */
+
+@media(max-width:768px){
+  .au-form-grid{
+    grid-template-columns:1fr;
+  }
+  .au-form-body{
+    padding:20px;
+  }
+  .au-form-header{
+    padding:16px 20px;
+  }
+  .au-form-footer{
+    padding:14px 20px;
+  }
+}
