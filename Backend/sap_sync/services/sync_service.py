@@ -447,7 +447,14 @@ class SyncService:
         if response.status_code != 200:
             raise Exception(f"SAP Login Failed: {response.text}")
 
-        return response.json()
+        login_data = response.json()
+        logger.info(
+            "SAP Login success | CompanyDB=%s | User=%s | SessionId=%s",
+            settings.HANA_COMPANY_DB,
+            settings.HANA_USERNAME,
+            login_data.get("SessionId", "N/A"),
+        )
+        return login_data
     
     # ---------------- MAP ORDER ---------------- #
 
@@ -479,18 +486,21 @@ class SyncService:
                     }
                 )
 
-        return {
+
+        payload = {
             "CardCode": order.card_code,
             "DocDate": str(order.created_at),
             "DocDueDate": str(order.created_at),
             "TaxDate": str(order.created_at),
-            "NumAtCard": order.po_number,
             "Comments": " ",
             "ShipToCode": order.ship_to_address,
             "PayToCode": order.bill_to_address,
             "BPL_IDAssignedToInvoice": order.dispatch_from_id,
             "DocumentLines": document_lines,
         }
+        import json
+        print("map_order_to_sap payload:", json.dumps(payload, indent=2, default=str))
+        return payload
 
 # example 
 # def map_order_to_sap(self, order):
@@ -533,7 +543,11 @@ class SyncService:
             url = f"{settings.HANA_SERVICE_LAYER_URL}/Quotations"
 
             response = self._post_with_ssl_fallback(url, quotation_payload)
-
+            logger.info(
+                "SAP Quotations response | status=%s | body=%s",
+                response.status_code,
+                response.text[:500],
+            )
             if response.status_code == 201:
                 response_data = response.json()
 

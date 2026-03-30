@@ -445,6 +445,8 @@ class ApproveOrderAPIView(APIView):
             order = Order.objects.get(id=order_id)
             result = service.create_sales_quotation(order)
             
+            console.log(f"Order {order_id} approval result: {result}")
+
             return Response({
                 'success': True,
                 'message': 'Order approved and pushed to SAP successfully',

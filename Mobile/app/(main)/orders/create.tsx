@@ -150,10 +150,10 @@ export default function CreateOrderScreen() {
 
   // ── Address dropdowns ─────────────────────────────────────────────────────
   const [billToAddresses, setBillToAddresses] = useState<
-    { label: string; value: number }[]
+    { label: string; value: number; name: string }[]
   >([]);
   const [shipToAddresses, setShipToAddresses] = useState<
-    { label: string; value: number }[]
+    { label: string; value: number; name: string }[]
   >([]);
 
   const [selectedBillTo, setSelectedBillTo] = useState<number | null>(null);
@@ -313,6 +313,7 @@ export default function CreateOrderScreen() {
           (addr.address_id || "") +
           (addr.address_name ? `${addr.address_name}` : ""),
         value: addr.id,
+        name: addr.address_name || "",
         category: (addr as any).category,
       });
 
@@ -644,7 +645,7 @@ export default function CreateOrderScreen() {
     if (!company) return Alert.alert("Error", "Select company");
     // if (!selectedBillTo) return Alert.alert("Error", "Select bill to address");
     if (!selectedShipTo) return Alert.alert("Error", "Select ship to address");
-    if (!poNumber) return Alert.alert("Error", "Select Po Number");
+    // if (!poNumber) return Alert.alert("Error", "Select Po Number");
     if (!delivery) return Alert.alert("Error", "Select delivery date");
     if (!branch) return Alert.alert("Error", "Select dispatch location");
 
@@ -664,10 +665,10 @@ export default function CreateOrderScreen() {
         card_name: parties.find((p) => p.value === partyName)?.label ?? "",
         bill_to_id: selectedBillTo ?? 0,
         bill_to_address:
-          billToAddresses.find((a) => a.value === selectedBillTo)?.label ?? "",
+          billToAddresses.find((a) => a.value === selectedBillTo)?.name ?? "",
         ship_to_id: selectedShipTo ?? 0,
         ship_to_address:
-          shipToAddresses.find((a) => a.value === selectedShipTo)?.label ?? "",
+          shipToAddresses.find((a) => a.value === selectedShipTo)?.name ?? "",
         dispatch_from_id: branch ?? 0,
         dispatch_from_name:
           branches.find((d) => d.value === branch)?.label ?? "",
@@ -844,20 +845,7 @@ export default function CreateOrderScreen() {
             />
           </View>
 
-          <View style={styles.field}>
-            <TextInput
-              label="PO Number *"
-              value={poNumber}
-              onChangeText={setPoNumber}
-              mode="outlined"
-              textColor={COLORS.black}
-              style={styles.input}
-              outlineColor={COLORS.border}
-              activeOutlineColor={COLORS.primary}
-              left={<TextInput.Icon icon="file-document-outline" />}
-            />
-          </View>
-
+      
           {/* Delivery Date — web: native <input type="date">, app: DateTimePicker */}
           <View style={styles.field}>
             {Platform.OS === "web" ? (

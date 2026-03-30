@@ -533,12 +533,12 @@ class CreateOrderView(APIView):
             created_by=user,
             delivery_date=data.get('delivery_date'),
             remarks=order_remarks
-        )
-            
+        )   
+        
         # Create order items + price check
         needs_approval = False
         flagged_items = []
-            
+
         for item in items:
             scheme_id = item.get('scheme_id') or item.get('scheme')
             scheme_obj = None

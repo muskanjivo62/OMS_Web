@@ -156,8 +156,17 @@ export default function BillingOrderList() {
             console.log("Approval response:", JSON.stringify(res));
             
             if (!res?.success) {
-              const errorMessage =
-                res?.message || res?.error || res?.data?.error || "Approval failed";
+              let errorMessage = "Approval failed";
+              try {
+                const sapError = JSON.parse(res?.data?.error || "{}");
+                errorMessage =
+                  sapError?.error?.message ||
+                  res?.message ||
+                  res?.data?.error ||
+                  "Approval failed";
+              } catch {
+                errorMessage = res?.message || res?.data?.error || "Approval failed";
+              }
               throw new Error(errorMessage);
             }
 
