@@ -3,16 +3,14 @@ import { storage } from '../utils/storage';
 import Constants from 'expo-constants';
 
 const DEFAULT_BASE_URL = Platform.select({
-  // android: 'http://103.89.45.75:8001/api',
-  // ios: 'http://103.89.45.75:8001/api',
-  // web: 'http://103.89.45.75:8001/api',
-  // default: 'http://103.89.45.75:8001/api',
-
-  android: 'http://10.0.2.2:8000/api',
-  ios: 'http://10.0.2.2:8000/api',
-  web: 'http://localhost:8000/api',
-  default: 'http://103.89.45.75:8001/api',
-
+//   android: 'http://103.89.45.75:8001/api',
+//   ios: 'http://103.89.45.75:8001/api',
+//   web: 'http://103.89.45.75:8001/api',
+//   default: 'http://103.89.45.75:8001/api',
+  android: 'http://10.0.2.2:8000/api',  // Android emulator → localhost
+  ios: 'http://localhost:8001/api',     // iOS simulator → localhost
+  web: 'http://localhost:8001/api',     // Web browser → localhost
+  default: 'http://localhost:8001/api',
 }) as string;
 
 const ENV_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();

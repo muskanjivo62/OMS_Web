@@ -1,6 +1,27 @@
 from rest_framework import serializers
-from .models import Parties,DispatchLocation,PartyAddress,ProductDetails,OrderItem,Branches,OrdersLog,Order
+from .models import Parties,DispatchLocation,ProductDetails,OrderItem,Branches,OrdersLog,Order
+from users.models import SchemeProduct
 from sap_sync.models import PartyAddress as SapPartyAddress
+
+class SchemeProductSerializer(serializers.ModelSerializer):
+    state_name = serializers.CharField(source='state.name', read_only=True)
+    product_id = serializers.IntegerField(source='item_code_id', read_only=True)
+    item_code = serializers.CharField(source='item_code.item_code', read_only=True)
+    item_name = serializers.CharField(source='item_code.item_name', read_only=True)
+
+    class Meta:
+        model = SchemeProduct
+        fields = [
+            'scheme_id',
+            'scheme_name',
+            'is_active',
+            'state',
+            'state_name',
+            'product_id',
+            'item_code',
+            'item_name',
+        ]
+   
 
 class PartiesSerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,7 +31,7 @@ class PartiesSerializer(serializers.ModelSerializer):
 class DispatchLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = DispatchLocation
-        fields = ['name', 'code']
+        fields = ['id','name', 'code']
 
 class PartyAddressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -98,6 +119,8 @@ class OrdersLogSerializer(serializers.ModelSerializer):
         ]
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    scheme_name = serializers.CharField(source='scheme.scheme_name', read_only=True, default=None)
+
     class Meta:
         model = OrderItem
         fields = "__all__"

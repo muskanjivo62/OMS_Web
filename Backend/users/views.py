@@ -7,6 +7,7 @@ from .serializers import LoginSerializer, UserSerializer,StateSerializer, Compan
 from rest_framework.generics import ListAPIView
 from .models import State, Company, MainGroup,UserRole,User, UserPartyAssignment,PartyProductAssignment
 from sap_sync.models import Party, Product
+from decimal import Decimal
 
 class PartyUsersView(APIView):
     permission_classes = [AllowAny]
@@ -31,6 +32,7 @@ class RoleListView(APIView):
     def get(self, request):
         roles = UserRole.objects.filter(is_active=True).values('id', 'name', 'display_name')
         return Response(list(roles))
+
 
 class UserPartiesView(APIView):
     permission_classes = [IsAuthenticated]

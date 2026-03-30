@@ -24,7 +24,7 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        db_table = 'sap_products'
+        db_table = 's'
         ordering = ['item_code']
         unique_together = ['item_code', 'category']
     
@@ -165,7 +165,7 @@ class SalesQuotationLog(models.Model):
         ('SUCCESS', 'Success'),
         ('FAILED', 'Failed'),
     ]
-
+    
     order_id = models.CharField(max_length=100, blank=True, null=True)
     sap_doc_entry = models.IntegerField(blank=True, null=True)
     sap_doc_num = models.IntegerField(blank=True, null=True)

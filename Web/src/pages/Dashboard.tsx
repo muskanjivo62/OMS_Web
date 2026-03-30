@@ -204,7 +204,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </div>
-
+            
         <div className="db-chart-box">
           <div className="db-chart-title">Category Sales ({year})</div>
           {(charts?.category_sales ?? []).length === 0 ? (

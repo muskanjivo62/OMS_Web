@@ -1,7 +1,7 @@
 from urllib import request
 from django.shortcuts import render
 import re
-from .serializers import OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer
+from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer
 from .models import PartyProductAssignment,OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,7 +20,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework import permissions
 from sap_sync.models import Party as SapParty, PartyAddress as SapPartyAddress
 from .models import Order, OrderStatus
-from .models import PartyProductAssignment  # Ensure your models are imported
+from .models import PartyProductAssignment
+from users.models import SchemeProduct
 
 def _get_base_orders(user):
     """Scope orders by user role:
@@ -45,6 +46,9 @@ class DashboardKPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        from django.contrib.auth import get_user_model
+        from users.models import UserRole
+
         today = timezone.now().date()
         current_month_start = today.replace(day=1)
 
@@ -59,12 +63,18 @@ class DashboardKPIView(APIView):
         for os in OrderStatus.objects.all():
             status_counts[os.name] = all_orders.filter(status=os).count()
 
+        User = get_user_model()
+        user_counts = {}
+        for role in UserRole.objects.filter(is_active=True):
+            user_counts[role.name] = User.objects.filter(role=role, is_active=True).count()
+
         return Response({
             'total_orders': total_orders,
             'total_revenue': str(total_revenue),
             'today_orders': today_orders,
             'this_month_orders': this_month_orders,
             'status_counts': status_counts,
+            'user_counts': user_counts,
         })
 
 class DashboardChartsView(APIView):
@@ -231,7 +241,7 @@ class PartyProductsView(APIView):
                    p.item_name, p.sal_factor2, p.tax_rate, p.sal_pack_unit,
                    p.brand, p.variety
             FROM party_product_assignments ppa
-            LEFT JOIN sap_products p ON ppa.item_code = p.item_code AND ppa.category = p.category
+            LEFT JOIN s p ON ppa.item_code = p.item_code AND ppa.category = p.category
             WHERE ppa.card_code = %s AND ppa.is_active = true
             ORDER BY ppa.category, p.item_name
         """, [card_code])
@@ -315,53 +325,53 @@ class PartyAddressesView(APIView):
             category='OIL'
         ) 
 
-        if not bill_addresses.exists() and not ship_addresses.exists():
-            try:
-                party = Parties.objects.filter(card_code=card_code)
-                fallback_address = {
-                    'id': 0,
-                    'address_id': party.card_name if party else '',
-                    'full_address': party.address if party else '',
-                    'gst_number': None
-                }
-                return Response({
-                    'bill_to': [fallback_address],
-                    'ship_to': [fallback_address],
-                    'is_fallback': True
-                })
-            except Parties.DoesNotExist:
-                return Response({
-                    'bill_to': [],
-                    'ship_to': [],
-                    'is_fallback': False
-                })  
+        # if not bill_addresses.exists() and not ship_addresses.exists():
+        #     try:
+        #         party = SapPartyAddress.objects.filter(card_code=card_code)
+        #         fallback_address = {
+        #             'id': 0,
+        #             # 'address_id': party.card_name if party else '',
+        #             'full_address': party.address if party else '',
+        #             'gst_number': None
+        #         }
+        #         return Response({
+        #             'bill_to': [fallback_address],
+        #             'ship_to': [fallback_address],
+        #             'is_fallback': True
+        #         })
+        #     except SapPartyAddress.DoesNotExist:
+        #         return Response({
+        #             'bill_to': [],
+        #             'ship_to': [],
+        #             'is_fallback': False
+        #         })  
 
         bill_data = PartyAddressSerializer(bill_addresses, many=True).data
         ship_data = PartyAddressSerializer(ship_addresses, many=True).data
 
-        if not bill_data:
-            try:
-                party = Parties.objects.filter(card_code=card_code).first()
-                bill_data = [{
-                    'id': 0,
-                    'address_id': party.card_name,
-                    'full_address': party.address,
-                    'gst_number': None
-                }]
-            except Parties.DoesNotExist:
-                pass
+        # if not bill_data:
+        #     try:
+        #         party = SapPartyAddress.objects.filter(card_code=card_code).first()
+        #         bill_data = [{
+        #             'id': 0,
+        #             # 'address_id': party.card_name,
+        #             'full_address': party.address,
+        #             'gst_number': None
+        #         }]
+        #     except Parties.DoesNotExist:
+        #         pass
                     
-        if not ship_data:
-            try:
-                party = Parties.objects.get(card_code=card_code)
-                ship_data = [{
-                    'id': 0,
-                    'address_id': party.card_name,
-                    'full_address': party.address,
-                    'gst_number': None
-                }]
-            except Parties.DoesNotExist:
-                pass
+        # if not ship_data:
+        #     try:
+        #         party = SapPartyAddress.objects.get(card_code=card_code)
+        #         ship_data = [{
+        #             'id': 0,
+        #             # 'address_id': party.card_name,
+        #             'full_address': party.address,
+        #             'gst_number': None
+        #         }]
+        #     except SapPartyAddress.DoesNotExist:
+        #         pass
 
         return Response({
             'bill_to': bill_data,
@@ -530,6 +540,14 @@ class CreateOrderView(APIView):
         flagged_items = []
             
         for item in items:
+            scheme_id = item.get('scheme_id') or item.get('scheme')
+            scheme_obj = None
+            if scheme_id:
+                try:
+                    scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
+                except (SchemeProduct.DoesNotExist, ValueError, TypeError):
+                    scheme_obj = None
+
             OrderItem.objects.create(
                 order=order,
                 item_code=item.get('item_code', ''),
@@ -545,7 +563,9 @@ class CreateOrderView(APIView):
                 basic_price=_to_float(item.get('basic_price', 0)),
                 market_price=_to_float(item.get('market_price', 0)),
                 total=_to_float(item.get('total', 0)),
-                tax_rate=_to_float(item.get('tax_rate', 0))
+                tax_rate=_to_float(item.get('tax_rate', 0)),
+                scheme=scheme_obj,
+                qty_scheme=_to_float(item.get('scheme_qty', 0)),
             )
 
             bp = _to_float(item.get('basic_price', 0))
@@ -582,6 +602,15 @@ class CreateOrderView(APIView):
             'message': 'Order sent for approval' if needs_approval else 'Order sent to auditor approval',
         }, status=status.HTTP_201_CREATED)
         
+class SchemeListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from users.models import SchemeProduct
+        state_id = request.query_params.get('state_id', 1)
+        schemes = SchemeProduct.objects.filter(is_active=True, state_id=state_id).distinct().values('scheme_id', 'scheme_name')
+        return Response(list(schemes))
+
 class OrderStatusList(APIView):
     permission_classes = [AllowAny]
 
@@ -589,11 +618,38 @@ class OrderStatusList(APIView):
         status = OrderStatus.objects.all().values('id','name')
         return Response(list(status))
 
+class SchemeProductView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset = SchemeProduct.objects.select_related('state', 'item_code').filter(is_active=True)
+
+        state_id = request.query_params.get('state_id')
+        product_id = request.query_params.get('product_id')
+        item_code = request.query_params.get('item_code')
+        scheme_id = request.query_params.get('scheme_id')
+
+        if scheme_id:
+            queryset = queryset.filter(scheme_id=scheme_id)
+        if state_id:
+            queryset = queryset.filter(state_id=state_id)
+        if product_id:
+            queryset = queryset.filter(item_code_id=product_id)
+        if item_code:
+            queryset = queryset.filter(item_code__item_code=item_code)
+
+        serializer = SchemeProductSerializer(queryset.order_by('scheme_name', 'scheme_id'), many=True)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+            'total': len(serializer.data),
+        })
+
 class BranchView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        branches = Branches.objects.filter(category="OIL").order_by("bpl_name")
+        branches = Branches.objects.filter(category = 'OIL',bpl_name__icontains='FACTORY').order_by("bpl_name").distinct('bpl_name')
         serializer = BranchSerializer(branches, many=True)
         return Response(serializer.data) 
 
@@ -680,7 +736,7 @@ class UpdateOrderStatusView(APIView):
             })
 
         if is_auditor_to_billing:
-            
+
             auditor_pending_log = (
                 OrdersLog.objects
                 .filter(order=order, action=previous_status, performed_by__isnull=True)
@@ -716,7 +772,7 @@ class UpdateOrderStatusView(APIView):
 
         # If a placeholder row exists for this status (created earlier with no performer),
         # update it instead of inserting a duplicate row.
-        
+            
         pending_log = (
             OrdersLog.objects
             .filter(order=order, action=status_obj, performed_by__isnull=True)

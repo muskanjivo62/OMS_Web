@@ -87,9 +87,10 @@ export default function PartyAssignmentScreen() {
         const list = Array.isArray(res) ? res : (res.data || res.results || []);
         console.log('First user sample:', JSON.stringify(list[0]));
         const managers = list.filter((u: any) =>
-          u.role_id === 2 ||
-          Number(u.role) === 2 ||
-          u.role?.toLowerCase() === 'manager'
+          u.role_id === 2 || u.role_id === 4 ||
+          Number(u.role) === 2 || Number(u.role) === 4 ||
+          u.role?.toLowerCase() === 'manager' ||
+          u.role?.toLowerCase() === 'billing'
         );
         console.log(`Total users: ${list.length}, Managers: ${managers.length}`);
         setUsers(managers);

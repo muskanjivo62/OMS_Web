@@ -268,7 +268,7 @@ class SyncService:
             status='STARTED',
             triggered_by=self.triggered_by
         )
-
+            
         created_count = 0
         updated_count = 0
         processed_count = 0
@@ -452,6 +452,33 @@ class SyncService:
     # ---------------- MAP ORDER ---------------- #
 
     def map_order_to_sap(self, order):
+        document_lines = []
+
+        for item in order.items.all():
+            document_lines.append(
+                {
+                    "ItemCode": item.item_code,
+                    "Quantity": float(item.qty),
+                    "UnitPrice": float(item.basic_price),
+                    "WarehouseCode": "GP-FG",
+                }
+            )
+
+            # Add scheme line as a separate document row with zero price.
+            scheme_product = getattr(getattr(item, "scheme", None), "item_code", None)
+            scheme_item_code = getattr(scheme_product, "item_code", None)
+            scheme_qty = float(getattr(item, "qty_scheme", 0) or 0)
+
+            if scheme_item_code and scheme_qty > 0:
+                document_lines.append(
+                    {
+                        "ItemCode": scheme_item_code,
+                        "Quantity": scheme_qty,
+                        "UnitPrice": 0.0,
+                        "WarehouseCode": "GP-FG",
+                    }
+                )
+
         return {
             "CardCode": order.card_code,
             "DocDate": str(order.created_at),
@@ -462,15 +489,7 @@ class SyncService:
             "ShipToCode": order.ship_to_address,
             "PayToCode": order.bill_to_address,
             "BPL_IDAssignedToInvoice": order.dispatch_from_id,
-            "DocumentLines": [
-                {
-                    "ItemCode": item.item_code,
-                    "Quantity": float(item.qty),
-                    "UnitPrice": float(item.basic_price),
-                    "WarehouseCode": "GP-FG"
-                }
-                for item in order.items.all()
-            ]
+            "DocumentLines": document_lines,
         }
 
 # example 
@@ -498,6 +517,7 @@ class SyncService:
     # ---------------- CREATE SALES QUOTATION ---------------- #
 
     def create_sales_quotation(self, order):
+        
         quotation_payload = self.map_order_to_sap(order)
 
         log = SalesQuotationLog.objects.create(

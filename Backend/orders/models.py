@@ -152,6 +152,17 @@ class OrderItem(models.Model):
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
 
+    scheme = models.ForeignKey(
+        'users.SchemeProduct',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='scheme_id',
+        related_name='order_items'
+    )
+    qty_scheme = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
+    is_scheme_visible = models.BooleanField(default=False)
+
     class Meta:
         db_table = 'order_items'
     

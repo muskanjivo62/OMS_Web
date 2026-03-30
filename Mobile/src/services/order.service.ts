@@ -82,6 +82,13 @@ export const dispatchService = {
   },
 };
 
+export const schemeService = {
+  getSchemes: async (stateId: number = 1): Promise<{ scheme_id: number; scheme_name: string }[]> => {
+    const res = await api.get(`/orders/schemes/?state_id=${stateId}`);
+    return res || [];
+  },
+};
+
 export interface ProductFilters {
   categories: { label: string; value: string }[];
   brands: { label: string; value: string }[];

@@ -2,6 +2,32 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 # Create your models here.
 
+class SchemeProduct(models.Model):
+    scheme_id = models.AutoField(primary_key=True)
+    state = models.ForeignKey(
+        'users.State',
+        on_delete=models.PROTECT,
+        db_column='state_id',
+        related_name='scheme_products'
+    )
+    item_code = models.ForeignKey(
+        'sap_sync.Product',
+        on_delete=models.PROTECT,
+        db_column='item_code',
+        related_name='scheme_products',
+        null=True
+    )
+    scheme_name = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True, db_column='isactive')
+
+    class Meta:
+        db_table = 'scheme_product'
+        ordering = ['scheme_name']
+
+    def __str__(self):
+        return self.scheme_name
+
+
 class PartyProductAssignment(models.Model):
     """
     Maps parties to products with pricing
@@ -31,6 +57,15 @@ class PartyProductAssignment(models.Model):
         related_name='party_product_assignments_made'
     )
     is_active = models.BooleanField(default=True)
+    is_scheme = models.BooleanField(default=False)
+    scheme = models.ForeignKey(
+        'users.SchemeProduct',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='scheme_id',
+        related_name='party_product_assignments'
+    )
 
     class Meta:
         db_table = 'party_product_assignments'
@@ -39,8 +74,7 @@ class PartyProductAssignment(models.Model):
 
     def __str__(self):
         return f"{self.card_code} - {self.item_code} ({self.category}) - ₹{self.basic_rate}"
-
-    
+   
 class UserPartyAssignment(models.Model):
     """Maps users to parties using card_code"""
     user = models.ForeignKey(

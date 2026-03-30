@@ -1,6 +1,12 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, Company, MainGroup, State, UserRole
+from .models import User, Company, MainGroup, State, UserRole, SchemeProduct
+
+
+class SchemeProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchemeProduct
+        fields = ['scheme_id', 'scheme_name', 'state', 'item_code', 'is_active']
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -21,13 +27,14 @@ class StateSerializer(serializers.ModelSerializer):
     class Meta:
         model = State
         fields = ['id', 'name', 'code']
-
+ 
 class UserSerializer(serializers.ModelSerializer):
     company = serializers.SerializerMethodField()
     main_group = serializers.SerializerMethodField()
     state = serializers.SerializerMethodField()
     role = serializers.CharField(source='role.name', read_only=True)
-    role_display = serializers.CharField(source='role.display_name', default=None, read_only=True)
+    role_display = serializers.CharField(source='role.display_name', default= None, read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
@@ -83,12 +90,12 @@ class CreateUserSerializer(serializers.Serializer):
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError('Username already exists')
-        return value
+        return value    
 
     def validate_email(self, value):
         if value and User.objects.filter(email=value).exists():
             raise serializers.ValidationError('Email already exists')
-        return value
+        return value    
 
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -96,4 +103,4 @@ class CreateUserSerializer(serializers.Serializer):
         user.set_password(password)
         user.save()
         return user
-   
+    

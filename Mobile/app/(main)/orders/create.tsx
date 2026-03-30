@@ -8,6 +8,9 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Switch,
+  Modal,
+  Animated,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Text, Surface, TextInput } from "react-native-paper";
@@ -19,30 +22,30 @@ import Dropdown from "@/src/components/common/DropdownProps";
 import {
   orderService,
   dispatchService,
+  schemeService,
   PartyAddress,
   productService,
   Product,
   CreateOrderPayload,
 } from "@/src/services/order.service";
 import { useRouter, useNavigation } from "expo-router";
-import { Pressable } from "react-native-gesture-handler";
 
-// ─── Per-item state (isolated for each row) ─────────────────────────────────
 interface ItemRow {
   id: number;
-  // cascade selects
   selectedCategory: string | null;
   selectedBrand: string | null;
   selectedVariety: string | null;
   selectedType: string | null;
   selectedProduct: string | null;
-  // dropdown option lists
+  selectedScheme: string | null;
+  isScheme: boolean;
   brands: { label: string; value: string }[];
   varieties: { label: string; value: string }[];
   types: { label: string; value: string }[];
   products: { label: string; value: string }[];
-  // numeric fields
+  schemes: { label: string; value: string }[];
   qty: string;
+  schemeQty: string;
   pcs: string;
   salPackUnit: string;
   boxes: string;
@@ -62,6 +65,8 @@ interface OrderItemType {
   variety: string;
   type: string;
   qty: number;
+  scheme?: string | null;
+  schemeQty?: number;
   pcs: number;
   boxes: number;
   ltrs: number;
@@ -78,11 +83,15 @@ const emptyRow = (id: number): ItemRow => ({
   selectedVariety: null,
   selectedType: null,
   selectedProduct: null,
+  selectedScheme: null,
+  isScheme: false,
   brands: [],
   varieties: [],
   types: [],
   products: [],
+  schemes: [],
   qty: "",
+  schemeQty: "",
   pcs: "",
   salPackUnit: "",
   boxes: "",
@@ -112,7 +121,7 @@ const dedupePartyProducts = (products: any[]) => {
 };
 
 const getTodayDate = () => {
-  return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  return new Date().toISOString().split("T")[0]; 
 };
 
 export default function CreateOrderScreen() {
@@ -157,17 +166,19 @@ export default function CreateOrderScreen() {
   const [dispatches, setDispatches] = useState<
     { label: string; value: number }[]
   >([]);
+
   const [companies, setCompanies] = useState<
     { label: string; value: number }[]
   >([]);
+
   const [branches, setbranches] = useState<{ label: string; value: number }[]>(
     [],
   );
-  const [partyProducts, setPartyProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<
-    { label: string; value: string }[]
-  >([]);
 
+  const [partyProducts, setPartyProducts] = useState<any[]>([]);
+
+  const [categories, setCategories] = useState<{ label: string; value: string }[]>([]);
+  
   // ── Item rows (each row has its own isolated state) ───────────────────────
   const [itemRows, setItemRows] = useState<ItemRow[]>([]);
 
@@ -202,20 +213,23 @@ export default function CreateOrderScreen() {
   }, []);
 
   // ─── Constants: active filters ────────────────────────────────────────────
-  const ACTIVE_CATEGORY = "OIL"; // change to match exact string from API
-  const ACTIVE_BRAND = "JIVO"; // change to match exact string from API
+  const ACTIVE_CATEGORY = "OIL"; 
+  const ACTIVE_BRAND = "JIVO"; 
 
   const fetchMasterData = async () => {
+
     try {
+
       setDataLoading(true);
 
       const partiesData = await orderService.getParties();
       console.log("getallparties"+JSON.stringify(partiesData));
       const partiesList = Array.isArray(partiesData) ? partiesData : [];
+
       const oilParties = partiesList.filter(
         (p: any) => p.category?.toUpperCase() === ACTIVE_CATEGORY,
       );
-      // Fallback: if API doesn't return category on party, show all
+
       setParties(
         (oilParties.length > 0 ? oilParties : partiesList).map((p) => ({
           label: p.label,
@@ -223,11 +237,11 @@ export default function CreateOrderScreen() {
         })),
       );
 
-      const dispatchesData = await dispatchService.getDispatch();
-      setDispatches(
-        (dispatchesData || []).map((d) => ({ label: d.name, value: d.id })),
-      );
-
+      // const dispatchesData = await dispatchService.getDispatch();
+      // setDispatches(
+      //   (dispatchesData || []).map((d) => ({ label: d.name, value: d.id })),
+      // ); 
+      
       const branchesData = await orderService.getbranch("");
       setbranches(
         (branchesData || []).map((d: any) => ({
@@ -237,11 +251,13 @@ export default function CreateOrderScreen() {
       );
 
       setCompanies([{ label: "Jivo Wellness", value: 1 }]);
+      
     } catch (error) {
       Alert.alert("Error", "Failed to load data");
     } finally {
       setDataLoading(false);
     }
+
   };
 
   // ─── Party change → load addresses + products ─────────────────────────────
@@ -321,7 +337,8 @@ export default function CreateOrderScreen() {
       if (finalShipTo.length > 0) setSelectedShipTo(finalShipTo[0].value);
 
       // Load party products — filter to OIL category + JIVO brand only
-      const allProducts = await orderService.getPartyProducts(cardCode);
+      const productsResponse = await orderService.getPartyProducts(cardCode);
+      const allProducts = Array.isArray(productsResponse) ? productsResponse : [];
       console.log(
         "All products for party:",
         JSON.stringify(allProducts, null, 2),
@@ -331,13 +348,11 @@ export default function CreateOrderScreen() {
           p.category?.toUpperCase() === ACTIVE_CATEGORY &&
           p.brand?.toUpperCase() === ACTIVE_BRAND,
       );
-      // Fallback: if filter yields nothing, use all (avoids blank screen)
       const products = dedupePartyProducts(
         filteredProducts.length > 0 ? filteredProducts : allProducts,
       );
       setPartyProducts(products);
 
-      // Only show OIL category in the dropdown
       const uniqueCategories = [
         ...new Set<string>(
           products.map((p: any) => p.category).filter(Boolean),
@@ -364,16 +379,19 @@ export default function CreateOrderScreen() {
       selectedVariety: null,
       selectedType: null,
       selectedProduct: null,
+      selectedScheme: null,
       brands: uniqueBrands.sort().map((b) => ({ label: b, value: b })),
       varieties: [],
       types: [],
       products: [],
+      schemes: [],
       pcs: "",
       salPackUnit: "",
       tax: "",
       basePrice: "",
       marketPrice: "",
       qty: "",
+      schemeQty: "",
       boxes: "",
       ltrs: "",
       itemTotal: "",
@@ -392,9 +410,11 @@ export default function CreateOrderScreen() {
       selectedVariety: null,
       selectedType: null,
       selectedProduct: null,
+      selectedScheme: null,
       varieties: uniqueVarieties.sort().map((v) => ({ label: v, value: v })),
       types: [],
       products: [],
+      schemes: [],
     });
   };
 
@@ -420,8 +440,10 @@ export default function CreateOrderScreen() {
       selectedVariety: variety,
       selectedType: null,
       selectedProduct: null,
+      selectedScheme: null,
       types: sortedTypes.map((t) => ({ label: t, value: t })),
       products: [],
+      schemes: [],
     });
   };
 
@@ -436,14 +458,16 @@ export default function CreateOrderScreen() {
     updateRow(rowId, {
       selectedType: type,
       selectedProduct: null,
+      selectedScheme: null,
       products: filtered.map((p: any) => ({
         label: `${p.item_name} (₹${p.basic_rate})`,
         value: p.item_code,
       })),
+      schemes: [],
     });
   };
 
-  const handleRowProductChange = (rowId: number, productId: string) => {
+  const handleRowProductChange = async (rowId: number, productId: string) => {
     const product = partyProducts.find(
       (p: any) => String(p.item_code) === String(productId),
     );
@@ -452,12 +476,36 @@ export default function CreateOrderScreen() {
       const salPackUnit = product.sal_pack_unit?.toString() || "0";
       updateRow(rowId, {
         selectedProduct: productId,
+        selectedScheme: null,
+        schemes: [],
         pcs,
         salPackUnit,
         tax: product.tax_rate ? product.tax_rate.toString() : "0",
         basePrice: product.basic_rate?.toString() || "0",
       });
+      try {
+        const schemeData = await schemeService.getSchemes(user?.state?.id ?? 1);
+        const schemes = schemeData.map((s) => ({
+          label: s.scheme_name,
+          value: String(s.scheme_id),
+        }));
+        updateRow(rowId, { schemes });
+      } catch {
+        // no schemes available — leave schemes: []
+      }
     }
+  };
+
+  const handleRowIsSchemeToggle = (rowId: number, value: boolean) => {
+    updateRow(rowId, { isScheme: value, selectedScheme: null, schemeQty: "" });
+  };
+
+  const handleRowSchemeChange = (rowId: number, scheme: string) => {
+    updateRow(rowId, { selectedScheme: scheme });
+  };
+
+  const handleRowSchemeQtyChange = (rowId: number, value: string) => {
+    updateRow(rowId, { schemeQty: value });
   };
 
   const handleRowQtyChange = (rowId: number, value: string) => {
@@ -548,6 +596,8 @@ export default function CreateOrderScreen() {
       variety: row.selectedVariety || "",
       type: row.selectedType || "",
       qty: parseFloat(row.qty) || 0,
+      scheme: row.selectedScheme,
+      schemeQty: parseFloat(row.schemeQty) || 0,
       pcs: parseFloat(row.pcs) || 0,
       boxes: parseFloat(row.boxes) || 0,
       ltrs: parseFloat(row.ltrs) || 0,
@@ -565,7 +615,7 @@ export default function CreateOrderScreen() {
   const removeOrderItem = (id: number) => {
     setOrderItems((prev) => prev.filter((item) => item.id !== id));
   };
-
+  
   // ─── Totals (FIX 5) ────────────────────────────────────────────────────────
 
   const getEffectivePrice = (item: OrderItemType) =>
@@ -620,7 +670,7 @@ export default function CreateOrderScreen() {
           shipToAddresses.find((a) => a.value === selectedShipTo)?.label ?? "",
         dispatch_from_id: branch ?? 0,
         dispatch_from_name:
-          dispatches.find((d) => d.value === branch)?.label ?? "",
+          branches.find((d) => d.value === branch)?.label ?? "",
         delivery_date: delivery,
         company: String(company ?? ""),
         po_number: String(poNumber ?? ""),
@@ -633,6 +683,8 @@ export default function CreateOrderScreen() {
           variety: String(item.variety ?? ""),
           item_type: String(item.type ?? ""),
           qty: Number(item.qty) || 0,
+          scheme_id: item.scheme ? Number(item.scheme) : null,
+          scheme_qty: Number(item.schemeQty) || 0,
           pcs: Number(item.pcs) || 0,
           boxes: Number(item.boxes) || 0,
           ltrs: Number(item.ltrs) || 0,
@@ -645,7 +697,6 @@ export default function CreateOrderScreen() {
 
       const response = await orderService.createOrder(payload);
       console.log("Create order response:", JSON.stringify(payload));
-      // Backend returns: { id, order_number, message, needs_approval, ... }
       if (response?.order_number || response?.message?.includes("Order sent")) {
         setOrderResult({
           orderNumber: response.order_number || "",
@@ -653,8 +704,7 @@ export default function CreateOrderScreen() {
           needsApproval: response.needs_approval || false,
         });
         setSuccessModal(true);
-        // Reset form
-        handleClear();
+        handleClear({ keepSuccessModal: true });
       } else {
         console.log("response of creation "+JSON.stringify(response));
         if (Platform.OS === "web") {
@@ -674,7 +724,8 @@ export default function CreateOrderScreen() {
       setLoading(false);
     }
   };
-  const handleClear = () => {
+
+ const handleClear = (options?: { keepSuccessModal?: boolean }) => {
     setPartyName(null);
     setBranch(null);
     setCompany(null);
@@ -689,8 +740,10 @@ export default function CreateOrderScreen() {
     setDeliveryDate(getTodayDate());
     setPartyProducts([]);
     setCategories([]);
-    setSuccessModal(false);
-    setOrderResult(null);
+    if (!options?.keepSuccessModal) {
+      setSuccessModal(false);
+      setOrderResult(null);
+    }
   };
 
   const handleBack = () => {
@@ -979,6 +1032,49 @@ export default function CreateOrderScreen() {
                   />
                 </View>
 
+                {row.selectedProduct && (
+                  <View style={styles.schemeRow}>
+                    <View style={styles.schemeToggleCompact}>
+                      <Text style={styles.schemeToggleLabel}>Scheme</Text>
+                      <Switch
+                        value={row.isScheme}
+                        onValueChange={(val) =>
+                          handleRowIsSchemeToggle(row.id, val)
+                        }
+                        trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                        thumbColor={COLORS.textLight}
+                      />
+                    </View>
+                    <View style={styles.schemeDropdownField}>
+                      <Dropdown
+                        label="Scheme"
+                        data={row.schemes}
+                        value={row.selectedScheme}
+                        onChange={(val) => handleRowSchemeChange(row.id, val)}
+                        placeholder="Select Scheme..."
+                        icon="gift-outline"
+                        disabled={!row.isScheme}
+                      />
+                    </View>
+                    <View style={styles.schemeQtyField}>
+                      <TextInput
+                        label="Qty"
+                        textColor={COLORS.black}
+                        value={row.schemeQty}
+                        onChangeText={(val) =>
+                          handleRowSchemeQtyChange(row.id, val)
+                        }
+                        mode="outlined"
+                        keyboardType="numeric"
+                        style={styles.input}
+                        outlineColor={COLORS.border}
+                        activeOutlineColor={COLORS.primary}
+                        editable={row.isScheme}
+                      />
+                    </View>
+                  </View>
+                )}
+
                 {/* PCS / Ltrs / Boxes (read-only, auto-calculated) */}
                 <View style={styles.row}>
                   <View style={styles.thirdField}>
@@ -1143,6 +1239,11 @@ export default function CreateOrderScreen() {
                 <Text style={styles.itemCategory}>
                   {item.category} | {item.brand} | {item.variety}
                 </Text>
+                {!!item.scheme && (
+                  <Text style={styles.itemCategory}>
+                    Scheme: {item.scheme} | Qty Scheme: {item.schemeQty || 0}
+                  </Text>
+                )}
                 <View style={styles.itemDetails}>
                   <Text style={styles.itemDetail}>Qty: {item.qty}</Text>
                   <Text style={styles.itemDetail}>PCS: {item.pcs}</Text>
@@ -1198,62 +1299,59 @@ export default function CreateOrderScreen() {
       </ScrollView>
 
       {/* ── Success Modal ─────────────────────────────────────────────── */}
-      {successModal && orderResult && (
+      <Modal
+        visible={successModal && !!orderResult}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            {/* Icon */}
-            <View
-              style={[
-                styles.modalIconCircle,
-                {
-                  backgroundColor: orderResult.needsApproval
-                    ? "#FFF3CD"
-                    : "#D4EDDA",
-                },
-              ]}
+          <Animated.View style={styles.modalBox}>
+            {/* Gradient Header */}
+            <LinearGradient
+              colors={orderResult?.needsApproval ? ["#F59E0B", "#D97706"] : ["#1E3A5F", "#2563EB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modalHeader}
             >
-              <Ionicons
-                name={
-                  orderResult.needsApproval
-                    ? "time-outline"
-                    : "checkmark-circle"
-                }
-                size={40}
-                color={orderResult.needsApproval ? "#856404" : "#155724"}
-              />
-            </View>
+              {/* Decorative circles */}
+              <View style={styles.modalDecorCircle1} />
+              <View style={styles.modalDecorCircle2} />
 
-            {/* Title */}
-            <Text style={styles.modalTitle}>
-              {orderResult.needsApproval
-                ? "Sent for Approval"
-                : "Order Created!"}
-            </Text>
-
-            {/* Order number */}
-            {!!orderResult.orderNumber && (
-              <View style={styles.modalOrderNumBox}>
-                <Text style={styles.modalOrderNumLabel}>Order Number</Text>
-                <Text style={styles.modalOrderNum}>
-                  {orderResult.orderNumber}
-                </Text>
+              {/* Icon badge */}
+              <View style={styles.modalIconBadge}>
+                <Ionicons
+                  name={orderResult?.needsApproval ? "time" : "checkmark-circle"}
+                  size={48}
+                  color="#fff"
+                />
               </View>
-            )}
 
-            {/* Message */}
-            <Text style={styles.modalMessage}>{orderResult.message}</Text>
+              <Text style={styles.modalHeaderTitle}>
+                {orderResult?.needsApproval ? "Pending Approval" : "Order Placed!"}
+              </Text>
+              <Text style={styles.modalHeaderSub}>
+                {orderResult?.needsApproval
+                  ? "Your order is awaiting manager approval"
+                  : "Your order has been created successfully"}
+              </Text>
+            </LinearGradient>
 
-            {/* Buttons */}
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={styles.modalBtnSecondary}
-                onPress={() => {
-                  setSuccessModal(false);
-                  setOrderResult(null);
-                }}
-              >
-                <Text style={styles.modalBtnSecondaryText}>New Order</Text>
-              </TouchableOpacity>
+            {/* Body */}
+            <View style={styles.modalBody}>
+              {!!orderResult?.orderNumber && (
+                <View style={styles.modalOrderNumBox}>
+                  <Ionicons name="receipt-outline" size={14} color={COLORS.textSecondary} />
+                  <View style={{ marginLeft: 8 }}>
+                    <Text style={styles.modalOrderNumLabel}>Order Number</Text>
+                    <Text style={styles.modalOrderNum}>{orderResult.orderNumber}</Text>
+                  </View>
+                </View>
+              )}
+
+              <Text style={styles.modalMessage}>{orderResult?.message}</Text>
+
+              {/* Buttons */}
               <TouchableOpacity
                 style={styles.modalBtnPrimary}
                 onPress={() => {
@@ -1262,12 +1360,31 @@ export default function CreateOrderScreen() {
                   router.back();
                 }}
               >
-                <Text style={styles.modalBtnPrimaryText}>Go Back</Text>
+                <LinearGradient
+                  colors={orderResult?.needsApproval ? ["#F59E0B", "#D97706"] : ["#1E3A5F", "#2563EB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalBtnGradient}
+                >
+                  <Ionicons name="arrow-back-outline" size={18} color="#fff" />
+                  <Text style={styles.modalBtnPrimaryText}>Go to Orders</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalBtnSecondary}
+                onPress={() => {
+                  setSuccessModal(false);
+                  setOrderResult(null);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.modalBtnSecondaryText}>Create New Order</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
-      )}
+      </Modal>
 
       {/* ── Bottom Actions ─────────────────────────────────────────────── */}
       <View style={styles.bottomBar}>
@@ -1303,9 +1420,8 @@ export default function CreateOrderScreen() {
       </View>
     </KeyboardAvoidingView>
   );
-}
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
@@ -1368,6 +1484,20 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: SPACING.sm },
   halfField: { flex: 1 },
   thirdField: { flex: 1 },
+  schemeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  schemeToggleCompact: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  schemeDropdownField: { flex: 2 },
+  schemeQtyField: { flex: 1 },
+  schemeToggleLabel: { fontSize: 11, color: COLORS.text, fontWeight: "500" },
   input: { backgroundColor: COLORS.surface, color: COLORS.black },
   commentInput: { minHeight: 80 },
   addBtn: {
@@ -1465,28 +1595,76 @@ const styles = StyleSheet.create({
 
   // ── Success Modal ──
   modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.65)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 999,
+    paddingHorizontal: 24,
   },
   modalBox: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 28,
-    width: "88%",
+    borderRadius: 24,
+    width: "100%",
     maxWidth: 420,
-    alignItems: "center",
+    overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 40,
+    elevation: 20,
+  },
+  modalHeader: {
+    paddingTop: 36,
+    paddingBottom: 28,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  modalDecorCircle1: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    top: -50,
+    right: -40,
+  },
+  modalDecorCircle2: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    bottom: -30,
+    left: -20,
+  },
+  modalIconBadge: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  modalHeaderTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  modalHeaderSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  modalBody: {
+    padding: 24,
+    alignItems: "center",
   },
   modalIconCircle: {
     width: 72,
@@ -1496,30 +1674,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginBottom: 12,
-    textAlign: "center",
-  },
   modalOrderNumBox: {
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    backgroundColor: COLORS.primaryLighter,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
     width: "100%",
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight,
   },
   modalOrderNumLabel: {
     fontSize: 11,
     color: COLORS.textSecondary,
     marginBottom: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   modalOrderNum: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
     color: COLORS.primary,
     letterSpacing: 1,
   },
@@ -1528,37 +1704,41 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: "center",
     marginBottom: 24,
-    lineHeight: 20,
-  },
-  modalBtnRow: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
-  },
-  modalBtnSecondary: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-  },
-  modalBtnSecondaryText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
+    lineHeight: 21,
   },
   modalBtnPrimary: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
+    width: "100%",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  modalBtnGradient: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 8,
   },
   modalBtnPrimaryText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#fff",
+  },
+  modalBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 13,
+    width: "100%",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.primaryLight,
+    gap: 6,
+  },
+  modalBtnSecondaryText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
 
   // ── Bottom bar ──

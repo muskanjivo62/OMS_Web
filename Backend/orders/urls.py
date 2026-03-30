@@ -1,9 +1,9 @@
 from django.contrib import admin
 from django.urls import path,include
-from .views import DashboardKPIView,OrderLogsByOrderView, OrderDetailsByOrderView,OrdersByUserView,DashboardChartsView,OrderStatusList,BranchView,PartyView,DispatchLocationListView,UpdateOrderStatusView,PartyAddressesView,ProductFiltersView,ProductListView,PartyProductsView,CreateOrderView,OrderListView,RejectOrderView,ApproveOrderView
+from .views import DashboardKPIView,OrderLogsByOrderView, OrderDetailsByOrderView,OrdersByUserView,DashboardChartsView,OrderStatusList,BranchView,PartyView,DispatchLocationListView, SchemeProductView,UpdateOrderStatusView,PartyAddressesView,ProductFiltersView,ProductListView,PartyProductsView,CreateOrderView,OrderListView,RejectOrderView,ApproveOrderView,SchemeListView
 
 urlpatterns=[
-
+    path('scheme-products/', SchemeProductView.as_view(), name='scheme-products'),
     path('parties/',PartyView.as_view(),name='parties'),
     path('dispatches/',DispatchLocationListView.as_view(),name='dispatches'),
     path('addresses/', PartyAddressesView.as_view(), name='party-addresses'),
@@ -14,6 +14,7 @@ urlpatterns=[
     path('<int:order_id>/approve/', ApproveOrderView.as_view(), name='approve_list'),
     path('<int:order_id>/reject/', RejectOrderView.as_view(), name='reject_list'),
     path('party-products/<str:card_code>/', PartyProductsView.as_view(), name='party-products'),
+    path('schemes/', SchemeListView.as_view(), name='schemes'),
     path('status/',OrderStatusList.as_view(),name='status'),
     path('branch/',BranchView.as_view(),name='branch'),
     path('<int:order_id>/update-status/',UpdateOrderStatusView.as_view(),name='update-status'),

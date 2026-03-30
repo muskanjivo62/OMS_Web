@@ -61,18 +61,6 @@ export default function OrderDetailsScreen() {
     );
   }
 
-  const InfoRow = ({ label, value }: any) => {
-    if (!value) return null;
-
-    return (
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoColon}>:</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
-    );
-  };
-
   return (
     <ScrollView style={styles.container}>
       {/* ===== Header ===== */}
@@ -128,6 +116,15 @@ export default function OrderDetailsScreen() {
                 <InfoRow label="Box" value={item.boxes} />
                 <InfoRow label="Ltrs" value={item.ltrs} />
                 <InfoRow label="Total" value={`₹${item.total}`} />
+                {!!item.scheme_name && (
+                  <View style={styles.schemeBadge}>
+                    <Ionicons name="pricetag-outline" size={13} color="#7C3AED" />
+                    <Text style={styles.schemeBadgeText}>
+                      {item.scheme_name}
+                      {item.qty_scheme > 0 ? `  ·  Qty: ${item.qty_scheme}` : ""}
+                    </Text>
+                  </View>
+                )}
 
               </View>
 
@@ -294,4 +291,23 @@ const styles = StyleSheet.create({
   totalLabel: { color: "#fff", fontSize: 14 },
 
   totalValue: { color: "#fff", fontSize: 22, fontWeight: "800" },
+
+  schemeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    alignSelf: "flex-start",
+    marginTop: 6,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+  schemeBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#7C3AED",
+  },
 });
