@@ -683,7 +683,7 @@ export default function CreateOrderScreen() {
           brand: String(item.brand ?? ""),
           variety: String(item.variety ?? ""),
           item_type: String(item.type ?? ""),
-          qty: Number(item.qty) || 0,
+          qty: Number(item.boxes) || 0,
           scheme_id: item.scheme ? Number(item.scheme) : null,
           scheme_qty: Number(item.schemeQty) || 0,
           pcs: Number(item.pcs) || 0,
@@ -698,29 +698,29 @@ export default function CreateOrderScreen() {
 
       const response = await orderService.createOrder(payload);
       console.log("Create order response:", JSON.stringify(payload));
-      if (response?.order_number || response?.message?.includes("Order sent")) {
-        setOrderResult({
-          orderNumber: response.order_number || "",
-          message: response.message || "Order created successfully",
-          needsApproval: response.needs_approval || false,
-        });
-        setSuccessModal(true);
-        handleClear({ keepSuccessModal: true });
-      } else {
-        console.log("response of creation "+JSON.stringify(response));
-        if (Platform.OS === "web") {
-          window.alert("Something went wrong. Please try again.");
-        } else {
-          Alert.alert("Error", "Something went wrong. Please try again.");
-        }
-      }
+      // if (response?.order_number || response?.message?.includes("Order sent")) {
+      //   setOrderResult({
+      //     orderNumber: response.order_number || "",
+      //     message: response.message || "Order created successfully",
+      //     needsApproval: response.needs_approval || false,
+      //   });
+      //   setSuccessModal(true);
+      //   handleClear({ keepSuccessModal: true });
+      // } else {
+      //   console.log("response of creation "+JSON.stringify(response));
+      //   if (Platform.OS === "web") {
+      //     window.alert("Something went wrong. Please try again.");
+      //   } else {
+      //     Alert.alert("Error", "Something went wrong. Please try again.");
+      //   }
+      // }
     } catch (error) {
-      console.log("Error creating order:", error);
-      if (Platform.OS === "web") {
-        window.alert("Failed to create order. Please try again.");
-      } else {
-        Alert.alert("Error", "Failed to create order");
-      }
+      // console.log("Error creating order:", error);
+      // if (Platform.OS === "web") {
+      //   window.alert("Failed to create order. Please try again.");
+      // } else {
+      //   Alert.alert("Error", "Failed to create order");
+      // }
     } finally {
       setLoading(false);
     }
@@ -1093,7 +1093,7 @@ export default function CreateOrderScreen() {
                   </View>
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="Boxes"
+                      label="PCS"
                       value={row.boxes}
                       textColor={COLORS.black}
                       editable={false}
@@ -1110,7 +1110,7 @@ export default function CreateOrderScreen() {
                 <View style={styles.row}>
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="QTY *"
+                      label=" BOXES*"
                       textColor={COLORS.black}
                       value={row.qty}
                       onChangeText={(val) =>
@@ -1233,9 +1233,9 @@ export default function CreateOrderScreen() {
                   </Text>
                 )}
                 <View style={styles.itemDetails}>
-                  <Text style={styles.itemDetail}>Qty: {item.qty}</Text>
-                  <Text style={styles.itemDetail}>PCS: {item.pcs}</Text>
-                  <Text style={styles.itemDetail}>Boxes: {item.boxes}</Text>
+                  <Text style={styles.itemDetail}>BOXES: {item.qty}</Text>
+                  {/* <Text style={styles.itemDetail}>PCS: {item.pcs}</Text> */}
+                  <Text style={styles.itemDetail}>PCS: {item.boxes}</Text>
                   <Text style={styles.itemDetail}>Ltrs: {item.ltrs}</Text>
                 </View>
                 <View style={styles.itemPriceRow}>
