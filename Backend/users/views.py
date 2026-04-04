@@ -33,7 +33,6 @@ class RoleListView(APIView):
         roles = UserRole.objects.filter(is_active=True).values('id', 'name', 'display_name')
         return Response(list(roles))
 
-
 class UserPartiesView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -99,10 +98,6 @@ class AssignPartiesView(APIView):
             'message': f'Added: {added_count}, Removed: {removed_count}',
             'data': {'added': added_count, 'removed': removed_count, 'total_assigned': len(new_card_codes)}
         })
-
-# ==========================
-# PARTY-PRODUCT ASSIGNMENT (with basic_rate)
-# ==========================
 
 class PartyProductsView(APIView):
     """Get all products assigned to a party with their basic_rate"""

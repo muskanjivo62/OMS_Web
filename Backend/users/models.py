@@ -27,7 +27,6 @@ class SchemeProduct(models.Model):
     def __str__(self):
         return self.scheme_name
 
-
 class PartyProductAssignment(models.Model):
     """
     Maps parties to products with pricing
@@ -136,9 +135,31 @@ class State(models.Model):
     def __str__(self):
         return self.name    
 
+class UserState(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE,
+        db_column='user_id',
+        related_name='user_states'
+    )
+    state = models.ForeignKey(
+        'users.State',
+        on_delete=models.CASCADE,
+        db_column='state_id',
+        related_name='user_states'
+    )
+
+    class Meta:
+        db_table = 'users_user_states'
+        managed = False
+
+    def __str__(self):
+        return f"{self.user_id} - {self.state_id}"
+
 class UserRole(models.Model):
-    name = models.CharField(max_length=50, unique=True)  # e.g. admin, manager, operator
-    display_name = models.CharField(max_length=100)       # e.g. Admin, Manager, Operator
+    name = models.CharField(max_length=50, unique=True) 
+    display_name = models.CharField(max_length=100)       
     is_active = models.BooleanField(default=True)
     
     class Meta:

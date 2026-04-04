@@ -2,7 +2,6 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import User, Company, MainGroup, State, UserRole, SchemeProduct
 
-
 class SchemeProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = SchemeProduct
@@ -32,6 +31,7 @@ class UserSerializer(serializers.ModelSerializer):
     company = serializers.SerializerMethodField()
     main_group = serializers.SerializerMethodField()
     state = serializers.SerializerMethodField()
+    states = serializers.SerializerMethodField()
     role = serializers.CharField(source='role.name', read_only=True)
     role_display = serializers.CharField(source='role.display_name', default= None, read_only=True)
     is_active = serializers.BooleanField(read_only=True)
@@ -40,7 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'name', 'username', 'email', 'phone',
-            'role','role_display', 'company', 'main_group', 'state', 'is_active'
+            'role','role_display', 'company', 'main_group', 'state', 'states', 'is_active'
         ]
 
     def get_company(self, obj):
@@ -57,6 +57,25 @@ class UserSerializer(serializers.ModelSerializer):
         if not obj.state:
             return None
         return StateSerializer(obj.state).data
+
+    def get_states(self, obj):
+        assigned_states = []
+        seen_state_ids = set()
+
+        for user_state in obj.user_states.select_related('state').all():
+            state = user_state.state
+            if not state or state.id in seen_state_ids:
+                continue
+            seen_state_ids.add(state.id)
+            assigned_states.append(StateSerializer(state).data)
+
+        if assigned_states:
+            return assigned_states
+
+        if obj.state:
+            return [StateSerializer(obj.state).data]
+
+        return []
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()

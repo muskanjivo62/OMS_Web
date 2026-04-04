@@ -19,15 +19,15 @@ class Product(models.Model):
     variety = models.CharField(max_length=100, blank=True, null=True)
     sal_pack_unit = models.CharField(max_length=50, blank=True, null=True)
     brand = models.CharField(max_length=100, blank=True, null=True)
-
+        
     synced_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+        
     class Meta:
-        db_table = 's'
+        db_table = 'sap_products'
         ordering = ['item_code']
         unique_together = ['item_code', 'category']
-    
+
     def __str__(self):
         return f"{self.item_code} - {self.item_name}"
 
@@ -42,12 +42,12 @@ class Party(models.Model):
     card_type = models.CharField(max_length=1, default='C')   
     category = models.CharField(max_length=20, blank=True, null=True)
     synced_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'sap_parties'
         ordering = ['card_code']
         unique_together = ['card_code', 'category']
-    
+        
     def __str__(self):
         return f"{self.card_code} - {self.card_name}"
 

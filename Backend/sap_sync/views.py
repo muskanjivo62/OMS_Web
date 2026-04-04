@@ -5,10 +5,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from django.db.models import Q
 from .models import Product, Party, PartyAddress, SyncLog, SyncSchedule,Branch
-from .serializers import (
-    ProductSerializer, PartySerializer, PartyListSerializer,
-    PartyAddressSerializer, SyncLogSerializer, SyncScheduleSerializer,BranchSerializer
-)
+from .serializers import (ProductSerializer, PartySerializer, PartyListSerializer,
+    PartyAddressSerializer, SyncLogSerializer, SyncScheduleSerializer,BranchSerializer)
 from .services import SyncService
 from types import SimpleNamespace
 from orders.models import Order
@@ -306,7 +304,6 @@ class SyncScheduleListView(APIView):
             'message': 'Failed to create schedule',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
-
 
 class SyncScheduleDetailView(APIView):
     """Get, update, or delete a sync schedule"""

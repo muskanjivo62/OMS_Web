@@ -18,7 +18,7 @@ from django.utils import timezone
 from collections import defaultdict
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions
-from sap_sync.models import Party as SapParty, PartyAddress as SapPartyAddress
+from sap_sync.models import Party as SapParty, PartyAddress as SapPartyAddress, Product as SapProduct
 from .models import Order, OrderStatus
 from .models import PartyProductAssignment
 from users.models import SchemeProduct
@@ -41,7 +41,7 @@ def _get_base_orders(user):
     if role_name == 'billing':
         return Order.objects.filter(status__code__in=['BILLING', 'BILLING_PENDING'])
     return Order.objects.none()
-
+  
 class DashboardKPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -106,7 +106,6 @@ class DashboardChartsView(APIView):
             created_at__lte=range_end
         )
 
-        # CHART 1: Monthly Sales Timeline (full line_year Jan-Dec)
         year_start = timezone.make_aware(datetime(line_year, 1, 1))
         year_end = timezone.make_aware(datetime(line_year, 12, 31, 23, 59, 59))
         monthly_sales = (
@@ -232,28 +231,42 @@ def extract_type_from_name(item_name):
 
 class PartyProductsView(APIView):
     permission_classes = [AllowAny]
-
+    
     def get(self, request, card_code):
-        from django.db import connection
-        cursor = connection.cursor()
-        cursor.execute("""
-            SELECT ppa.item_code, ppa.category, ppa.basic_rate,
-                   p.item_name, p.sal_factor2, p.tax_rate, p.sal_pack_unit,
-                   p.brand, p.variety
-            FROM party_product_assignments ppa
-            LEFT JOIN s p ON ppa.item_code = p.item_code AND ppa.category = p.category
-            WHERE ppa.card_code = %s AND ppa.is_active = true
-            ORDER BY ppa.category, p.item_name
-        """, [card_code])
+        normalized_card_code = (card_code or '').strip()
+        assignments = PartyProductAssignment.objects.filter(
+            card_code=normalized_card_code,
+            is_active=True,
+        ).order_by('category', 'item_code')
 
-        columns = [col[0] for col in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        rows = []
+        for assignment in assignments:
+            product = SapProduct.objects.filter(
+                item_code=assignment.item_code,
+                category=assignment.category,
+            ).first()
+
+            # Some older assignment rows can carry a valid item_code with a
+            # category that no longer matches SAP metadata exactly.
+            if not product:
+                product = SapProduct.objects.filter(item_code=assignment.item_code).first()
+
+            rows.append({
+                'item_code': assignment.item_code,
+                'category': assignment.category,
+                'basic_rate': assignment.basic_rate,
+                'item_name': getattr(product, 'item_name', None),
+                'sal_factor2': getattr(product, 'sal_factor2', None),
+                'tax_rate': getattr(product, 'tax_rate', None),
+                'sal_pack_unit': getattr(product, 'sal_pack_unit', None),
+                'brand': getattr(product, 'brand', None),
+                'variety': getattr(product, 'variety', None),
+            })
 
         return Response(rows)
     
 # class PartyProductsView(APIView):
 #     permission_classes = [AllowAny]
-
 #     def get(self, request, card_code):
 #         from django.db import connection
 #         cursor = connection.cursor()
@@ -269,7 +282,6 @@ class PartyProductsView(APIView):
         
 #         columns = [col[0] for col in cursor.description]
 #         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 #         return Response(rows)
         
 class PartyView(APIView):

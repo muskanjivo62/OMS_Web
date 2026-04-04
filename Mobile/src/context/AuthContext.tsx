@@ -14,6 +14,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const normalizeUser = (user: User): User => {
+  const states = Array.isArray(user.states)
+    ? user.states.filter(Boolean)
+    : user.state
+      ? [user.state]
+      : [];
+
+  return {
+    ...user,
+    state: user.state || states[0] || null,
+    states,
+  };
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -31,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const savedUser = await storage.getUser();
 
       if (token && savedUser) {
-        setUser(savedUser);
+        setUser(normalizeUser(savedUser));
       }
     } catch (error) {
       console.log("Auth check failed:", error);
@@ -45,7 +59,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const response = await authService.login(credentials);
 
       if (response.success && response.data) {
-        const { user, tokens } = response.data;
+        const { tokens } = response.data;
+        const user = normalizeUser(response.data.user);
 
         await storage.saveTokens(tokens.access, tokens.refresh);
         await storage.saveUser(user);
@@ -107,6 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
     </AuthContext.Provider>
   );
+  
 };
 
 export const useAuth = () => {

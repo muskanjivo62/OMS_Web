@@ -18,6 +18,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import CustomDialog from "@/src/components/common/CustomDialog";
 
 export default function LoginScreen() {
+
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -53,6 +54,7 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
+
       const result = await login({ username, password });
       console.log(JSON.stringify(result));
 
@@ -64,6 +66,7 @@ export default function LoginScreen() {
         setDialogVisible(true);
         // Alert.alert(result.message, "Please try again.");
       }
+      
     } catch (error) {
       setDialogTitle("Error");
       setDialogMessage("Something went wrong. Please try again.");

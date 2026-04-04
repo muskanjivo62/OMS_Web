@@ -475,7 +475,7 @@ class SyncService:
             scheme_product = getattr(getattr(item, "scheme", None), "item_code", None)
             scheme_item_code = getattr(scheme_product, "item_code", None)
             scheme_qty = float(getattr(item, "qty_scheme", 0) or 0)
-
+            
             if scheme_item_code and scheme_qty > 0:
                 document_lines.append(
                     {

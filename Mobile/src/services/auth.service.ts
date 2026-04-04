@@ -5,6 +5,12 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface UserState {
+  id: number;
+  name: string;
+  code: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -14,7 +20,8 @@ export interface User {
   role: string | null;
   company: { id: number; name: string } | null;
   main_group: { id: number; name: string } | null;
-  state: { id: number; name: string; code: string } | null;
+  state: UserState | null;
+  states?: UserState[];
   is_active: boolean;
   created_at: string;
 }

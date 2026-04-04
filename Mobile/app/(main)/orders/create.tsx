@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/context/AuthContext";
 import { COLORS, SPACING, RADIUS, GRADIENTS } from "@/src/constants/theme";
 import Dropdown from "@/src/components/common/DropdownProps";
+import { storage } from "@/src/utils/storage";
 import {
   orderService,
   dispatchService,
@@ -124,6 +125,15 @@ const getTodayDate = () => {
   return new Date().toISOString().split("T")[0]; 
 };
 
+const toNumber = (value: string | number | null | undefined): number =>
+  typeof value === "number" ? value : parseFloat(String(value ?? "")) || 0;
+
+const calculateRowItemTotal = (row: Pick<ItemRow, "boxes" | "basePrice">) => {
+  const totalPcs = toNumber(row.boxes);
+  const basicPrice = toNumber(row.basePrice);
+  return (totalPcs * basicPrice).toFixed(2);
+};
+
 export default function CreateOrderScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -184,6 +194,7 @@ export default function CreateOrderScreen() {
 
   // ── Confirmed order items ─────────────────────────────────────────────────
   const [orderItems, setOrderItems] = useState<OrderItemType[]>([]);
+  const [assignedStateId, setAssignedStateId] = useState<number>(1);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -206,6 +217,27 @@ export default function CreateOrderScreen() {
       prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
   };
+
+  useEffect(() => {
+    const loadAssignedStateId = async () => {
+      try {
+        const storedUser = await storage.getUser();
+        const stateId =
+          storedUser?.states?.[0]?.id ??
+          storedUser?.state?.id ??
+          user?.states?.[0]?.id ??
+          user?.state?.id ??
+          1;
+
+        setAssignedStateId(stateId);
+      } catch (error) {
+        console.log("Failed to load user states from storage:", error);
+        setAssignedStateId(user?.states?.[0]?.id ?? user?.state?.id ?? 1);
+      }
+    };
+
+    loadAssignedStateId();
+  }, [user]);
 
   // ─── Fetch master data on mount ────────────────────────────────────────────
   useEffect(() => {
@@ -331,13 +363,11 @@ export default function CreateOrderScreen() {
       const finalShipTo = rawShipTo.length > 0 ? rawShipTo : rawBillTo;
 
       setBillToAddresses(finalBillTo);
-      setShipToAddresses(finalShipTo);
-
-      // Auto-select first address
+      setShipToAddresses(finalShipTo);    
+        
       if (finalBillTo.length > 0) setSelectedBillTo(finalBillTo[0].value);
       if (finalShipTo.length > 0) setSelectedShipTo(finalShipTo[0].value);
 
-      // Load party products — filter to OIL category + JIVO brand only
       const productsResponse = await orderService.getPartyProducts(cardCode);
       const allProducts = Array.isArray(productsResponse) ? productsResponse : [];
       console.log(
@@ -483,14 +513,19 @@ export default function CreateOrderScreen() {
         salPackUnit,
         tax: product.tax_rate ? product.tax_rate.toString() : "0",
         basePrice: product.basic_rate?.toString() || "0",
+        itemTotal: calculateRowItemTotal({
+          boxes: "",
+          basePrice: product.basic_rate?.toString() || "0",
+        }),
       });
       try {
-        const schemeData = await schemeService.getSchemes(user?.state?.id ?? 1);
+        const schemeData = await schemeService.getSchemes(assignedStateId);
         const schemes = schemeData.map((s) => ({
           label: s.scheme_name,
           value: String(s.scheme_id),
         }));
         updateRow(rowId, { schemes });
+
       } catch {
         // no schemes available — leave schemes: []
       }
@@ -516,13 +551,16 @@ export default function CreateOrderScreen() {
         const qtyNum = parseFloat(value) || 0;
         const pcsNum = parseFloat(r.pcs) || 0;
         const packUnit = parseFloat(r.salPackUnit) || 0;
-        const priceNum = parseFloat(r.marketPrice) || parseFloat(r.basePrice) || 0;
+        const totalPcs = qtyNum * pcsNum;
         return {
           ...r,
           qty: value,
-          boxes: (qtyNum * pcsNum).toString(),
+          boxes: totalPcs.toString(),
           ltrs: (qtyNum * packUnit).toFixed(2),
-          itemTotal: (qtyNum * priceNum).toFixed(2),
+          itemTotal: calculateRowItemTotal({
+            boxes: totalPcs.toString(),
+            basePrice: r.basePrice,
+          }),
         };
       }),
     );
@@ -532,12 +570,13 @@ export default function CreateOrderScreen() {
     setItemRows((prev) =>
       prev.map((r) => {
         if (r.id !== rowId) return r;
-        const qtyNum = parseFloat(r.qty) || 0;
-        const priceNum = parseFloat(value) || parseFloat(r.basePrice) || 0;
         return {
           ...r,
           marketPrice: value,
-          itemTotal: (qtyNum * priceNum).toFixed(2),
+          itemTotal: calculateRowItemTotal({
+            boxes: r.boxes,
+            basePrice: r.basePrice,
+          }),
         };
       }),
     );
@@ -586,7 +625,12 @@ export default function CreateOrderScreen() {
     if (!product) return;
 
     const effectiveMarketPrice = parseFloat(row.marketPrice) || parseFloat(row.basePrice) || 0;
-    const effectiveTotal = parseFloat(row.itemTotal) || (parseFloat(row.qty) || 0) * effectiveMarketPrice;
+    const effectiveTotal =
+      parseFloat(row.itemTotal) ||
+      toNumber(calculateRowItemTotal({
+        boxes: row.boxes,
+        basePrice: row.basePrice,
+      }));
 
     const newItem: OrderItemType = {
       id: Date.now(),
@@ -619,16 +663,13 @@ export default function CreateOrderScreen() {
   
   // ─── Totals (FIX 5) ────────────────────────────────────────────────────────
 
-  const getEffectivePrice = (item: OrderItemType) =>
-    item.marketPrice || item.basicPrice || 0;
-
   const totalWithoutTax = orderItems
-    .reduce((sum, item) => sum + getEffectivePrice(item) * item.qty, 0)
+    .reduce((sum, item) => sum + item.total, 0)
     .toFixed(2);
 
   const totalTaxAmount = orderItems
     .reduce((sum, item) => {
-      const base = getEffectivePrice(item) * item.qty;
+      const base = item.total || 0;
       return sum + (base * item.taxRate) / 100;
     }, 0)
     .toFixed(2);
@@ -1005,7 +1046,7 @@ export default function CreateOrderScreen() {
                     disabled={!row.selectedVariety}
                   />
                 </View>
-
+                         
                 {/* Item */}
                 <View style={styles.field}>
                   <Dropdown
@@ -1078,6 +1119,7 @@ export default function CreateOrderScreen() {
                       activeOutlineColor={COLORS.primary}
                     />
                   </View>
+
                   <View style={styles.thirdField}>
                     <TextInput
                       label="Ltrs"
@@ -1091,6 +1133,7 @@ export default function CreateOrderScreen() {
                       activeOutlineColor={COLORS.primary}
                     />
                   </View>
+
                   <View style={styles.thirdField}>
                     <TextInput
                       label="PCS"
@@ -1104,6 +1147,7 @@ export default function CreateOrderScreen() {
                       activeOutlineColor={COLORS.primary}
                     />
                   </View>
+                  
                 </View>
 
                 {/* QTY + TAX */}

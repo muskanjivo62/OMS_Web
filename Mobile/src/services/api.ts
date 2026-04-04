@@ -7,9 +7,9 @@ const DEFAULT_BASE_URL = Platform.select({
   // ios: 'http://103.89.45.75:8001/api',
   // web: 'http://103.89.45.75:8001/api',
   // default: 'http://103.89.45.75:8001/api',
-  android: 'http://10.0.2.2:8000/api',  // Android emulator → localhost
-  ios: 'http://localhost:8001/api',     // iOS simulator → localhost
-  web: 'http://localhost:8001/api',     // Web browser → localhost
+  android: 'http://10.0.2.2:8000/api',  
+  ios: 'http://localhost:8001/api',     
+  web: 'http://localhost:8001/api',     
   default: 'http://localhost:8001/api',
 }) as string;
 
