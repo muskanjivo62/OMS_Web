@@ -41,6 +41,11 @@ export const orderService = {
     return await api.post('/orders/create/', payload, token || undefined);
   },
 
+  updateOrder: async (orderId: number, payload: CreateOrderPayload) => {
+    const token = await storage.getAccessToken();
+    return await api.post('/orders/create/', { ...payload, order_id: orderId }, token || undefined);
+  },
+
   getPartyProducts: async (cardCode: string) => {
     return await api.get(`/orders/party-products/${cardCode}`);
   },
@@ -87,6 +92,28 @@ export const schemeService = {
     const res = await api.get(`/orders/schemes/?state_id=${stateId}`);
     return res || [];
   },
+  getSchemeProductsByName: async (schemeName: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
+    const res = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_id=${stateId}`);
+    return res?.data || [];
+  },
+  // Fetches ALL combo items for a scheme_id by first resolving the scheme_name
+  getComboBySchemeId: async (schemeId: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
+    const res1 = await api.get(`/orders/scheme-products/?scheme_id=${schemeId}&state_id=${stateId}`);
+    const seed: { scheme_name?: string } = res1?.data?.[0] ?? {};
+    if (!seed.scheme_name) return [];
+    const res2 = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(seed.scheme_name)}&state_id=${stateId}`);
+    return res2?.data || [];
+  },
+  getComboByItemCode: async (itemCode: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
+    // Step 1: find which combo scheme this item belongs to
+    const res1 = await api.get(`/orders/scheme-products/?item_code=${encodeURIComponent(itemCode)}&state_id=${stateId}`);
+    const records: { scheme_name: string }[] = res1?.data || [];
+    if (!records.length) return [];
+    const schemeName = records[0].scheme_name;
+    // Step 2: fetch ALL items in that combo by scheme_name
+    const res2 = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_id=${stateId}`);
+    return res2?.data || [];
+  },
 };
 
 export interface ProductFilters {
@@ -130,6 +157,16 @@ export interface CreateOrderPayload {
     variety: string;
     item_type: string;
     qty: number;
+    scheme_id?: number | null;
+    scheme_name?: string | null;
+    is_scheme_visible?: boolean;
+    scheme_qty?: number;
+    scheme_items?: {
+      scheme_id: number;
+      scheme_name: string | null;
+      qty: number;
+      is_scheme_visible: boolean;
+    }[];
     pcs: number;
     boxes: number;
     ltrs: number;
@@ -146,11 +183,33 @@ export interface ApproveOr {
   bill_to_address: string;
   ship_to_address: string;
   dispatch_from_id: number;
-  po_number: string;    
+  po_number: string;
   items: {
+    id?: number | string;
     item_code: string;
-    item_name: string;    
-  }
+    item_name: string;
+    qty?: string | number;
+    pcs?: string | number;
+    boxes?: string | number;
+    ltrs?: string | number;
+    basic_price?: string | number;
+    market_price?: string | number;
+    total?: string | number;
+    tax_rate?: string | number;
+    scheme_id?: number | string | null;
+    scheme_name?: string | null;
+    scheme_item_code?: string | null;
+    qty_scheme?: string | number;
+    is_scheme_visible?: boolean;
+    is_scheme_line?: boolean;
+    parent_item_code?: string;
+    category?: string;
+    brand?: string;
+    variety?: string;
+    item_type?: string;
+    order?: number;
+    scheme?: number | string | null;
+  }[];
 }
 
 export interface UpdateStatusPayload {

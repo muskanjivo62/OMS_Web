@@ -3,14 +3,14 @@ import { storage } from '../utils/storage';
 import Constants from 'expo-constants';
 
 const DEFAULT_BASE_URL = Platform.select({
-  // android: 'http://103.89.45.75:8001/api',
-  // ios: 'http://103.89.45.75:8001/api',
-  // web: 'http://103.89.45.75:8001/api',
-  // default: 'http://103.89.45.75:8001/api',
-  android: 'http://10.0.2.2:8000/api',  
-  ios: 'http://localhost:8001/api',     
-  web: 'http://localhost:8001/api',     
-  default: 'http://localhost:8001/api',
+  android: 'http://103.89.45.75:8001/api',
+  ios: 'http://103.89.45.75:8001/api',
+  web: 'http://103.89.45.75:8001/api',
+  default: 'http://103.89.45.75:8001/api',
+  // android: 'http://10.0.2.2:8000/api',  
+  // ios: 'http://localhost:8001/api',     
+  // web: 'http://localhost:8001/api',     
+  // default: 'http://localhost:8001/api',
 }) as string;
 
 const ENV_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
@@ -112,90 +112,112 @@ const requestWithFallback = async (
 export const api = {
 
   get: async (endpoint: string, token?: string): Promise<any> => {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-  if (!token) {
-    try {
-      token = (await storage.getAccessToken()) || undefined;
-    } catch (error) {
-      console.log('Error retrieving token:', error);
+    if (!token) {
+      try {
+        token = (await storage.getAccessToken()) || undefined;
+      } catch (error) {
+        console.log('Error retrieving token:', error);
+      }
     }
-  }
-    
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
 
-  return requestWithFallback(endpoint, {
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return requestWithFallback(endpoint, {
       method: 'GET',
       headers,
     });
-  
-},
+
+  },
 
 
-post: async (endpoint: string, body: object, token?: string): Promise<any> => {
+  post: async (endpoint: string, body: object, token?: string): Promise<any> => {
 
-  if (!token) {
-    try {
-      token = (await storage.getAccessToken()) || undefined;
-    } catch (error) {
-      console.log('Error retrieving token:', error);
+    if (!token) {
+      try {
+        token = (await storage.getAccessToken()) || undefined;
+      } catch (error) {
+        console.log('Error retrieving token:', error);
+      }
     }
-  }
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
-  console.log("Headers:", headers);
+    console.log("Headers:", headers);
+    console.log(`POST payload for ${endpoint}:`, JSON.stringify(body, null, 2));
 
-  return requestWithFallback(endpoint, {
+    return requestWithFallback(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
     });
-},
+  },
 
 
-//   delete: async (endpoint: string, token?: string): Promise<any> => {
-//   const headers: Record<string, string> = {
-//     'Content-Type': 'application/json',
-//   };
+  put: async (endpoint: string, body: object, token?: string): Promise<any> => {
+    if (!token) {
+      try {
+        token = (await storage.getAccessToken()) || undefined;
+      } catch (error) {
+        console.log('Error retrieving token:', error);
+      }
+    }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return requestWithFallback(endpoint, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(body),
+    });
+  },
 
-//   if (!token) {
-//     try {
-//       token = await storage.getToken();
-//     } catch (error) {
-//       console.log('Error retrieving token:', error);
-//     }
-//   }
+  //   delete: async (endpoint: string, token?: string): Promise<any> => {
+  //   const headers: Record<string, string> = {
+  //     'Content-Type': 'application/json',
+  //   };
 
-//   if (token) {
-//     headers['Authorization'] = `Bearer ${token}`;
-//   }
+  //   if (!token) {
+  //     try {
+  //       token = await storage.getToken();
+  //     } catch (error) {
+  //       console.log('Error retrieving token:', error);
+  //     }
+  //   }
 
-//   try {
-//     const url = `${BASE_URL}${endpoint}`;
-//     const response = await fetch(url, {
-//       method: 'DELETE',
-//       headers,
-//     });
+  //   if (token) {
+  //     headers['Authorization'] = `Bearer ${token}`;
+  //   }
 
-//     if (!response.ok) {
-//       return { success: false };
-//     }
+  //   try {
+  //     const url = `${BASE_URL}${endpoint}`;
+  //     const response = await fetch(url, {
+  //       method: 'DELETE',
+  //       headers,
+  //     });
 
-//     return { success: true };
-//   } catch (error) {
-//     console.log('Delete Error:', error);
-//     return { success: false };
-//   }
-// },
+  //     if (!response.ok) {
+  //       return { success: false };
+  //     }
+
+  //     return { success: true };
+  //   } catch (error) {
+  //     console.log('Delete Error:', error);
+  //     return { success: false };
+  //   }
+  // },
 
 };

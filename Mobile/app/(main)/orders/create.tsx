@@ -11,7 +11,7 @@ import {
   Switch,
   Modal,
   Animated,
-} from "react-native";
+} from "react-native"; 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Text, Surface, TextInput } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,14 +22,11 @@ import Dropdown from "@/src/components/common/DropdownProps";
 import { storage } from "@/src/utils/storage";
 import {
   orderService,
-  dispatchService,
   schemeService,
   PartyAddress,
-  productService,
-  Product,
   CreateOrderPayload,
 } from "@/src/services/order.service";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter, useNavigation, useLocalSearchParams } from "expo-router";
 
 interface ItemRow {
   id: number;
@@ -40,6 +37,7 @@ interface ItemRow {
   selectedProduct: string | null;
   selectedScheme: string | null;
   isScheme: boolean;
+  isComboProduct: boolean;
   brands: { label: string; value: string }[];
   varieties: { label: string; value: string }[];
   types: { label: string; value: string }[];
@@ -51,6 +49,8 @@ interface ItemRow {
   salPackUnit: string;
   boxes: string;
   ltrs: string;
+  schemePcsPerBox: number;
+  schemeLtrsPerBox: number;
   marketPrice: string;
   basePrice: string;
   tax: string;
@@ -67,6 +67,7 @@ interface OrderItemType {
   type: string;
   qty: number;
   scheme?: string | null;
+  schemeName?: string | null;
   schemeQty?: number;
   pcs: number;
   boxes: number;
@@ -86,6 +87,7 @@ const emptyRow = (id: number): ItemRow => ({
   selectedProduct: null,
   selectedScheme: null,
   isScheme: false,
+  isComboProduct: false,
   brands: [],
   varieties: [],
   types: [],
@@ -97,6 +99,8 @@ const emptyRow = (id: number): ItemRow => ({
   salPackUnit: "",
   boxes: "",
   ltrs: "",
+  schemePcsPerBox: 0,
+  schemeLtrsPerBox: 0,
   marketPrice: "",
   basePrice: "",
   tax: "",
@@ -128,6 +132,144 @@ const getTodayDate = () => {
 const toNumber = (value: string | number | null | undefined): number =>
   typeof value === "number" ? value : parseFloat(String(value ?? "")) || 0;
 
+const calculateLtrsPerBox = (products: { sal_factor2?: number | string | null; sal_pack_unit?: number | string | null }[]) =>
+  products.reduce(
+    (sum, product) => sum + toNumber(product?.sal_factor2) * toNumber(product?.sal_pack_unit),
+    0,
+  );
+
+const calculateComboLtrsFromItemName = ({
+  itemName,
+  defaultPcs,
+}: {
+  itemName: string | null | undefined;
+  defaultPcs: string | number | null | undefined;
+}) => {
+  if (!itemName || !itemName.includes("+")) return 0;
+
+  const parts = itemName
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length < 2) return 0;
+
+  let totalLtrsPerCase = 0;
+
+  for (const part of parts) {
+    const volumeMatch = part.match(/(\d+(?:\.\d+)?)\s*(LTR|LITRE|LITER|L|ML)\b/i);
+    if (!volumeMatch) continue;
+
+    const rawVolume = toNumber(volumeMatch[1]);
+    const unit = volumeMatch[2]?.toUpperCase();
+    const volumeInLtrs = unit === "ML" ? rawVolume / 1000 : rawVolume;
+
+    const pcsMatch = part.match(/(\d+(?:\.\d+)?)\s*(PCS|PC)\b/i);
+    const pcs = pcsMatch ? toNumber(pcsMatch[1]) : toNumber(defaultPcs);
+
+    totalLtrsPerCase += pcs * volumeInLtrs;
+  }
+
+  return totalLtrsPerCase;
+};
+
+const calculateRowLtrs = ({
+  qty,
+  pcs,
+  salPackUnit,
+}: {
+  qty: string | number | null | undefined;
+  pcs: string | number | null | undefined;
+  salPackUnit: string | number | null | undefined;
+}) => {
+  const qtyNum = toNumber(qty);
+  if (qtyNum <= 0) return "";
+
+  const ltrsPerBox = toNumber(pcs) * toNumber(salPackUnit);
+
+  return (qtyNum * ltrsPerBox).toFixed(2);
+};
+
+const calculateRowSchemeQty = ({
+  qty,
+  pcs,
+  schemePcsPerBox,
+}: {
+  qty: string | number | null | undefined;
+  pcs: string | number | null | undefined;
+  schemePcsPerBox: number;
+}) => {
+  const qtyNum = toNumber(qty);
+  if (qtyNum <= 0) return "";
+
+  const pcsPerScheme = schemePcsPerBox > 0 ? schemePcsPerBox : toNumber(pcs);
+  if (pcsPerScheme <= 0) return "";
+
+  return (qtyNum * pcsPerScheme).toFixed(2);
+};
+
+const formatCalculationNumber = (value: string | number | null | undefined) => {
+  const numericValue = toNumber(value);
+  return Number.isInteger(numericValue)
+    ? String(numericValue)
+    : numericValue.toFixed(2).replace(/\.?0+$/, "");
+};
+
+const getConfirmedItemLtrsDisplay = (item: Pick<OrderItemType, "ltrs" | "schemeQty" | "scheme">) => {
+  const totalLtrs = formatCalculationNumber(toNumber(item.ltrs) + toNumber(item.schemeQty));
+
+  if (item.scheme && toNumber(item.schemeQty) > 0) {
+    return totalLtrs;
+  }
+
+  return formatCalculationNumber(item.ltrs);
+};
+
+const getRowLtrsBreakdown = ({
+  qty,
+  pcs,
+  salPackUnit,
+  ltrs,
+}: Pick<ItemRow, "qty" | "pcs" | "salPackUnit" | "ltrs">) => {
+  const qtyNum = toNumber(qty);
+  const totalLtrs = toNumber(ltrs);
+
+  if (qtyNum <= 0 || totalLtrs <= 0) return "";
+
+  const pcsNum = toNumber(pcs);
+  const singlePieceLtrs = toNumber(salPackUnit);
+  const totalPcs = qtyNum * pcsNum;
+
+  if (pcsNum <= 0 || singlePieceLtrs <= 0 || totalPcs <= 0) return "";
+
+  return `${formatCalculationNumber(qtyNum)} boxes x ${formatCalculationNumber(
+    pcsNum,
+  )} pcs = ${formatCalculationNumber(totalPcs)} pcs; ${formatCalculationNumber(
+    totalPcs,
+  )} pcs x ${formatCalculationNumber(singlePieceLtrs)} ltr = ${formatCalculationNumber(
+    totalLtrs,
+  )} ltr`;
+};
+
+const getConfirmedItemLtrsBreakdown = (item: Pick<OrderItemType, "qty" | "pcs" | "ltrs">) => {
+  const qtyNum = toNumber(item.qty);
+  const pcsNum = toNumber(item.pcs);
+  const totalLtrs = toNumber(item.ltrs);
+  const totalPcs = qtyNum * pcsNum;
+
+  if (qtyNum <= 0 || pcsNum <= 0 || totalLtrs <= 0 || totalPcs <= 0) return "";
+
+  const singlePieceLtrs = totalLtrs / totalPcs;
+
+  return `${formatCalculationNumber(qtyNum)} boxes x ${formatCalculationNumber(
+    pcsNum,
+  )} pcs = ${formatCalculationNumber(totalPcs)} pcs; ${formatCalculationNumber(
+    totalPcs,
+  )} pcs x ${formatCalculationNumber(singlePieceLtrs)} ltr = ${formatCalculationNumber(
+    totalLtrs,
+  )} ltr`;
+};
+
 const calculateRowItemTotal = (row: Pick<ItemRow, "boxes" | "basePrice">) => {
   const totalPcs = toNumber(row.boxes);
   const basicPrice = toNumber(row.basePrice);
@@ -136,6 +278,9 @@ const calculateRowItemTotal = (row: Pick<ItemRow, "boxes" | "basePrice">) => {
 
 export default function CreateOrderScreen() {
   const { user } = useAuth();
+  const { orderId: editOrderId, mode } = useLocalSearchParams<{ orderId?: string; mode?: string }>();
+  const isEditMode = mode === "edit" && !!editOrderId;
+
   const [loading, setLoading] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
   const [orderResult, setOrderResult] = useState<{
@@ -144,6 +289,7 @@ export default function CreateOrderScreen() {
     needsApproval: boolean;
   } | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [editOrderLoaded, setEditOrderLoaded] = useState(false);
   const router = useRouter();
   const navigation = useNavigation();
 
@@ -246,7 +392,6 @@ export default function CreateOrderScreen() {
 
   // ─── Constants: active filters ────────────────────────────────────────────
   const ACTIVE_CATEGORY = "OIL"; 
-  const ACTIVE_BRAND = "JIVO"; 
 
   const fetchMasterData = async () => {
 
@@ -291,6 +436,78 @@ export default function CreateOrderScreen() {
     }
 
   };
+
+  // ─── Edit mode: load existing order and pre-fill form ────────────────────
+  const loadEditOrder = async () => {
+    const id = Number(editOrderId);
+    if (!id) return;
+    try {
+      const order = await orderService.getorderdetailsbyid(id);
+
+      // Header fields
+      setPartyName(order.card_code);
+      setPoNumber(order.po_number || "");
+      setDeliveryDate(order.delivery_date || getTodayDate());
+      setCompany(1);
+      if (order.dispatch_from_id) setBranch(Number(order.dispatch_from_id));
+
+      // Addresses
+      const addressData = await orderService.getAddresses(order.card_code);
+      const mapAddr = (addr: PartyAddress) => ({
+        label: (addr.address_id || "") + (addr.address_name ? `${addr.address_name}` : ""),
+        value: addr.id,
+        name: addr.address_name || "",
+      });
+      const billList = (addressData.bill_to || []).map(mapAddr);
+      const shipList = (addressData.ship_to || []).map(mapAddr);
+      setBillToAddresses(billList.length > 0 ? billList : shipList);
+      setShipToAddresses(shipList.length > 0 ? shipList : billList);
+
+      const billMatch = billList.find((a) => a.name === order.bill_to_address) ?? billList[0];
+      const shipMatch = shipList.find((a) => a.name === order.ship_to_address) ?? shipList[0];
+      if (billMatch) setSelectedBillTo(billMatch.value);
+      if (shipMatch) setSelectedShipTo(shipMatch.value);
+
+      // Products (needed if user wants to add more items)
+      const productsResponse = await orderService.getPartyProducts(order.card_code);
+      const allProducts = dedupePartyProducts(Array.isArray(productsResponse) ? productsResponse : []);
+      setPartyProducts(allProducts);
+      const uniqueCategories = [...new Set<string>(allProducts.map((p: any) => p.category).filter(Boolean))];
+      setCategories(uniqueCategories.sort().map((c) => ({ label: c, value: c })));
+
+      // Pre-fill confirmed order items
+      const items: OrderItemType[] = (order.items || []).map((item: any, idx: number) => ({
+        id: item.id ?? Date.now() + idx,
+        itemCode: item.item_code ?? "",
+        itemName: item.item_name ?? "",
+        category: item.category ?? "",
+        brand: item.brand ?? "",
+        variety: item.variety ?? "",
+      type: item.item_type ?? "",
+      qty: Number(item.qty) || 0,
+      scheme: item.scheme_id ?? null,
+      schemeName: item.scheme_name ?? null,
+      schemeQty: Number(item.qty_scheme) || 0,
+      pcs: Number(item.pcs) || 0,
+      boxes: Number(item.boxes) || 0,
+      ltrs: Number(item.ltrs) || 0,
+        marketPrice: Number(item.market_price) || 0,
+        total: Number(item.total) || 0,
+        taxRate: Number(item.tax_rate) || 0,
+        basicPrice: Number(item.basic_price) || 0,
+      }));
+      setOrderItems(items);
+      setEditOrderLoaded(true);
+    } catch (err) {
+      console.log("Failed to load order for edit:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!dataLoading && isEditMode && !editOrderLoaded) {
+      loadEditOrder();
+    }
+  }, [dataLoading]);
 
   // ─── Party change → load addresses + products ─────────────────────────────
   /**
@@ -376,14 +593,13 @@ export default function CreateOrderScreen() {
       );
       const filteredProducts = allProducts.filter(
         (p: any) =>
-          p.category?.toUpperCase() === ACTIVE_CATEGORY &&
-          p.brand?.toUpperCase() === ACTIVE_BRAND,
+          p.category?.toUpperCase() === ACTIVE_CATEGORY,
       );
       const products = dedupePartyProducts(
         filteredProducts.length > 0 ? filteredProducts : allProducts,
       );
       setPartyProducts(products);
-
+      
       const uniqueCategories = [
         ...new Set<string>(
           products.map((p: any) => p.category).filter(Boolean),
@@ -411,6 +627,7 @@ export default function CreateOrderScreen() {
       selectedType: null,
       selectedProduct: null,
       selectedScheme: null,
+      isComboProduct: false,
       brands: uniqueBrands.sort().map((b) => ({ label: b, value: b })),
       varieties: [],
       types: [],
@@ -418,6 +635,8 @@ export default function CreateOrderScreen() {
       schemes: [],
       pcs: "",
       salPackUnit: "",
+      schemePcsPerBox: 0,
+      schemeLtrsPerBox: 0,
       tax: "",
       basePrice: "",
       marketPrice: "",
@@ -503,14 +722,36 @@ export default function CreateOrderScreen() {
       (p: any) => String(p.item_code) === String(productId),
     );
     if (product) {
-      const pcs = product.sal_factor2?.toString() || "0";
+      const pcsPerCase = toNumber(product.sal_factor2);
+      const pcs = pcsPerCase.toString();
       const salPackUnit = product.sal_pack_unit?.toString() || "0";
+      const isComboProduct =
+        Boolean(product.combo_scheme_name) || String(product.item_name || "").includes("+");
+      const comboSchemeName: string | null = product.combo_scheme_name ?? null;
+      let comboSchemeId: string | null = product.combo_scheme_id
+        ? String(product.combo_scheme_id)
+        : null;
+      let schemePcsPerBox = 0;
+
+      if (comboSchemeName) {
+        const comboItems = dedupePartyProducts(
+          partyProducts.filter((p: any) => p.combo_scheme_name === comboSchemeName),
+        );
+        schemePcsPerBox = comboItems
+          .filter((item: any) => String(item.item_code) !== String(product.item_code))
+          .reduce((sum, item: any) => sum + toNumber(item.sal_factor2), 0);
+      }
+
       updateRow(rowId, {
         selectedProduct: productId,
-        selectedScheme: null,
+        selectedScheme: comboSchemeId,
+        isScheme: false,
+        isComboProduct,
         schemes: [],
         pcs,
         salPackUnit,
+        schemeQty: "",
+        schemePcsPerBox,
         tax: product.tax_rate ? product.tax_rate.toString() : "0",
         basePrice: product.basic_rate?.toString() || "0",
         itemTotal: calculateRowItemTotal({
@@ -524,20 +765,147 @@ export default function CreateOrderScreen() {
           label: s.scheme_name,
           value: String(s.scheme_id),
         }));
-        updateRow(rowId, { schemes });
-
+        if (!comboSchemeId && comboSchemeName) {
+          const comboScheme = schemes.find((scheme) => scheme.label === comboSchemeName);
+          comboSchemeId = comboScheme?.value ?? null;
+        }
+        updateRow(rowId, {
+          schemes,
+          selectedScheme: comboSchemeId,
+          isScheme: false,
+        });
       } catch {
         // no schemes available — leave schemes: []
       }
+      let schemeLtrsPerBox = 0;
+
+      if (comboSchemeName) {
+        const comboItems = dedupePartyProducts(partyProducts.filter(
+          (p: any) => p.combo_scheme_name === comboSchemeName
+        ));
+        schemeLtrsPerBox = calculateLtrsPerBox(comboItems);
+
+        if (comboItems.length <= 1 || schemeLtrsPerBox <= 0) {
+          try {
+            const fullComboItems = await schemeService.getSchemeProductsByName(
+              comboSchemeName,
+              assignedStateId,
+            );
+            schemeLtrsPerBox = calculateLtrsPerBox(fullComboItems);
+          } catch {
+            try {
+              const fullComboItems = await schemeService.getComboByItemCode(
+                String(product.item_code),
+                assignedStateId,
+              );
+              schemeLtrsPerBox = calculateLtrsPerBox(fullComboItems);
+            } catch {
+              // Keep the local fallback value if combo expansion fails.
+            }
+          }
+        }
+
+      }
+
+      if (schemeLtrsPerBox <= 0) {
+        schemeLtrsPerBox = calculateComboLtrsFromItemName({
+          itemName: product.item_name,
+          defaultPcs: pcsPerCase,
+        });
+      }
+
+      setItemRows((prev) =>
+        prev.map((row) => {
+          if (row.id !== rowId) return row;
+
+          const qtyNum = toNumber(row.qty);
+          const ltrs = calculateRowLtrs({
+            qty: qtyNum,
+            pcs: pcsPerCase,
+            salPackUnit,
+          });
+
+          return {
+            ...row,
+            selectedScheme: comboSchemeId,
+            isScheme: false,
+            isComboProduct,
+            schemePcsPerBox,
+            schemeLtrsPerBox,
+            schemeQty: "",
+            ltrs,
+          };
+        }),
+      );
+
     }
   };
 
   const handleRowIsSchemeToggle = (rowId: number, value: boolean) => {
-    updateRow(rowId, { isScheme: value, selectedScheme: null, schemeQty: "" });
-  };
+    if (!value) {
+      setItemRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== rowId) return r;
+          const qtyNum = parseFloat(r.qty) || 0;
+          const pcsNum = parseFloat(r.pcs) || 0;
+          const totalPcs = qtyNum * pcsNum;
+          const boxes = totalPcs.toString();
+          return {
+            ...r,
+            isScheme: false,
+            selectedScheme: null,
+            schemeQty: "",
+            schemePcsPerBox: 0,
+            schemeLtrsPerBox: 0,
+            boxes,
+            ltrs: calculateRowLtrs({
+              qty: qtyNum,
+              pcs: r.pcs,
+              salPackUnit: r.salPackUnit,
+            }),
+            itemTotal: calculateRowItemTotal({ boxes, basePrice: r.basePrice }),
+          };
+        }),
+      );
+    } else {
+      setItemRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== rowId) return r;
 
+          return {
+            ...r,
+            isScheme: true,
+            schemeQty:
+              calculateRowSchemeQty({
+                qty: r.qty,
+                pcs: r.pcs,
+                schemePcsPerBox: r.schemePcsPerBox,
+              }) || r.schemeQty,
+          };
+        }),
+      );
+    }
+  };
+  
   const handleRowSchemeChange = (rowId: number, scheme: string) => {
-    updateRow(rowId, { selectedScheme: scheme });
+    setItemRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) return row;
+
+        return {
+          ...row,
+          selectedScheme: scheme,
+          schemeQty:
+            row.isScheme
+              ? calculateRowSchemeQty({
+                  qty: row.qty,
+                  pcs: row.pcs,
+                  schemePcsPerBox: row.schemePcsPerBox,
+                }) || row.schemeQty
+              : row.schemeQty,
+        };
+      }),
+    );
   };
 
   const handleRowSchemeQtyChange = (rowId: number, value: string) => {
@@ -550,13 +918,25 @@ export default function CreateOrderScreen() {
         if (r.id !== rowId) return r;
         const qtyNum = parseFloat(value) || 0;
         const pcsNum = parseFloat(r.pcs) || 0;
-        const packUnit = parseFloat(r.salPackUnit) || 0;
         const totalPcs = qtyNum * pcsNum;
+        const ltrs = calculateRowLtrs({
+          qty: value,
+          pcs: r.pcs,
+          salPackUnit: r.salPackUnit,
+        });
         return {
           ...r,
           qty: value,
           boxes: totalPcs.toString(),
-          ltrs: (qtyNum * packUnit).toFixed(2),
+          schemeQty:
+            r.isScheme
+              ? calculateRowSchemeQty({
+                  qty: value,
+                  pcs: r.pcs,
+                  schemePcsPerBox: r.schemePcsPerBox,
+                }) || r.schemeQty
+              : r.schemeQty,
+          ltrs,
           itemTotal: calculateRowItemTotal({
             boxes: totalPcs.toString(),
             basePrice: r.basePrice,
@@ -619,6 +999,11 @@ export default function CreateOrderScreen() {
       return;
     }
 
+    if (row.isScheme && !row.selectedScheme) {
+      Alert.alert("Error", "Please select a scheme before confirming this item");
+      return;
+    }
+
     const product = partyProducts.find(
       (p: any) => String(p.item_code) === String(row.selectedProduct),
     );
@@ -641,8 +1026,11 @@ export default function CreateOrderScreen() {
       variety: row.selectedVariety || "",
       type: row.selectedType || "",
       qty: parseFloat(row.qty) || 0,
-      scheme: row.selectedScheme,
-      schemeQty: parseFloat(row.schemeQty) || 0,
+      scheme: row.isScheme ? row.selectedScheme : null,
+      schemeName: row.isScheme
+        ? row.schemes.find((scheme) => String(scheme.value) === String(row.selectedScheme))?.label ?? null
+        : null,
+      schemeQty: row.isScheme ? parseFloat(row.schemeQty) || 0 : 0,
       pcs: parseFloat(row.pcs) || 0,
       boxes: parseFloat(row.boxes) || 0,
       ltrs: parseFloat(row.ltrs) || 0,
@@ -724,9 +1112,21 @@ export default function CreateOrderScreen() {
           brand: String(item.brand ?? ""),
           variety: String(item.variety ?? ""),
           item_type: String(item.type ?? ""),
-          qty: Number(item.boxes) || 0,
+          qty: Number(item.qty) || 0,
           scheme_id: item.scheme ? Number(item.scheme) : null,
-          scheme_qty: Number(item.schemeQty) || 0,
+          scheme_name: item.schemeName ? String(item.schemeName) : null,
+          is_scheme_visible: Boolean(item.scheme),
+          scheme_qty: item.scheme ? Number(item.schemeQty) || 0 : 0,
+          scheme_items: item.scheme
+            ? [
+                {
+                  scheme_id: Number(item.scheme),
+                  scheme_name: item.schemeName ? String(item.schemeName) : null,
+                  qty: Number(item.schemeQty) || 0,
+                  is_scheme_visible: true,
+                },
+              ]
+            : [],
           pcs: Number(item.pcs) || 0,
           boxes: Number(item.boxes) || 0,
           ltrs: Number(item.ltrs) || 0,
@@ -737,31 +1137,38 @@ export default function CreateOrderScreen() {
         })),
       };
 
-      const response = await orderService.createOrder(payload);
-      console.log("Create order response:", JSON.stringify(payload));
-      // if (response?.order_number || response?.message?.includes("Order sent")) {
-      //   setOrderResult({
-      //     orderNumber: response.order_number || "",
-      //     message: response.message || "Order created successfully",
-      //     needsApproval: response.needs_approval || false,
-      //   });
-      //   setSuccessModal(true);
-      //   handleClear({ keepSuccessModal: true });
-      // } else {
-      //   console.log("response of creation "+JSON.stringify(response));
-      //   if (Platform.OS === "web") {
-      //     window.alert("Something went wrong. Please try again.");
-      //   } else {
-      //     Alert.alert("Error", "Something went wrong. Please try again.");
-      //   }
-      // }
+      if (isEditMode) {
+
+        const response = await orderService.updateOrder(Number(editOrderId), payload);
+        if (response?.id || response?.order_number) {
+          Alert.alert(
+            "Success",
+            response.message || "Order updated and sent to auditor",
+            [{ text: "OK", onPress: () => router.back() }]
+          );
+        } else {
+          Alert.alert("Error", response?.message || "Failed to update order");
+        }
+
+      } else {
+
+        console.log("Create order payload:", JSON.stringify(payload, null, 2));
+        const response = await orderService.createOrder(payload);
+        if (response?.order_number || response?.message?.includes("Order sent")) {
+          setOrderResult({
+            orderNumber: response.order_number || "",
+            message: response.message || "Order created successfully",
+            needsApproval: response.needs_approval || false,
+          });
+          setSuccessModal(true);
+          handleClear({ keepSuccessModal: true });
+        } else {
+          Alert.alert("Error", "Something went wrong. Please try again.");
+        }
+        
+      }
     } catch (error) {
-      // console.log("Error creating order:", error);
-      // if (Platform.OS === "web") {
-      //   window.alert("Failed to create order. Please try again.");
-      // } else {
-      //   Alert.alert("Error", "Failed to create order");
-      // }
+      Alert.alert("Error", isEditMode ? "Failed to update order" : "Failed to create order");
     } finally {
       setLoading(false);
     }
@@ -795,19 +1202,20 @@ export default function CreateOrderScreen() {
 
   useEffect(() => {
     navigation.setOptions({
+      title: isEditMode ? "Edit Order" : "Create Order",
       headerLeft: () => (
         <TouchableOpacity onPress={handleBack} style={{ marginLeft: 10 }}>
           <Ionicons name="arrow-back" size={24} color={COLORS.black} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation]);
+  }, [navigation, isEditMode]);
 
-  if (dataLoading) {
+  if (dataLoading || (isEditMode && !editOrderLoaded)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>{isEditMode && !dataLoading ? "Loading order..." : "Loading..."}</Text>
       </View>
     );
   }
@@ -853,7 +1261,7 @@ export default function CreateOrderScreen() {
                 icon="business-outline"
               />
             </View>
-
+            
             <View style={styles.halfField}>
               <Dropdown
                 label="Company *"
@@ -961,7 +1369,6 @@ export default function CreateOrderScreen() {
           </View>
         </Surface>
 
-        {/* ── Items Section ──────────────────────────────────────────────── */}
         <Surface style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="cube" size={20} color={COLORS.primary} />
@@ -977,7 +1384,7 @@ export default function CreateOrderScreen() {
               <Ionicons name="cube-outline" size={48} color={COLORS.border} />
               <Text style={styles.emptyText}>No items added</Text>
               <Text style={styles.emptySubtext}>
-                Tap "New Item" to add products
+                {'Tap "New Item" to add products'}
               </Text>
             </View>
           ) : (
@@ -1080,7 +1487,7 @@ export default function CreateOrderScreen() {
                         data={row.schemes}
                         value={row.selectedScheme}
                         onChange={(val) => handleRowSchemeChange(row.id, val)}
-                        placeholder="Select Scheme..."
+                        placeholder="Scheme..."
                         icon="gift-outline"
                         disabled={!row.isScheme}
                       />
@@ -1104,11 +1511,11 @@ export default function CreateOrderScreen() {
                   </View>
                 )}
 
-                {/* PCS / Ltrs / Boxes (read-only, auto-calculated) */}
+                {/* PCS per case / Ltrs / Total PCS (read-only, auto-calculated) */}
                 <View style={styles.row}>
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="PCS"
+                      label="PCS/Case"
                       textColor={COLORS.black}
                       value={row.pcs}
                       editable={false}
@@ -1122,7 +1529,7 @@ export default function CreateOrderScreen() {
 
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="Ltrs"
+                      label="Total Ltrs"
                       textColor={COLORS.black}
                       value={row.ltrs}
                       editable={false}
@@ -1133,10 +1540,10 @@ export default function CreateOrderScreen() {
                       activeOutlineColor={COLORS.primary}
                     />
                   </View>
-
+                   
                   <View style={styles.thirdField}>
                     <TextInput
-                      label="PCS"
+                      label="Total PCS"
                       value={row.boxes}
                       textColor={COLORS.black}
                       editable={false}
@@ -1154,7 +1561,7 @@ export default function CreateOrderScreen() {
                 <View style={styles.row}>
                   <View style={styles.thirdField}>
                     <TextInput
-                      label=" BOXES*"
+                      label="Boxes"
                       textColor={COLORS.black}
                       value={row.qty}
                       onChangeText={(val) =>
@@ -1180,6 +1587,12 @@ export default function CreateOrderScreen() {
                     />
                   </View>
                 </View>
+
+                {/* {!!getRowLtrsBreakdown(row) && (
+                  <Text style={styles.calcBreakdownText}>
+                    {getRowLtrsBreakdown(row)}
+                  </Text>
+                )} */}
 
                 {/* Base Price + Market Price */}
                 <View style={styles.row}>
@@ -1273,19 +1686,23 @@ export default function CreateOrderScreen() {
                 </Text>
                 {!!item.scheme && (
                   <Text style={styles.itemCategory}>
-                    Scheme: {item.scheme} | Qty Scheme: {item.schemeQty || 0}
+                    Scheme: {item.schemeName || item.scheme} | Qty Scheme: {item.schemeQty || 0}
                   </Text>
                 )}
                 <View style={styles.itemDetails}>
-                  <Text style={styles.itemDetail}>BOXES: {item.qty}</Text>
-                  {/* <Text style={styles.itemDetail}>PCS: {item.pcs}</Text> */}
-                  <Text style={styles.itemDetail}>PCS: {item.boxes}</Text>
-                  <Text style={styles.itemDetail}>Ltrs: {item.ltrs}</Text>
+                  <Text style={styles.itemDetail}>Boxes: {item.qty}</Text>
+                  <Text style={styles.itemDetail}>PCS/Case: {item.pcs}</Text>
+                  <Text style={styles.itemDetail}>Total PCS: {item.boxes}</Text>
                 </View>
-                <View style={styles.itemPriceRow}>
-                  <Text style={styles.itemDetail}>
-                    Price: ₹{item.marketPrice}
+                <Text style={styles.itemDetailBold}>
+                  Total Ltrs: {getConfirmedItemLtrsDisplay(item)}
+                </Text>
+                {/* {!!getConfirmedItemLtrsBreakdown(item) && (
+                  <Text style={styles.calcBreakdownText}>
+                    {getConfirmedItemLtrsBreakdown(item)}
                   </Text>
+                )} */}
+                <View style={styles.itemPriceRow}>
                   <Text style={styles.itemDetail}>Tax: {item.taxRate}%</Text>
                   <Text style={styles.itemAmount}>
                     ₹{item.total.toFixed(2)}
@@ -1420,7 +1837,7 @@ export default function CreateOrderScreen() {
 
       {/* ── Bottom Actions ─────────────────────────────────────────────── */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={handleClear}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => handleClear()}>
           <Text style={styles.cancelBtnText}>Clear</Text>
         </TouchableOpacity>
 
@@ -1527,7 +1944,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
-  schemeDropdownField: { flex: 2 },
+  schemeDropdownField: { 
+    flex: 2 
+  },
   schemeQtyField: { flex: 1 },
   schemeToggleLabel: { fontSize: 11, color: COLORS.text, fontWeight: "500" },
   input: { backgroundColor: COLORS.surface, color: COLORS.black },
@@ -1585,6 +2004,12 @@ const styles = StyleSheet.create({
   },
   itemSubtotalLabel: { fontSize: 13, color: COLORS.textSecondary },
   itemSubtotalValue: { fontSize: 14, fontWeight: "700", color: COLORS.primary },
+  calcBreakdownText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    marginTop: SPACING.xs,
+    lineHeight: 18,
+  },
 
   // ── Confirmed items ──
   itemName: { fontWeight: "600", fontSize: 14, color: COLORS.text, flex: 1 },
@@ -1595,6 +2020,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   itemDetail: { fontSize: 12, color: COLORS.textSecondary },
+  itemDetailBold: {
+    fontSize: 12,
+    color: COLORS.black,
+    fontWeight: "800",
+  },
   itemPriceRow: {
     flexDirection: "row",
     justifyContent: "space-between",

@@ -20,6 +20,7 @@ import {
 import { COLORS } from "@/constants/theme";
 import { router } from "expo-router";
 import Dropdown from "@/src/components/common/DropdownProps";
+import { useAuth } from "@/src/context/AuthContext";
 
 type OrderListTab = "pending" | "others";
 
@@ -34,6 +35,9 @@ const PENDING_STATUS_CODES = new Set([
 ]);
 
 export default function BillingOrderList() {
+  const { user } = useAuth();
+  const userRole = user?.role?.toLowerCase() || "";
+
   const [pendingActionType, setPendingActionType] = useState<
     "NEED_APPROVAL" | "BILLING_PENDING" | null
   >(null);
@@ -134,6 +138,49 @@ export default function BillingOrderList() {
           try {
             setActionLoading({ id: order.id, type: "approve" });
 
+            const approvalItems = (Array.isArray(order.items) ? order.items : []).flatMap(
+              (item: any) => {
+                const baseItem = { ...item };
+                const schemeQty = Number(item?.qty_scheme) || 0;
+                const hasSchemeLine =
+                  Boolean(item?.is_scheme_visible) &&
+                  Boolean(item?.scheme_item_code) &&
+                  schemeQty > 0;
+
+                if (!hasSchemeLine) {
+                  return [baseItem];
+                }
+
+                return [
+                  baseItem,
+                  {
+                    id: `${item.id ?? item.item_code}-scheme`,
+                    item_code: String(item.scheme_item_code),
+                    item_name: item.scheme_name || String(item.scheme_item_code),
+                    category: item.category || "",
+                    brand: item.brand || "",
+                    variety: item.variety || "",
+                    item_type: "SCHEME",
+                    qty: String(item.qty_scheme ?? 0),
+                    pcs: String(item.qty_scheme ?? 0),
+                    boxes: String(item.qty_scheme ?? 0),
+                    ltrs: String(item.qty_scheme ?? 0),
+                    basic_price: "0.00",
+                    market_price: "0.00",
+                    total: "0.00",
+                    tax_rate: "0.00",
+                    is_scheme_visible: true,
+                    is_scheme_line: true,
+                    parent_item_code: String(item.item_code || ""),
+                    order: order.id,
+                    scheme_id: item.scheme_id ?? item.scheme ?? null,
+                    scheme_name: item.scheme_name || null,
+                    scheme: item.scheme_id ?? item.scheme ?? null,
+                  },
+                ];
+              },
+            );
+
             const payload: ApproveOr = {
               order_id: order.id,
               card_code: order.card_code,
@@ -142,7 +189,7 @@ export default function BillingOrderList() {
               ship_to_address: order.ship_to_address,
               bill_to_address: order.bill_to_address,
               dispatch_from_id: order.dispatch_from_id,
-              items: order.items || [],
+              items: approvalItems,
             };
 
             // const ap_res = await productService.updatestatus(
@@ -150,7 +197,7 @@ export default function BillingOrderList() {
             //   "6",
             //   "Approved",
             // );
-
+            
             const res = await productService.sapApproveOrder(payload);
             console.log("Approval response:", JSON.stringify(res));
             console.log("Approval response:", JSON.stringify(res));
@@ -342,6 +389,85 @@ export default function BillingOrderList() {
                 >
                   <Text style={styles.dropdownText}>Billing Pending</Text>
                 </TouchableOpacity>
+
+                <View style={styles.dropdownDivider} />
+
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setActionMenuVisible(null);
+                    router.push({
+                      pathname: "/orders/orderdetails",
+                      params: { orderId: item.id, from: "orders/orderlist" },
+                    });
+                  }}
+                >
+                  <Text style={styles.dropdownText}>Order Details</Text>
+                </TouchableOpacity>
+
+                {userRole === "billing" && (
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setActionMenuVisible(null);
+                      router.push({
+                        pathname: "/orders/create",
+                        params: { orderId: item.id, mode: "edit" },
+                      });
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>Edit Order</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        </>
+      )}
+
+      {activeTab === "others" && (
+        <>
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.moreBtn]}
+              onPress={() =>
+                setActionMenuVisible(actionMenuVisible === item.id ? null : item.id)
+              }
+            >
+              <Ionicons name="ellipsis-vertical" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>More</Text>
+            </TouchableOpacity>
+          </View>
+          <View>
+            {actionMenuVisible === item.id && (
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setActionMenuVisible(null);
+                    router.push({
+                      pathname: "/orders/orderdetails",
+                      params: { orderId: item.id, from: "orders/orderlist" },
+                    });
+                  }}
+                >
+                  <Text style={styles.dropdownText}>Order Details</Text>
+                </TouchableOpacity>
+
+                {userRole === "billing" && (
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setActionMenuVisible(null);
+                      router.push({
+                        pathname: "/orders/create",
+                        params: { orderId: item.id, mode: "edit" },
+                      });
+                    }}
+                  >
+                    <Text style={styles.dropdownText}>Edit Order</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -821,6 +947,12 @@ const styles = StyleSheet.create({
   dropdownItem: {
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 14,
   },
 
   dropdownText: {

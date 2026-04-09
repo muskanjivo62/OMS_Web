@@ -6,18 +6,54 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
+  TouchableOpacity,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, router } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "@/constants/theme";
 import { orderService } from "@/src/services/order.service";
+import { useAuth } from "@/src/context/AuthContext";
+
+const toNumber = (value: string | number | null | undefined): number =>
+  typeof value === "number" ? value : parseFloat(String(value ?? "")) || 0;
+
+const formatDisplayNumber = (value: string | number | null | undefined) => {
+  const numericValue = toNumber(value);
+  return Number.isInteger(numericValue)
+    ? String(numericValue)
+    : numericValue.toFixed(2).replace(/\.?0+$/, "");
+};
 
 export default function OrderDetailsScreen() {
-  
+  const { user } = useAuth();
+  const userRole = user?.role?.toLowerCase() || "";
+  const navigation = useNavigation();
+
   const { orderId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
+
+  useEffect(() => {
+    if (userRole !== "billing") return;
+    const parsedId = Number(Array.isArray(orderId) ? orderId[0] : orderId);
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() =>
+            router.push({
+              pathname: "/orders/create",
+              params: { orderId: parsedId, mode: "edit" },
+            })
+          }
+          style={{ marginRight: 16 }}
+        >
+          <Ionicons name="create-outline" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, userRole, orderId]);
 
   useEffect(() => {
     const parsedOrderId = Number(Array.isArray(orderId) ? orderId[0] : orderId);
@@ -102,6 +138,10 @@ export default function OrderDetailsScreen() {
             const bp = parseFloat(item.basic_price) || 0;
             const mp = parseFloat(item.market_price) || 0;
             const isFlagged = mp > 0 && mp < bp;
+            const itemLtrs = formatDisplayNumber(item.ltrs);
+            const totalLtrs = formatDisplayNumber(
+              toNumber(item.ltrs) + toNumber(item.qty_scheme),
+            );
 
             return (
             <View style={[styles.itemRow, isFlagged && styles.flaggedItem]}>
@@ -112,9 +152,11 @@ export default function OrderDetailsScreen() {
                 <InfoRow label="Item Code" value={item.item_code} />
                 <InfoRow label="Basic Price" value={`₹${item.basic_price}`} />
                 <InfoRow label="Market Price" value={`₹${item.market_price}`} highlight={isFlagged} />
-                <InfoRow label="Qty" value={item.qty} />
-                <InfoRow label="Box" value={item.boxes} />
-                <InfoRow label="Ltrs" value={item.ltrs} />
+                <InfoRow label="Boxes" value={item.qty} />
+                <InfoRow label="PCS/Case" value={item.pcs} />
+                <InfoRow label="Total PCS" value={item.boxes} />
+                <InfoRow label="Item Ltrs" value={itemLtrs} />
+                <InfoRow label="Total Ltrs" value={totalLtrs} bold />
                 <InfoRow label="Total" value={`₹${item.total}`} />
                 {!!item.scheme_name && (
                   <View style={styles.schemeBadge}>
@@ -162,11 +204,19 @@ const SectionTitle = ({ icon, title }: any) => (
   </View>
 );
 
-const InfoRow = ({ label, value, highlight }: any) =>
+const InfoRow = ({ label, value, highlight, bold }: any) =>
   value ? (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={[styles.infoValue, highlight && { color: COLORS.error, fontWeight: "800" }]}>{value}</Text>
+      <Text style={[styles.infoLabel, bold && styles.boldInfoText]}>{label}</Text>
+      <Text
+        style={[
+          styles.infoValue,
+          bold && styles.boldInfoText,
+          highlight && { color: COLORS.error, fontWeight: "800" },
+        ]}
+      >
+        {value}
+      </Text>
     </View>
   ) : null;
 
@@ -195,6 +245,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.text,
+  },
+  boldInfoText: {
+    fontWeight: "800",
   },
   container: { flex: 1, backgroundColor: "#F4F6FA" },
 
