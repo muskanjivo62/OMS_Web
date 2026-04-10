@@ -833,8 +833,14 @@ class SchemeListView(APIView):
 
     def get(self, request):
         from users.models import SchemeProduct
-        state_id = request.query_params.get('state_id', 1)
-        schemes = SchemeProduct.objects.filter(is_active=True, state_id=state_id).distinct().values('scheme_id', 'scheme_name')
+        state_id = request.query_params.get('state_id')
+        queryset = SchemeProduct.objects.filter(is_active=True)
+
+        if state_id:
+            filtered_queryset = queryset.filter(state_id=state_id)
+            queryset = filtered_queryset if filtered_queryset.exists() else queryset
+
+        schemes = queryset.order_by('scheme_name', 'scheme_id').values('scheme_id', 'scheme_name').distinct()
         return Response(list(schemes))
 
 class OrderStatusList(APIView):
@@ -848,7 +854,7 @@ class SchemeProductView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        queryset = SchemeProduct.objects.select_related('state', 'item_code').filter(is_active=True)
+        queryset = SchemeProduct.objects.select_related('state').filter(is_active=True)
 
         state_id = request.query_params.get('state_id')
         product_id = request.query_params.get('product_id')
@@ -863,9 +869,10 @@ class SchemeProductView(APIView):
         if state_id:
             queryset = queryset.filter(state_id=state_id)
         if product_id:
-            queryset = queryset.filter(item_code_id=product_id)
+            product = SapProduct.objects.filter(id=product_id).only('item_code').first()
+            queryset = queryset.filter(item_code=product.item_code) if product else queryset.none()
         if item_code:
-            queryset = queryset.filter(item_code__item_code=item_code)
+            queryset = queryset.filter(item_code=item_code)
 
         serializer = SchemeProductSerializer(queryset.order_by('scheme_name', 'scheme_id'), many=True)
         return Response({

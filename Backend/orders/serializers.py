@@ -1,30 +1,49 @@
 from rest_framework import serializers
-from django.db import connection
 from .models import Parties,DispatchLocation,ProductDetails,OrderItem,Branches,OrdersLog,Order
 from users.models import SchemeProduct
 from sap_sync.models import PartyAddress as SapPartyAddress
+from sap_sync.models import Product as SapProduct
 
 
 def get_scheme_item_code_raw(scheme_id):
     if not scheme_id:
         return None
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT item_code FROM scheme_product WHERE scheme_id = %s LIMIT 1",
-            [scheme_id],
-        )
-        row = cursor.fetchone()
-
-    return row[0] if row else None
+    return (
+        SchemeProduct.objects
+        .filter(scheme_id=scheme_id)
+        .values_list('item_code', flat=True)
+        .first()
+    )
 
 class SchemeProductSerializer(serializers.ModelSerializer):
     state_name = serializers.CharField(source='state.name', read_only=True)
-    product_id = serializers.IntegerField(source='item_code_id', read_only=True)
-    item_code = serializers.CharField(source='item_code.item_code', read_only=True)
-    item_name = serializers.CharField(source='item_code.item_name', read_only=True)
-    sal_factor2 = serializers.DecimalField(source='item_code.sal_factor2', max_digits=18, decimal_places=6, read_only=True)
-    sal_pack_unit = serializers.CharField(source='item_code.sal_pack_unit', read_only=True)
+    product_id = serializers.SerializerMethodField()
+    item_name = serializers.SerializerMethodField()
+    sal_factor2 = serializers.SerializerMethodField()
+    sal_pack_unit = serializers.SerializerMethodField()
+
+    def _get_product(self, obj):
+        item_code = getattr(obj, 'item_code', None)
+        if not item_code:
+            return None
+        return SapProduct.objects.filter(item_code=item_code).order_by('id').first()
+
+    def get_product_id(self, obj):
+        product = self._get_product(obj)
+        return product.id if product else None
+
+    def get_item_name(self, obj):
+        product = self._get_product(obj)
+        return product.item_name if product else None
+
+    def get_sal_factor2(self, obj):
+        product = self._get_product(obj)
+        return product.sal_factor2 if product else None
+
+    def get_sal_pack_unit(self, obj):
+        product = self._get_product(obj)
+        return product.sal_pack_unit if product else None
     
     class Meta:
         model = SchemeProduct
@@ -141,6 +160,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     scheme_id = serializers.IntegerField(read_only=True, allow_null=True)
     scheme_name = serializers.SerializerMethodField()
     scheme_item_code = serializers.SerializerMethodField()
+    is_scheme_visible = serializers.SerializerMethodField()
 
     def get_scheme_name(self, obj):
         raw_scheme_id = getattr(obj, 'scheme_id', None)
@@ -158,6 +178,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
         if not raw_scheme_id:
             return None
         return get_scheme_item_code_raw(raw_scheme_id)
+
+    def get_is_scheme_visible(self, obj):
+        raw_scheme_id = getattr(obj, 'scheme_id', None)
+        scheme_qty = getattr(obj, 'qty_scheme', 0) or 0
+        return bool(getattr(obj, 'is_scheme_visible', False) or (raw_scheme_id and scheme_qty > 0))
 
     class Meta:
         model = OrderItem

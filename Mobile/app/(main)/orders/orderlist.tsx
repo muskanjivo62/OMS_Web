@@ -140,10 +140,16 @@ export default function BillingOrderList() {
 
             const approvalItems = (Array.isArray(order.items) ? order.items : []).flatMap(
               (item: any) => {
-                const baseItem = { ...item };
                 const schemeQty = Number(item?.qty_scheme) || 0;
+                const derivedSchemeVisible =
+                  Boolean(item?.is_scheme_visible) ||
+                  (Boolean(item?.scheme_id ?? item?.scheme) && schemeQty > 0);
+                const baseItem = {
+                  ...item,
+                  is_scheme_visible: derivedSchemeVisible,
+                };
                 const hasSchemeLine =
-                  Boolean(item?.is_scheme_visible) &&
+                  derivedSchemeVisible &&
                   Boolean(item?.scheme_item_code) &&
                   schemeQty > 0;
 

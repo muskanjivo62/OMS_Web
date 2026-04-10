@@ -88,9 +88,20 @@ export const dispatchService = {
 };
 
 export const schemeService = {
-  getSchemes: async (stateId: number = 1): Promise<{ scheme_id: number; scheme_name: string }[]> => {
-    const res = await api.get(`/orders/schemes/?state_id=${stateId}`);
-    return res || [];
+  getSchemes: async (stateId?: number | null): Promise<{ scheme_id: number; scheme_name: string }[]> => {
+    const endpoint = stateId ? `/orders/schemes/?state_id=${stateId}` : '/orders/schemes/';
+    const res = await api.get(endpoint);
+
+    if (Array.isArray(res) && res.length) {
+      return res;
+    }
+
+    if (stateId) {
+      const fallbackRes = await api.get('/orders/schemes/');
+      return Array.isArray(fallbackRes) ? fallbackRes : [];
+    }
+
+    return Array.isArray(res) ? res : [];
   },
   getSchemeProductsByName: async (schemeName: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
     const res = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_id=${stateId}`);

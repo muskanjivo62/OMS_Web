@@ -83,13 +83,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         (response as any)?.errors?.non_field_errors?.[0] ||
         (response as any)?.data?.errors?.non_field_errors?.[0];
       const technicalError = (response as any)?.error;
+      const baseUrlTried = (response as any)?.baseUrlTried;
 
       return {
         success: false,
         message:
           nonFieldErrors ||
           (technicalError
-            ? `${response?.message || "Login failed"} (${technicalError})`
+            ? `${response?.message || "Login failed"} (${technicalError}${baseUrlTried ? `, URL: ${baseUrlTried}` : ""})`
             : response?.message || "Login failed"),
       };
     } catch (error) {

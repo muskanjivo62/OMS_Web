@@ -186,7 +186,7 @@ const calculateRowLtrs = ({
   if (qtyNum <= 0) return "";
 
   const ltrsPerBox = toNumber(pcs) * toNumber(salPackUnit);
-
+  
   return (qtyNum * ltrsPerBox).toFixed(2);
 };
 
@@ -731,6 +731,7 @@ export default function CreateOrderScreen() {
       let comboSchemeId: string | null = product.combo_scheme_id
         ? String(product.combo_scheme_id)
         : null;
+      const hasPrefilledScheme = Boolean(comboSchemeId || comboSchemeName);
       let schemePcsPerBox = 0;
 
       if (comboSchemeName) {
@@ -745,12 +746,18 @@ export default function CreateOrderScreen() {
       updateRow(rowId, {
         selectedProduct: productId,
         selectedScheme: comboSchemeId,
-        isScheme: false,
+        isScheme: hasPrefilledScheme,
         isComboProduct,
         schemes: [],
         pcs,
         salPackUnit,
-        schemeQty: "",
+        schemeQty: hasPrefilledScheme
+          ? calculateRowSchemeQty({
+              qty: "",
+              pcs,
+              schemePcsPerBox,
+            }) || ""
+          : "",
         schemePcsPerBox,
         tax: product.tax_rate ? product.tax_rate.toString() : "0",
         basePrice: product.basic_rate?.toString() || "0",
@@ -772,7 +779,7 @@ export default function CreateOrderScreen() {
         updateRow(rowId, {
           schemes,
           selectedScheme: comboSchemeId,
-          isScheme: false,
+          isScheme: Boolean(comboSchemeId),
         });
       } catch {
         // no schemes available — leave schemes: []
@@ -828,11 +835,17 @@ export default function CreateOrderScreen() {
           return {
             ...row,
             selectedScheme: comboSchemeId,
-            isScheme: false,
+            isScheme: Boolean(comboSchemeId),
             isComboProduct,
             schemePcsPerBox,
             schemeLtrsPerBox,
-            schemeQty: "",
+            schemeQty: Boolean(comboSchemeId)
+              ? calculateRowSchemeQty({
+                  qty: row.qty,
+                  pcs: pcsPerCase,
+                  schemePcsPerBox,
+                }) || row.schemeQty
+              : "",
             ltrs,
           };
         }),
@@ -871,10 +884,14 @@ export default function CreateOrderScreen() {
       setItemRows((prev) =>
         prev.map((r) => {
           if (r.id !== rowId) return r;
+          const autoSelectedScheme =
+            r.selectedScheme ??
+            (r.schemes.length === 1 ? String(r.schemes[0].value) : null);
 
           return {
             ...r,
             isScheme: true,
+            selectedScheme: autoSelectedScheme,
             schemeQty:
               calculateRowSchemeQty({
                 qty: r.qty,
@@ -894,6 +911,7 @@ export default function CreateOrderScreen() {
 
         return {
           ...row,
+          isScheme: Boolean(scheme),
           selectedScheme: scheme,
           schemeQty:
             row.isScheme
@@ -999,7 +1017,7 @@ export default function CreateOrderScreen() {
       return;
     }
 
-    if (row.isScheme && !row.selectedScheme) {
+    if ((row.isScheme || row.isComboProduct) && !row.selectedScheme) {
       Alert.alert("Error", "Please select a scheme before confirming this item");
       return;
     }
@@ -1017,6 +1035,11 @@ export default function CreateOrderScreen() {
         basePrice: row.basePrice,
       }));
 
+    const effectiveSchemeId = row.selectedScheme;
+    const effectiveSchemeName = effectiveSchemeId
+      ? row.schemes.find((scheme) => String(scheme.value) === String(effectiveSchemeId))?.label ?? null
+      : null;
+
     const newItem: OrderItemType = {
       id: Date.now(),
       itemCode: product.item_code || "",
@@ -1026,11 +1049,9 @@ export default function CreateOrderScreen() {
       variety: row.selectedVariety || "",
       type: row.selectedType || "",
       qty: parseFloat(row.qty) || 0,
-      scheme: row.isScheme ? row.selectedScheme : null,
-      schemeName: row.isScheme
-        ? row.schemes.find((scheme) => String(scheme.value) === String(row.selectedScheme))?.label ?? null
-        : null,
-      schemeQty: row.isScheme ? parseFloat(row.schemeQty) || 0 : 0,
+      scheme: effectiveSchemeId,
+      schemeName: effectiveSchemeName,
+      schemeQty: effectiveSchemeId ? parseFloat(row.schemeQty) || 0 : 0,
       pcs: parseFloat(row.pcs) || 0,
       boxes: parseFloat(row.boxes) || 0,
       ltrs: parseFloat(row.ltrs) || 0,
@@ -1115,7 +1136,7 @@ export default function CreateOrderScreen() {
           qty: Number(item.qty) || 0,
           scheme_id: item.scheme ? Number(item.scheme) : null,
           scheme_name: item.schemeName ? String(item.schemeName) : null,
-          is_scheme_visible: Boolean(item.scheme),
+          is_scheme_visible: Boolean(item.scheme || item.schemeName || item.schemeQty),
           scheme_qty: item.scheme ? Number(item.schemeQty) || 0 : 0,
           scheme_items: item.scheme
             ? [
