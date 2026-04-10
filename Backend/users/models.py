@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-# Create your models here.
 
 class SchemeProduct(models.Model):
     scheme_id = models.AutoField(primary_key=True)
@@ -10,13 +9,14 @@ class SchemeProduct(models.Model):
         db_column='state_id',
         related_name='scheme_products'
     )
-    item_code = models.ForeignKey(
-        'sap_sync.Product',
-        on_delete=models.PROTECT,
-        db_column='item_code',
-        related_name='scheme_products',
-        null=True
-    )
+    # item_code = models.ForeignKey(
+    #     'sap_sync.Product',
+    #     on_delete=models.PROTECT,
+    #     db_column='item_code',
+    #     related_name='scheme_products',
+    #     null=True
+    # )
+    item_code = models.CharField(max_length=100,null=True,blank=True)
     scheme_name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True, db_column='isactive')
 
@@ -26,7 +26,7 @@ class SchemeProduct(models.Model):
 
     def __str__(self):
         return self.scheme_name
-
+    
 class PartyProductAssignment(models.Model):
     """
     Maps parties to products with pricing

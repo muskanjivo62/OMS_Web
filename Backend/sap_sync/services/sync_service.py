@@ -1,13 +1,34 @@
 import logging
+import json
 import urllib3
+from datetime import date, datetime
 from django.utils import timezone
 from ..models import Product, Party, PartyAddress, Branch, SyncLog
 from .connection import SAPConnection
 import requests
 from django.conf import settings
 from ..models import SalesQuotationLog
+from users.models import SchemeProduct
 
 logger = logging.getLogger(__name__)
+
+
+def get_scheme_item_code_raw(scheme_id):
+    if not scheme_id:
+        return None
+
+    return (
+        SchemeProduct.objects
+        .filter(scheme_id=scheme_id)
+        .values_list('item_code', flat=True)
+        .first()
+    )
+
+
+def print_sap_payload(label, payload):
+    formatted_payload = json.dumps(payload, indent=2, default=str)
+    print(f"{label}\n{formatted_payload}")
+    logger.warning("%s\n%s", label, formatted_payload)
 
 class SyncService:
     def __init__(self, triggered_by='manual'):
@@ -459,21 +480,41 @@ class SyncService:
     # ---------------- MAP ORDER ---------------- #
 
     def map_order_to_sap(self, order):
+        def _as_iso_date(value, fallback):
+            if isinstance(value, datetime):
+                return value.date().isoformat()
+            if isinstance(value, date):
+                return value.isoformat()
+            if isinstance(value, str):
+                try:
+                    return datetime.fromisoformat(value).date().isoformat()
+                except ValueError:
+                    return fallback.isoformat()
+            return fallback.isoformat()
+
         document_lines = []
 
         for item in order.items.all():
             document_lines.append(
                 {
                     "ItemCode": item.item_code,
-                    "Quantity": float(item.qty),
+                    "Quantity": float(item.ltrs),
                     "UnitPrice": float(item.basic_price),
                     "WarehouseCode": "GP-FG",
                 }
             )
-
-            # Add scheme line as a separate document row with zero price.
-            scheme_product = getattr(getattr(item, "scheme", None), "item_code", None)
-            scheme_item_code = getattr(scheme_product, "item_code", None)
+            
+            scheme_item_code = None
+            raw_scheme_id = item.__dict__.get("scheme_id")
+            if raw_scheme_id not in (None, ""):
+                try:
+                    scheme_item_code = get_scheme_item_code_raw(int(raw_scheme_id))
+                except (SchemeProduct.DoesNotExist, TypeError, ValueError):
+                    logger.warning(
+                        "Skipping invalid scheme mapping for order item %s with raw scheme_id=%r",
+                        getattr(item, "id", None),
+                        raw_scheme_id,
+                    )
             scheme_qty = float(getattr(item, "qty_scheme", 0) or 0)
             
             if scheme_item_code and scheme_qty > 0:
@@ -487,19 +528,25 @@ class SyncService:
                 )
 
 
+        posting_date = timezone.localdate()
+        due_date = _as_iso_date(getattr(order, "delivery_date", None), posting_date)
+
         payload = {
             "CardCode": order.card_code,
-            "DocDate": str(order.created_at),
-            "DocDueDate": str(order.created_at),
-            "TaxDate": str(order.created_at),
+            "DocDate": posting_date.isoformat(),
+            "DocDueDate": due_date,
+            "TaxDate": posting_date.isoformat(),
             "Comments": " ",
             "ShipToCode": order.ship_to_address,
             "PayToCode": order.bill_to_address,
             "BPL_IDAssignedToInvoice": order.dispatch_from_id,
             "DocumentLines": document_lines,
         }
-        import json
-        print("map_order_to_sap payload:", json.dumps(payload, indent=2, default=str))
+        print_sap_payload(
+            f"SAP quotation payload for order {getattr(order, 'id', 'N/A')}:",
+            payload,
+        )
+    
         return payload
 
 # example 
@@ -541,6 +588,8 @@ class SyncService:
                 self.sap_login()
      
             url = f"{settings.HANA_SERVICE_LAYER_URL}/Quotations"
+            print(f"SAP quotation URL: {url}")
+            logger.warning("SAP quotation URL: %s", url)
 
             response = self._post_with_ssl_fallback(url, quotation_payload)
             logger.info(
@@ -552,7 +601,7 @@ class SyncService:
                 response_data = response.json()
 
                 # order.status = 6
-                order.save(update_fields=['status'])  # Mark order as synced with SAP
+                order.save(update_fields=['status'])  
                 
                 order.sap_created = True
                 order.save(update_fields=['sap_created'])

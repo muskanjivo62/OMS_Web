@@ -1,3 +1,4 @@
+import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,6 +11,8 @@ from .serializers import (ProductSerializer, PartySerializer, PartyListSerialize
 from .services import SyncService
 from types import SimpleNamespace
 from orders.models import Order
+
+logger = logging.getLogger(__name__)
 
 # ============ Sync Operations ============
 
@@ -441,8 +444,7 @@ class ApproveOrderAPIView(APIView):
             service = SyncService(triggered_by=request.user.username)
             order = Order.objects.get(id=order_id)
             result = service.create_sales_quotation(order)
-            
-            console.log(f"Order {order_id} approval result: {result}")
+            logger.info("Order %s approval result: %s", order_id, result)
 
             return Response({
                 'success': True,
@@ -513,13 +515,13 @@ class PushSalesQuotationView(APIView):
                 {"error": "order_id is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         try:
             order = Order.objects.get(id=order_id)
 
             service = SyncService(triggered_by='manual')
             sap_response = service.create_sales_quotation(order)
-
+            
             return Response(
                 {
                     "message": "Quotation created successfully",
@@ -541,7 +543,7 @@ class PushSalesQuotationView(APIView):
             )
 
 class TestSalesQuotation(APIView):
-
+    
     def post(self, request):
         try:
             # Create a Mock Order object that mimics the Django Model

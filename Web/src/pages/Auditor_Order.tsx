@@ -68,8 +68,9 @@ export default function Auditor_orders() {
         "PO Number": order.po_number,
         "Item Code": item.item_code,
         "Item Name": item.item_name,
-        Qty: item.qty,
-        Boxes: item.boxes,
+        Boxes: item.qty,
+        "PCS/Case": item.pcs,
+        "Total PCS": item.boxes,
         Liters: item.ltrs,
         "Total Amount": item.total,
       }));
@@ -204,7 +205,7 @@ export default function Auditor_orders() {
           </div>
           <div className="ao-table-wrap ao-d-table-wrap">
             <table className="ao-table">
-              <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Category</th><th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th>Amount</th></tr></thead>
+              <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Category</th><th>Boxes</th><th>PCS/Case</th><th>Total PCS</th><th>Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th>Amount</th></tr></thead>
               <tbody>
                 {selectedItems.length > 0 ? selectedItems.map((item, i) => (
                   <tr key={i}>

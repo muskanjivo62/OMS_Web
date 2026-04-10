@@ -46,7 +46,7 @@ INSTALLED_APPS = [
     # 'rest_framework.authtoken',
     # 'rest_framework.authto
     'corsheaders',
-    
+    'django_apscheduler',
     # Local apps
     'users',
     'orders',

@@ -191,17 +191,12 @@ export default function BillingOrderList() {
               dispatch_from_id: order.dispatch_from_id,
               items: approvalItems,
             };
-
-            // const ap_res = await productService.updatestatus(
-            //   order.id,
-            //   "6",
-            //   "Approved",
-            // );
             
+            console.log("printvalue"+JSON.stringify(payload));  
             const res = await productService.sapApproveOrder(payload);
             console.log("Approval response:", JSON.stringify(res));
             console.log("Approval response:", JSON.stringify(res));
-            
+              
             if (!res?.success) {
               let errorMessage = "Approval failed";
               try {

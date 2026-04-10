@@ -252,7 +252,7 @@ export default function Billing_orders() {
           </div>
           <div className="bo-table-wrap bo-d-table-wrap">
             <table className="bo-table">
-              <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Category</th><th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th>Amount</th></tr></thead>
+              <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Category</th><th>Boxes</th><th>PCS/Case</th><th>Total PCS</th><th>Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th>Amount</th></tr></thead>
               <tbody>
                 {selectedItems.length > 0 ? selectedItems.map((item, i) => (
                   <tr key={i}>

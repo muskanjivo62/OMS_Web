@@ -1,8 +1,9 @@
 from django.contrib import admin
 from django.urls import path,include
-from .views import DashboardKPIView,OrderLogsByOrderView, OrderDetailsByOrderView,OrdersByUserView,DashboardChartsView,OrderStatusList,BranchView,PartyView,DispatchLocationListView, SchemeProductView,UpdateOrderStatusView,PartyAddressesView,ProductFiltersView,ProductListView,PartyProductsView,CreateOrderView,OrderListView,RejectOrderView,ApproveOrderView,SchemeListView
+from .views import DashboardKPIView,OrderLogsByOrderView, OrderDetailsByOrderView,OrdersByUserView,DashboardChartsView,OrderStatusList,BranchView,PartyView,DispatchLocationListView, SchemeProductView,UpdateOrderStatusView,PartyAddressesView,ProductFiltersView,ProductListView,PartyProductsView,CreateOrderView,UpdateOrderView,OrderListView,RejectOrderView,ApproveOrderView,SchemeListView
 
 urlpatterns=[
+    
     path('scheme-products/', SchemeProductView.as_view(), name='scheme-products'),
     path('parties/',PartyView.as_view(),name='parties'),
     path('dispatches/',DispatchLocationListView.as_view(),name='dispatches'),
@@ -10,6 +11,7 @@ urlpatterns=[
     path('product-filters/', ProductFiltersView.as_view(), name='product-filters'),
     path('products/', ProductListView.as_view(), name='products'),
     path('create/', CreateOrderView.as_view(), name='create-order'),
+    path('<int:order_id>/update/', UpdateOrderView.as_view(), name='update-order'),
     path('list/', OrderListView.as_view(), name='order_list'),
     path('<int:order_id>/approve/', ApproveOrderView.as_view(), name='approve_list'),
     path('<int:order_id>/reject/', RejectOrderView.as_view(), name='reject_list'),

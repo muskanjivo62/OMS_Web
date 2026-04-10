@@ -1,14 +1,31 @@
 from rest_framework import serializers
+from django.db import connection
 from .models import Parties,DispatchLocation,ProductDetails,OrderItem,Branches,OrdersLog,Order
 from users.models import SchemeProduct
 from sap_sync.models import PartyAddress as SapPartyAddress
+
+
+def get_scheme_item_code_raw(scheme_id):
+    if not scheme_id:
+        return None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT item_code FROM scheme_product WHERE scheme_id = %s LIMIT 1",
+            [scheme_id],
+        )
+        row = cursor.fetchone()
+
+    return row[0] if row else None
 
 class SchemeProductSerializer(serializers.ModelSerializer):
     state_name = serializers.CharField(source='state.name', read_only=True)
     product_id = serializers.IntegerField(source='item_code_id', read_only=True)
     item_code = serializers.CharField(source='item_code.item_code', read_only=True)
     item_name = serializers.CharField(source='item_code.item_name', read_only=True)
-
+    sal_factor2 = serializers.DecimalField(source='item_code.sal_factor2', max_digits=18, decimal_places=6, read_only=True)
+    sal_pack_unit = serializers.CharField(source='item_code.sal_pack_unit', read_only=True)
+    
     class Meta:
         model = SchemeProduct
         fields = [
@@ -20,6 +37,8 @@ class SchemeProductSerializer(serializers.ModelSerializer):
             'product_id',
             'item_code',
             'item_name',
+            'sal_factor2',
+            'sal_pack_unit',
         ]
    
 
@@ -119,7 +138,26 @@ class OrdersLogSerializer(serializers.ModelSerializer):
         ]
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    scheme_name = serializers.CharField(source='scheme.scheme_name', read_only=True, default=None)
+    scheme_id = serializers.IntegerField(read_only=True, allow_null=True)
+    scheme_name = serializers.SerializerMethodField()
+    scheme_item_code = serializers.SerializerMethodField()
+
+    def get_scheme_name(self, obj):
+        raw_scheme_id = getattr(obj, 'scheme_id', None)
+        if not raw_scheme_id:
+            return None
+        return (
+            SchemeProduct.objects
+            .filter(scheme_id=raw_scheme_id)
+            .values_list('scheme_name', flat=True)
+            .first()
+        )
+
+    def get_scheme_item_code(self, obj):
+        raw_scheme_id = getattr(obj, 'scheme_id', None)
+        if not raw_scheme_id:
+            return None
+        return get_scheme_item_code_raw(raw_scheme_id)
 
     class Meta:
         model = OrderItem

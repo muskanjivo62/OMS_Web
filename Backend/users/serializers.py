@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.utils import ProgrammingError
 from django.contrib.auth import authenticate
 from .models import User, Company, MainGroup, State, UserRole, SchemeProduct
 
@@ -61,13 +62,22 @@ class UserSerializer(serializers.ModelSerializer):
     def get_states(self, obj):
         assigned_states = []
         seen_state_ids = set()
+        user_states_manager = getattr(obj, 'user_states', None)
 
-        for user_state in obj.user_states.select_related('state').all():
-            state = user_state.state
-            if not state or state.id in seen_state_ids:
-                continue
-            seen_state_ids.add(state.id)
-            assigned_states.append(StateSerializer(state).data)
+        if user_states_manager is None:
+            if obj.state:
+                return [StateSerializer(obj.state).data]
+            return []
+
+        try:
+            for user_state in user_states_manager.select_related('state').all():
+                state = user_state.state
+                if not state or state.id in seen_state_ids:
+                    continue
+                seen_state_ids.add(state.id)
+                assigned_states.append(StateSerializer(state).data)
+        except (AttributeError, ProgrammingError):
+            assigned_states = []
 
         if assigned_states:
             return assigned_states

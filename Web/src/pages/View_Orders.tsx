@@ -87,8 +87,9 @@ export default function View_Orders() {
 
         "Item Code": item.item_code,
         "Item Name": item.item_name,
-       "Qty": item.qty,
-        "Boxes": item.boxes,
+        "Boxes": item.qty,
+        "PCS/Case": item.pcs,
+        "Total PCS": item.boxes,
         "Liters": item.ltrs,
         "Total Amount": item.total,
       }));
@@ -239,7 +240,7 @@ export default function View_Orders() {
             <table className="vo-table">
               <thead>
                 <tr>
-                  <th>#</th><th>Item Code</th><th>Item Name</th><th>Category</th><th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th>Amount</th>
+                  <th>#</th><th>Item Code</th><th>Item Name</th><th>Category</th><th>Boxes</th><th>PCS/Case</th><th>Total PCS</th><th>Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th>Amount</th>
                 </tr>
               </thead>
               <tbody>

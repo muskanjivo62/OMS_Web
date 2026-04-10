@@ -1,24 +1,11 @@
 from django.urls import path
 from .views import (
-    # Sync Operations
     SyncAllView, SyncProductsView, SyncPartiesView, SyncPartyAddressesView,
-    SyncBranchesView,
-    # Products
-    ProductListView, ProductDetailView, ProductByCodeView,
-    # Parties
-    PartyListView, PartyDetailView, PartyByCodeView,
-    # Party Addresses
-    PartyAddressListView,
-    # Branches
-    BranchListView,
-    # Sync Logs
-    SyncLogListView,
-    # Schedule Management
-    SyncScheduleListView, SyncScheduleDetailView, ToggleScheduleView,
-    # Status
-    SyncStatusView,
-    PushSalesQuotationView,
-    TestSalesQuotation,ApproveOrderAPIView,PushSalesQuotationView
+    SyncBranchesView, ProductListView, ProductDetailView, ProductByCodeView,
+    PartyListView, PartyDetailView, PartyByCodeView, PartyAddressListView,
+    BranchListView, SyncLogListView, SyncScheduleListView,
+    SyncScheduleDetailView, ToggleScheduleView, SyncStatusView,
+    PushSalesQuotationView, TestSalesQuotation, ApproveOrderAPIView,
 )
  
 urlpatterns = [
@@ -61,8 +48,8 @@ urlpatterns = [
     path('test-quotation/', TestSalesQuotation.as_view()),
 
     path('test-quotation/<int:pk>/', TestSalesQuotation.as_view()),
-    path("approve-order/", PushSalesQuotationView.as_view()),
-
+    path("approve-order/", ApproveOrderAPIView.as_view(), name="approve-order"),
+    
     
     
 ]

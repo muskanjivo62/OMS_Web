@@ -1,7 +1,7 @@
 from urllib import request
 from django.shortcuts import render
 import re
-from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer
+from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer,OrderItemSerializer
 from .models import PartyProductAssignment,OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -261,6 +261,8 @@ class PartyProductsView(APIView):
                 'sal_pack_unit': getattr(product, 'sal_pack_unit', None),
                 'brand': getattr(product, 'brand', None),
                 'variety': getattr(product, 'variety', None),
+                'combo_scheme_id': assignment.scheme_id,
+                'combo_scheme_name': assignment.scheme.scheme_name if assignment.scheme else None,
             })
 
         return Response(rows)
@@ -484,6 +486,124 @@ class ProductListView(APIView):
         serializer = ProductSerializer(products.order_by('item_name'), many=True)
         return Response(serializer.data)
 
+class UpdateOrderView(APIView):
+    permission_classes = [AllowAny]
+
+    def put(self, request, order_id):
+        def _to_float(value, default=0.0):
+            try:
+                if value in (None, ''):
+                    return float(default)
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
+
+        def _to_bool(value):
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.strip().lower() in {"1", "true", "yes", "on"}
+            if value in (None, ""):
+                return False
+            return bool(value)
+
+        order = get_object_or_404(Order, id=order_id)
+
+        serializer = CreateOrderSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        items = data.pop('items', [])
+        order_remarks = request.data.get('remarks', data.get('remarks', ''))
+
+        if not items:
+            return Response({'error': 'At least one item is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update order header fields
+        order.card_code = data.get('card_code', order.card_code)
+        order.card_name = data.get('card_name', order.card_name)
+        order.bill_to_id = data.get('bill_to_id') or order.bill_to_id
+        order.bill_to_address = data.get('bill_to_address', order.bill_to_address)
+        order.ship_to_id = data.get('ship_to_id') or order.ship_to_id
+        order.ship_to_address = data.get('ship_to_address', order.ship_to_address)
+        order.dispatch_from_id = data.get('dispatch_from_id') or order.dispatch_from_id
+        order.dispatch_from_name = data.get('dispatch_from_name', order.dispatch_from_name)
+        order.company = data.get('company', order.company)
+        order.po_number = data.get('po_number', order.po_number)
+        order.delivery_date = data.get('delivery_date') or order.delivery_date
+        order.remarks = order_remarks
+
+        # Replace items
+        order.items.all().delete()
+
+        needs_approval = False
+        flagged_items = []
+
+        for item in items:
+            scheme_id = item.get('scheme_id') or item.get('scheme')
+            scheme_obj = None
+            scheme_qty = _to_float(item.get('scheme_qty', 0))
+            if scheme_id:
+                try:
+                    scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
+                except (SchemeProduct.DoesNotExist, ValueError, TypeError):
+                    scheme_obj = None
+
+            OrderItem.objects.create(
+                order=order,
+                item_code=item.get('item_code', ''),
+                item_name=item.get('item_name', ''),
+                category=item.get('category', ''),
+                brand=item.get('brand', ''),
+                variety=item.get('variety', ''),
+                item_type=item.get('item_type', ''),
+                qty=_to_float(item.get('qty', 0)),
+                pcs=_to_float(item.get('pcs', 0)),
+                boxes=_to_float(item.get('boxes', 0)),
+                ltrs=_to_float(item.get('ltrs', 0)),
+                basic_price=_to_float(item.get('basic_price', 0)),
+                market_price=_to_float(item.get('market_price', 0)),
+                total=_to_float(item.get('total', 0)),
+                tax_rate=_to_float(item.get('tax_rate', 0)),
+                scheme=scheme_obj,
+                qty_scheme=scheme_qty,
+                is_scheme_visible=_to_bool(item.get('is_scheme_visible')) or bool(scheme_obj and scheme_qty > 0),
+            )
+
+            bp = _to_float(item.get('basic_price', 0))
+            mp = _to_float(item.get('market_price', 0))
+            if mp > 0 and mp < bp:
+                needs_approval = True
+                flagged_items.append(f"{item.get('item_name')}: Market ₹{mp} < Basic ₹{bp}")
+
+        order.total_amount = sum(_to_float(item.get('total', 0)) for item in items)
+
+        # Route to auditor (or rate approval if prices are flagged)
+        if needs_approval:
+            next_status = get_status('Rate Approval')
+            if next_status:
+                order.status = next_status
+        else:
+            next_status = get_status('Auditor Approval')
+            if next_status:
+                order.status = next_status
+
+        order.save()
+
+        user = request.user if request.user.is_authenticated else None
+        log_order_action(order, 'Auditor Approval' if not needs_approval else 'Rate Approval', user=user)
+
+        return Response({
+            'id': order.id,
+            'order_number': order.order_number,
+            'total_amount': str(order.total_amount),
+            'status': order.status.name if order.status else '',
+            'needs_approval': needs_approval,
+            'message': 'Order updated and sent for rate approval' if needs_approval else 'Order updated and sent to auditor',
+        }, status=status.HTTP_200_OK)
+
+
 class CreateOrderView(APIView):
     permission_classes = [AllowAny]
     
@@ -495,6 +615,99 @@ class CreateOrderView(APIView):
                 return float(value)
             except (TypeError, ValueError):
                 return float(default)
+
+        def _to_bool(value):
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.strip().lower() in {"1", "true", "yes", "on"}
+            if value in (None, ""):
+                return False
+            return bool(value)
+
+        # ── Edit mode: order_id in payload means update existing order ──────
+        order_id = request.data.get('order_id')
+        if order_id:
+            order = get_object_or_404(Order, id=int(order_id))
+            serializer = CreateOrderSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            data = serializer.validated_data
+            items = data.pop('items', [])
+            order_remarks = request.data.get('remarks', data.get('remarks', ''))
+            if not items:
+                return Response({'error': 'At least one item is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            order.card_code = data.get('card_code', order.card_code)
+            order.card_name = data.get('card_name', order.card_name)
+            order.bill_to_id = data.get('bill_to_id') or order.bill_to_id
+            order.bill_to_address = data.get('bill_to_address', order.bill_to_address)
+            order.ship_to_id = data.get('ship_to_id') or order.ship_to_id
+            order.ship_to_address = data.get('ship_to_address', order.ship_to_address)
+            order.dispatch_from_id = data.get('dispatch_from_id') or order.dispatch_from_id
+            order.dispatch_from_name = data.get('dispatch_from_name', order.dispatch_from_name)
+            order.company = data.get('company', order.company)
+            order.po_number = data.get('po_number', order.po_number)
+            order.delivery_date = data.get('delivery_date') or order.delivery_date
+            order.remarks = order_remarks
+
+            order.items.all().delete()
+
+            needs_approval = False
+            flagged_items = []
+            for item in items:
+                scheme_id = item.get('scheme_id') or item.get('scheme')
+                scheme_obj = None
+                scheme_qty = _to_float(item.get('scheme_qty', 0))
+                if scheme_id:
+                    try:
+                        scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
+                    except (SchemeProduct.DoesNotExist, ValueError, TypeError):
+                        scheme_obj = None
+                OrderItem.objects.create(
+                    order=order,
+                    item_code=item.get('item_code', ''),
+                    item_name=item.get('item_name', ''),
+                    category=item.get('category', ''),
+                    brand=item.get('brand', ''),
+                    variety=item.get('variety', ''),
+                    item_type=item.get('item_type', ''),
+                    qty=_to_float(item.get('qty', 0)),
+                    pcs=_to_float(item.get('pcs', 0)),
+                    boxes=_to_float(item.get('boxes', 0)),
+                    ltrs=_to_float(item.get('ltrs', 0)),
+                    basic_price=_to_float(item.get('basic_price', 0)),
+                    market_price=_to_float(item.get('market_price', 0)),
+                    total=_to_float(item.get('total', 0)),
+                    tax_rate=_to_float(item.get('tax_rate', 0)),
+                    scheme=scheme_obj,
+                    qty_scheme=scheme_qty,
+                    is_scheme_visible=_to_bool(item.get('is_scheme_visible')) or bool(scheme_obj and scheme_qty > 0),
+                )
+                bp = _to_float(item.get('basic_price', 0))
+                mp = _to_float(item.get('market_price', 0))
+                if mp > 0 and mp < bp:
+                    needs_approval = True
+                    flagged_items.append(f"{item.get('item_name')}: Market ₹{mp} < Basic ₹{bp}")
+
+            order.total_amount = sum(_to_float(item.get('total', 0)) for item in items)
+            next_status = get_status('Rate Approval') if needs_approval else get_status('Auditor Approval')
+            if next_status:
+                order.status = next_status
+            order.save()
+
+            user = request.user if request.user.is_authenticated else None
+            log_order_action(order, 'Rate Approval' if needs_approval else 'Auditor Approval', user=user)
+
+            return Response({
+                'id': order.id,
+                'order_number': order.order_number,
+                'total_amount': str(order.total_amount),
+                'status': order.status.name if order.status else '',
+                'needs_approval': needs_approval,
+                'message': 'Order updated and sent for rate approval' if needs_approval else 'Order updated and sent to auditor',
+            }, status=status.HTTP_200_OK)
+        # ── End edit mode ────────────────────────────────────────────────────
 
         serializer = CreateOrderSerializer(data=request.data)
 
@@ -547,13 +760,13 @@ class CreateOrderView(APIView):
             remarks=order_remarks
         )   
         
-        # Create order items + price check
         needs_approval = False
         flagged_items = []
 
         for item in items:
             scheme_id = item.get('scheme_id') or item.get('scheme')
             scheme_obj = None
+            scheme_qty = _to_float(item.get('scheme_qty', 0))
             if scheme_id:
                 try:
                     scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
@@ -577,7 +790,8 @@ class CreateOrderView(APIView):
                 total=_to_float(item.get('total', 0)),
                 tax_rate=_to_float(item.get('tax_rate', 0)),
                 scheme=scheme_obj,
-                qty_scheme=_to_float(item.get('scheme_qty', 0)),
+                qty_scheme=scheme_qty,
+                is_scheme_visible=_to_bool(item.get('is_scheme_visible')) or bool(scheme_obj and scheme_qty > 0),
             )
 
             bp = _to_float(item.get('basic_price', 0))
@@ -640,9 +854,12 @@ class SchemeProductView(APIView):
         product_id = request.query_params.get('product_id')
         item_code = request.query_params.get('item_code')
         scheme_id = request.query_params.get('scheme_id')
+        scheme_name = request.query_params.get('scheme_name')
 
         if scheme_id:
             queryset = queryset.filter(scheme_id=scheme_id)
+        if scheme_name:
+            queryset = queryset.filter(scheme_name=scheme_name)
         if state_id:
             queryset = queryset.filter(state_id=state_id)
         if product_id:
@@ -966,7 +1183,7 @@ class OrderListView(APIView):
                     .values_list('category', flat=True)
                     .distinct()
                 ),
-                'items': list(items_qs.values())
+                'items': OrderItemSerializer(items_qs, many=True).data
             })
 
         return Response(data)  
