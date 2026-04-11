@@ -30,6 +30,47 @@ def print_sap_payload(label, payload):
     print(f"{label}\n{formatted_payload}")
     logger.warning("%s\n%s", label, formatted_payload)
 
+
+def _to_float(value, default=0.0):
+    try:
+        if value in (None, ""):
+            return float(default)
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _get_sap_line_quantity(item):
+    qty = _to_float(getattr(item, "qty", None), 0)
+    pcs = _to_float(getattr(item, "pcs", None), 0)
+    boxes = _to_float(getattr(item, "boxes", None), 0)
+    ltrs = _to_float(getattr(item, "ltrs", None), 0)
+
+    # Current OMS flow stores:
+    #   qty   -> ordered boxes/cases
+    #   boxes -> total pieces
+    # Legacy web flow stored:
+    #   qty   -> total pieces
+    #   boxes -> boxes/cases
+    #
+    # Detect the legacy pattern and normalize to boxes/cases for SAP.
+    if qty > 0 and pcs > 0 and boxes > 0:
+        if abs((qty * pcs) - boxes) <= 0.01:
+            return qty
+        if abs((boxes * pcs) - qty) <= 0.01:
+            return boxes
+
+    if qty > 0:
+        return qty
+
+    if boxes > 0 and pcs <= 1:
+        return boxes
+
+    if ltrs > 0 and pcs <= 1:
+        return ltrs
+
+    return 0.0
+
 class SyncService:
     def __init__(self, triggered_by='manual'):
         self.triggered_by = triggered_by
@@ -498,7 +539,7 @@ class SyncService:
             document_lines.append(
                 {
                     "ItemCode": item.item_code,
-                    "Quantity": float(item.ltrs),
+                    "Quantity": _get_sap_line_quantity(item),
                     "UnitPrice": float(item.basic_price),
                     "WarehouseCode": "GP-FG",
                 }

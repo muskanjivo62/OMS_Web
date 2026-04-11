@@ -283,8 +283,10 @@ export default function Add_Sales() {
       products.find((p) => p.item_name === row.item);
 
     if (product) {
-      row.ltrs = String(Number(product.sal_pack_unit) * qty);
-      row.boxes = String(qty / (Number(product.sal_factor2) || 1));
+      const pcsPerCase = Number(product.sal_factor2) || 0;
+      const ltrsPerPiece = Number(product.sal_pack_unit) || 0;
+      row.ltrs = String(ltrsPerPiece * pcsPerCase * qty);
+      row.boxes = String(qty * pcsPerCase);
     }
   }
 
