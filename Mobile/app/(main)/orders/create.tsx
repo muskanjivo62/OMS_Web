@@ -125,8 +125,19 @@ const dedupePartyProducts = (products: any[]) => {
   return Array.from(uniqueMap.values());
 };
 
-const getTodayDate = () => {
-  return new Date().toISOString().split("T")[0]; 
+const formatDateForInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getTodayDate = () => formatDateForInput(new Date());
+
+const getDefaultDeliveryDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 2);
+  return formatDateForInput(date);
 };
 
 const toNumber = (value: string | number | null | undefined): number =>
@@ -190,17 +201,56 @@ const calculateRowLtrs = ({
   return (qtyNum * ltrsPerBox).toFixed(2);
 };
 
+const getSelectedSchemeName = ({
+  selectedScheme,
+  schemes,
+  fallbackSchemeName,
+}: {
+  selectedScheme: string | null | undefined;
+  schemes: { label: string; value: string }[];
+  fallbackSchemeName?: string | null;
+}) => {
+  if (!selectedScheme) return fallbackSchemeName ?? null;
+  return (
+    schemes.find((scheme) => String(scheme.value) === String(selectedScheme))?.label ??
+    fallbackSchemeName ??
+    null
+  );
+};
+
 const calculateRowSchemeQty = ({
   qty,
   pcs,
   schemePcsPerBox,
+  selectedSchemeName,
 }: {
   qty: string | number | null | undefined;
   pcs: string | number | null | undefined;
   schemePcsPerBox: number;
+  selectedSchemeName?: string | null;
 }) => {
   const qtyNum = toNumber(qty);
   if (qtyNum <= 0) return "";
+
+  const pcsNum = toNumber(pcs);
+  const normalizedSchemeName = String(selectedSchemeName || "").toUpperCase();
+  const multiplierMatch = normalizedSchemeName.match(/(\d+(?:\.\d+)?)/);
+  const multiplier = multiplierMatch ? toNumber(multiplierMatch[1]) : 0;
+
+  if (
+    multiplier > 0 &&
+    (normalizedSchemeName.includes("PER BOX") || normalizedSchemeName.includes("PER CASE"))
+  ) {
+    return (qtyNum * multiplier).toFixed(2);
+  }
+
+  if (
+    multiplier > 0 &&
+    (normalizedSchemeName.includes("PER PCS") || normalizedSchemeName.includes("PER PC"))
+  ) {
+    if (pcsNum <= 0) return "";
+    return (qtyNum * pcsNum * multiplier).toFixed(2);
+  }
 
   const pcsPerScheme = schemePcsPerBox > 0 ? schemePcsPerBox : toNumber(pcs);
   if (pcsPerScheme <= 0) return "";
@@ -301,7 +351,7 @@ export default function CreateOrderScreen() {
   const [branch, setBranch] = useState<number | null>(null);
   const [poNumber, setPoNumber] = useState("");
   const [comment, setComment] = useState("");
-  const [delivery, setDeliveryDate] = useState(getTodayDate());
+  const [delivery, setDeliveryDate] = useState(getDefaultDeliveryDate());
   const [showPicker, setShowPicker] = useState(false);
 
   // ── Address dropdowns ─────────────────────────────────────────────────────
@@ -447,7 +497,7 @@ export default function CreateOrderScreen() {
       // Header fields
       setPartyName(order.card_code);
       setPoNumber(order.po_number || "");
-      setDeliveryDate(order.delivery_date || getTodayDate());
+      setDeliveryDate(order.delivery_date || getDefaultDeliveryDate());
       setCompany(1);
       if (order.dispatch_from_id) setBranch(Number(order.dispatch_from_id));
 
@@ -756,6 +806,7 @@ export default function CreateOrderScreen() {
               qty: "",
               pcs,
               schemePcsPerBox,
+              selectedSchemeName: comboSchemeName,
             }) || ""
           : "",
         schemePcsPerBox,
@@ -844,6 +895,11 @@ export default function CreateOrderScreen() {
                   qty: row.qty,
                   pcs: pcsPerCase,
                   schemePcsPerBox,
+                  selectedSchemeName: getSelectedSchemeName({
+                    selectedScheme: comboSchemeId,
+                    schemes: row.schemes,
+                    fallbackSchemeName: comboSchemeName,
+                  }),
                 }) || row.schemeQty
               : "",
             ltrs,
@@ -897,6 +953,10 @@ export default function CreateOrderScreen() {
                 qty: r.qty,
                 pcs: r.pcs,
                 schemePcsPerBox: r.schemePcsPerBox,
+                selectedSchemeName: getSelectedSchemeName({
+                  selectedScheme: autoSelectedScheme,
+                  schemes: r.schemes,
+                }),
               }) || r.schemeQty,
           };
         }),
@@ -914,20 +974,20 @@ export default function CreateOrderScreen() {
           isScheme: Boolean(scheme),
           selectedScheme: scheme,
           schemeQty:
-            row.isScheme
+            Boolean(scheme)
               ? calculateRowSchemeQty({
                   qty: row.qty,
                   pcs: row.pcs,
                   schemePcsPerBox: row.schemePcsPerBox,
+                  selectedSchemeName: getSelectedSchemeName({
+                    selectedScheme: scheme,
+                    schemes: row.schemes,
+                  }),
                 }) || row.schemeQty
-              : row.schemeQty,
+              : "",
         };
       }),
     );
-  };
-
-  const handleRowSchemeQtyChange = (rowId: number, value: string) => {
-    updateRow(rowId, { schemeQty: value });
   };
 
   const handleRowQtyChange = (rowId: number, value: string) => {
@@ -952,6 +1012,10 @@ export default function CreateOrderScreen() {
                   qty: value,
                   pcs: r.pcs,
                   schemePcsPerBox: r.schemePcsPerBox,
+                  selectedSchemeName: getSelectedSchemeName({
+                    selectedScheme: r.selectedScheme,
+                    schemes: r.schemes,
+                  }),
                 }) || r.schemeQty
               : r.schemeQty,
           ltrs,
@@ -1138,16 +1202,6 @@ export default function CreateOrderScreen() {
           scheme_name: item.schemeName ? String(item.schemeName) : null,
           is_scheme_visible: Boolean(item.scheme || item.schemeName || item.schemeQty),
           scheme_qty: item.scheme ? Number(item.schemeQty) || 0 : 0,
-          scheme_items: item.scheme
-            ? [
-                {
-                  scheme_id: Number(item.scheme),
-                  scheme_name: item.schemeName ? String(item.schemeName) : null,
-                  qty: Number(item.schemeQty) || 0,
-                  is_scheme_visible: true,
-                },
-              ]
-            : [],
           pcs: Number(item.pcs) || 0,
           boxes: Number(item.boxes) || 0,
           ltrs: Number(item.ltrs) || 0,
@@ -1207,7 +1261,7 @@ export default function CreateOrderScreen() {
     setShipToAddresses([]);
     setSelectedBillTo(null);
     setSelectedShipTo(null);
-    setDeliveryDate(getTodayDate());
+    setDeliveryDate(getDefaultDeliveryDate());
     setPartyProducts([]);
     setCategories([]);
     if (!options?.keepSuccessModal) {
@@ -1513,22 +1567,21 @@ export default function CreateOrderScreen() {
                         disabled={!row.isScheme}
                       />
                     </View>
-                    <View style={styles.schemeQtyField}>
-                      <TextInput
-                        label="Qty"
-                        textColor={COLORS.black}
-                        value={row.schemeQty}
-                        onChangeText={(val) =>
-                          handleRowSchemeQtyChange(row.id, val)
-                        }
-                        mode="outlined"
-                        keyboardType="numeric"
-                        style={styles.input}
-                        outlineColor={COLORS.border}
-                        activeOutlineColor={COLORS.primary}
-                        editable={row.isScheme}
-                      />
-                    </View>
+                    {row.selectedScheme ? (
+                      <View style={styles.schemeQtyField}>
+                        <TextInput
+                          label="Qty"
+                          textColor={COLORS.black}
+                          value={row.schemeQty}
+                          mode="outlined"
+                          keyboardType="numeric"
+                          style={styles.input}
+                          outlineColor={COLORS.border}
+                          activeOutlineColor={COLORS.primary}
+                          editable={false}
+                        />
+                      </View>
+                    ) : null}
                   </View>
                 )}
 

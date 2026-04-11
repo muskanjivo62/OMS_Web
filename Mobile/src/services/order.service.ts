@@ -172,12 +172,6 @@ export interface CreateOrderPayload {
     scheme_name?: string | null;
     is_scheme_visible?: boolean;
     scheme_qty?: number;
-    scheme_items?: {
-      scheme_id: number;
-      scheme_name: string | null;
-      qty: number;
-      is_scheme_visible: boolean;
-    }[];
     pcs: number;
     boxes: number;
     ltrs: number;

@@ -12,6 +12,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   ApproveOr,
   OrderItemList,
@@ -25,8 +26,8 @@ import { useAuth } from "@/src/context/AuthContext";
 type OrderListTab = "pending" | "others";
 
 const OTHER_STATUS_OPTIONS = [
-  { label: "Approved", value: "6" },
-  { label: "Rejected", value: "7" },
+  { label: "Approved", value: "APPROVED" },
+  { label: "Rejected", value: "REJECTED" },
 ];
 
 const PENDING_STATUS_CODES = new Set([
@@ -46,7 +47,7 @@ export default function BillingOrderList() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<OrderListTab>("pending");
-  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("6");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("APPROVED");
   const [actionLoading, setActionLoading] = useState<{
     id: number;
     type: "approve" | "reject";
@@ -62,6 +63,12 @@ export default function BillingOrderList() {
 
   const [pendingModalVisible, setPendingModalVisible] = useState(false);
   const [pendingReason, setPendingReason] = useState("");
+  const [approvalSuccessModal, setApprovalSuccessModal] = useState(false);
+  const [approvalResult, setApprovalResult] = useState<{
+    message: string;
+    orderNumber: string;
+    sapDocNum?: string | number | null;
+  } | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -218,8 +225,12 @@ export default function BillingOrderList() {
               throw new Error(errorMessage);
             }
 
-            Alert.alert("Success", "Order approved");
-
+            setApprovalResult({
+              message: res?.message || "Order approved and pushed to SAP successfully",
+              orderNumber: order.order_number,
+              sapDocNum: res?.data?.DocNum ?? null,
+            });
+            setApprovalSuccessModal(true);
             loadOrders();
           } catch (err) {
             console.log(err);
@@ -401,8 +412,7 @@ export default function BillingOrderList() {
                       pathname: "/orders/orderdetails",
                       params: { orderId: item.id, from: "orders/orderlist" },
                     });
-                  }}
-                >
+                  }}>
                   <Text style={styles.dropdownText}>Order Details</Text>
                 </TouchableOpacity>
 
@@ -600,6 +610,100 @@ export default function BillingOrderList() {
                 ) : (
                   <Text style={styles.confirmRejectText}>Reject Order</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={approvalSuccessModal && !!approvalResult}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          setApprovalSuccessModal(false);
+          setApprovalResult(null);
+        }}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalBox}>
+            <LinearGradient
+              colors={["#1E3A5F", "#2563EB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.successModalHeader}
+            >
+              <View style={styles.successDecorCircle1} />
+              <View style={styles.successDecorCircle2} />
+
+              <View style={styles.successIconBadge}>
+                <Ionicons name="checkmark-circle" size={48} color="#fff" />
+              </View>
+
+              <Text style={styles.successHeaderTitle}>Approved In SAP</Text>
+              <Text style={styles.successHeaderSub}>
+                Sales quotation created successfully
+              </Text>
+            </LinearGradient>
+
+            <View style={styles.successModalBody}>
+              <View style={styles.successInfoBox}>
+                <Ionicons name="receipt-outline" size={14} color={COLORS.textSecondary} />
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.successInfoLabel}>Order Number</Text>
+                  <Text style={styles.successInfoValue}>
+                    {approvalResult?.orderNumber}
+                  </Text>
+                </View>
+              </View>
+
+              {!!approvalResult?.sapDocNum && (
+                <View style={styles.successInfoBox}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={14}
+                    color={COLORS.textSecondary}
+                  />
+                  <View style={{ marginLeft: 8 }}>
+                    <Text style={styles.successInfoLabel}>SALES Quotation No.</Text>
+                    <Text style={styles.successInfoValue}>
+                      {approvalResult.sapDocNum}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              <Text style={styles.successMessage}>{approvalResult?.message}</Text>
+
+              <TouchableOpacity
+                style={styles.successPrimaryBtn}
+                onPress={() => {
+                  setApprovalSuccessModal(false);
+                  setApprovalResult(null);
+                }}
+              >
+                <LinearGradient
+                  colors={["#1E3A5F", "#2563EB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.successPrimaryGradient}
+                >
+                  <Ionicons name="checkmark-done-outline" size={18} color="#fff" />
+                  <Text style={styles.successPrimaryText}>Done</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.successSecondaryBtn}
+                onPress={() => {
+                  setApprovalSuccessModal(false);
+                  setApprovalResult(null);
+                  loadOrders();
+                }}
+              >
+                <Ionicons name="refresh-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.successSecondaryText}>Refresh Orders</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -903,6 +1007,140 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: 12,
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  successModalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    width: "100%",
+    maxWidth: 420,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 40,
+    elevation: 20,
+  },
+  successModalHeader: {
+    paddingTop: 36,
+    paddingBottom: 28,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  successDecorCircle1: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    top: -50,
+    right: -40,
+  },
+  successDecorCircle2: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    bottom: -30,
+    left: -20,
+  },
+  successIconBadge: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  successHeaderTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  successHeaderSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  successModalBody: {
+    padding: 24,
+    alignItems: "center",
+  },
+  successInfoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primaryLighter,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight,
+  },
+  successInfoLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginBottom: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  successInfoValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  successMessage: {
+    fontSize: 15,
+    color: COLORS.text,
+    textAlign: "center",
+    lineHeight: 22,
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  successPrimaryBtn: {
+    width: "100%",
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  successPrimaryGradient: {
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successPrimaryText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    marginLeft: 8,
+  },
+  successSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  successSecondaryText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: "700",
+    marginLeft: 8,
   },
 
   modalBtn: {
