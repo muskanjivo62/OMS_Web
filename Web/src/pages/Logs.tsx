@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { sapService } from "../services/sapService";
 import type {Log} from "../services/sapService";
+import "../styles/Logs.css";
 
 export default function Logs() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchLogs();
@@ -36,7 +39,7 @@ export default function Logs() {
             type="text"
             placeholder="Search by sync type..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             className="lg-search"
           />
           <div className="lg-search-line" />
@@ -47,7 +50,7 @@ export default function Logs() {
         <p className="lg-loading">Loading logs...</p>
       ) : filteredLogs.length > 0 ? (
         <div className="lg-list">
-          {filteredLogs.map((log) => (
+          {filteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((log) => (
             <div className="lg-card" key={log.id}>
               <div className="lg-card-head">
                 <span className="lg-type">{log.sync_type}</span>
@@ -77,163 +80,13 @@ export default function Logs() {
         <p className="lg-empty">No logs found</p>
       )}
 
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-.lg-page {
-  font-family: 'Inter', sans-serif;
-  background: #f8fafc;
-  padding: 20px;
-  min-height: 100vh;
-}
-
-/* Toolbar */
-
-.lg-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.lg-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-}
-
-/* Search */
-
-.lg-search-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 6px 10px;
-  transition: all 0.2s ease;
-}
-
-.lg-search-wrap:focus-within {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
-}
-
-.lg-search {
-  width: 100%;
-  border: none;
-  outline: none;
-  font-size: 14px;
-  background: transparent;
-}
-
-.lg-search-line {
-  display: none;
-}
-
-/* List */
-
-.lg-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* Card */
-
-.lg-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-left: 4px solid #6366f1;
-  border-radius: 8px;
-  padding: 16px;
-  transition: all 0.2s ease;
-}
-
-.lg-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(0,0,0,0.08);
-}
-
-/* Header */
-
-.lg-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.lg-type {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1e293b;
-  text-transform: capitalize;
-}
-
-/* Status badges */
-
-.lg-badge-ok {
-  font-size: 11px;
-  font-weight: 600;
-  color: #16a34a;
-  background: #dcfce7;
-  padding: 3px 8px;
-  border-radius: 5px;
-}
-
-.lg-badge-fail {
-  font-size: 11px;
-  font-weight: 600;
-  color: #dc2626;
-  background: #fee2e2;
-  padding: 3px 8px;
-  border-radius: 5px;
-}
-
-/* Stats */
-
-.lg-card-stats {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 10px;
-}
-
-.lg-stat {
-  display: flex;
-  flex-direction: column;
-}
-
-.lg-stat-num {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.lg-stat-lbl {
-  font-size: 10px;
-  text-transform: uppercase;
-  color: #94a3b8;
-}
-
-/* Footer */
-
-.lg-card-footer {
-  font-size: 12px;
-  color: #64748b;
-  border-top: 1px solid #f1f5f9;
-  padding-top: 6px;
-}
-
-/* States */
-
-.lg-loading,
-.lg-empty {
-  text-align: center;
-  color: #94a3b8;
-  margin-top: 40px;
-}
-      `}</style>
+      {filteredLogs.length > itemsPerPage && (
+        <div className="lg-pagination">
+          <button className="lg-pg-btn" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>← Prev</button>
+          <span className="lg-pg-info">{currentPage} / {Math.ceil(filteredLogs.length / itemsPerPage)}</span>
+          <button className="lg-pg-btn" disabled={currentPage === Math.ceil(filteredLogs.length / itemsPerPage)} onClick={() => setCurrentPage((p) => p + 1)}>Next →</button>
+        </div>
+      )}
     </div>
   );
 }

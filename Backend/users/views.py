@@ -384,10 +384,17 @@ class LoginView(APIView):
     
 class UserListForAssignmentView(APIView):
     permission_classes = [AllowAny]
-    
+
+   
     def get(self, request):
-        users = User.objects.filter(is_active=True,role_id='2').values('id', 'username', 'name', 'email', 'role')
-        return Response({'success': True, 'data': list(users)})
+        users = (
+            User.objects.filter(is_active=True)
+            .select_related('role', 'company', 'main_group', 'state')
+            .prefetch_related('main_groups', 'user_states__state')
+            .order_by('id')
+        )
+        data = UserSerializer(users, many=True).data
+        return Response({'success': True, 'data': data})
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]

@@ -1,18 +1,88 @@
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ordersService } from "../services/ordersService";
 import { userService } from "../services/userService";
-import type { Product, PartyProduct, RowType } from "../services/ordersService";
+import { getCurrentUser } from "../services/authService";
+import type { Order, Product, PartyProduct, RowType, SchemeProduct } from "../services/ordersService";
+import "../styles/Add_Sales.css";
+
+type SalesRow = RowType & {
+  confirmed: boolean;
+  schemeLtrs?: string;
+  schemeItemCode?: string;
+};
+
+const createEmptyRow = (): SalesRow => ({
+  category: "",
+  brand: "",
+  variety: "",
+  type: "",
+  item: "",
+  isScheme: false,
+  scheme: "",
+  schemeQty: "",
+  schemeLtrs: "",
+  pcs: "",
+  qty: "",
+  ltrs: "",
+  boxes: "",
+  basicPrice: "",
+  marketPrice: "",
+  tax: "",
+  amount: "",
+  confirmed: false,
+});
+
+const getUniqueSchemes = (schemes: SchemeProduct[]) => {
+  const seen = new Set<string>();
+
+  return schemes.filter((scheme) => {
+    const normalizedName = (scheme.scheme_name || "").trim().toLowerCase();
+
+    if (!normalizedName || seen.has(normalizedName)) {
+      return false;
+    }
+
+    seen.add(normalizedName);
+    return true;
+  });
+};
+
+type EditOrderLocationState = {
+  editOrderId?: number;
+  returnTo?: string;
+};
 
 export default function Add_Sales() {
-   
+  const location = useLocation();
+  const navigate = useNavigate();
+  const locationState = (location.state as EditOrderLocationState | null) ?? null;
+  const editOrderId = typeof locationState?.editOrderId === "number" ? locationState.editOrderId : null;
+  const returnTo = locationState?.returnTo || "/Billing_orders";
+  const isEditMode = editOrderId !== null;
   const [parties, setParties] = useState<any[]>([]);
-  const [dispatch, setDispatch] = useState<any[]>([]); 
-  const [billAddress, setBillAddress] = useState<any[]>([]);
-  const [shipAddress, setShipAddress] = useState<any[]>([]);
-  const [category, setCategory] = useState<string[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [company, setCompany] = useState<any[]>([]);
-  const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
+const [partySearch, setPartySearch] = useState("");
+const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
+const [billSearch, setBillSearch] = useState("");
+const [billDropdownOpen, setBillDropdownOpen] = useState(false);
+const [shipSearch, setShipSearch] = useState("");
+const [shipDropdownOpen, setShipDropdownOpen] = useState(false);
+const [branch, setBranch] = useState<any[]>([])
+const [billAddress, setBillAddress] = useState<any[]>([]);
+const [shipAddress, setShipAddress] = useState<any[]>([]);
+const [category, setCategory] = useState<string[]>([]);
+const [products, setProducts] = useState<Product[]>([]);
+const [company, setCompany] = useState<any[]>([]);
+const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
+const [schemeOptions, setSchemeOptions] = useState<Record<number, SchemeProduct[]>>({});
+const [userStateId, setUserStateId] = useState<number | null>(null);
+const [hasLoadedUserProfile, setHasLoadedUserProfile] = useState(false);
+const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+const [isSaving, setIsSaving] = useState(false);
+const [isLoadingEditOrder, setIsLoadingEditOrder] = useState(false);
+const partyDropdownRef = useRef<HTMLDivElement>(null);
+const billDropdownRef = useRef<HTMLDivElement>(null);
+const shipDropdownRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     parties: "",
@@ -22,33 +92,49 @@ export default function Add_Sales() {
     shipAddress: "",
     Deliverydate: "",
     company: "",
-    po_number: "",
   });
 
-  const [rows, setRows] = useState<RowType[]>([
-  {
-    category: "",
-    brand: "",
-    variety: "",
-    type: "",
-    item: "",
-    pcs: "",
-    qty: "",
-    ltrs: "",
-    boxes: "",
-    basicPrice: "",
-    marketPrice: "",
-    tax: "",
-    amount: "",
-  },
-  ]);
+ const [rows, setRows] = useState<SalesRow[]>([createEmptyRow()]);
 
+  // Use Effects
   useEffect(() => {
     fetchPartyName();
-    fetchDispatchFrom();
+    fetchBranch ();
     fetchProducts();
     fetchCompany();
+    fetchCurrentUserProfile();
+    
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        partyDropdownRef.current &&
+        !partyDropdownRef.current.contains(event.target as Node)
+      ) {
+        setPartyDropdownOpen(false);
+      }
+      if (
+        billDropdownRef.current &&
+        !billDropdownRef.current.contains(event.target as Node)
+      ) {
+        setBillDropdownOpen(false);
+      }
+      if (
+        shipDropdownRef.current &&
+        !shipDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShipDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Fetch Functions
 
   const fetchCompany = async () => {
     try {
@@ -69,47 +155,203 @@ export default function Add_Sales() {
     }
   };
 
-  const fetchDispatchFrom = async () => {
+  const fetchBranch = async () => {
     try {
-      let data = await ordersService.getDispatchFrom();
-      setDispatch(data);
+      let data = await ordersService.getBranches();
+      setBranch(data);
     } catch (error) {
       console.log("Error fetching dispatch data:", error);
     }
-  };
+  }
 
   const fetchPartyAddresses = async (card_code: string) => {
     try {
       let data = await ordersService.getPartyAdd(card_code);
       setBillAddress(data.bill_to);
       setShipAddress(data.ship_to);
+      return data;
     } catch (error) {
       console.log("Error fetching addresses:", error);
+      return null;
     }
   };
 
   const fetchPartyCategories = async (card_code:string) => {
     try {
-      let products = await ordersService.getPartyProduct(card_code);
-      setPartyProducts(products);
-      const categories = [...new Set(products.map((p: PartyProduct) => p.category))] as string[];
+      let partyProductsData = await ordersService.getPartyProduct(card_code);
+      setPartyProducts(partyProductsData);
+      const categories = [...new Set(partyProductsData.map((p: PartyProduct) => p.category))] as string[];
       setCategory(categories);
+      return partyProductsData;
     } catch (error) {
       console.log("Error fetching categories:", error);
+      return [];
     }
   };
-    
+
   const fetchProducts = async () => {
     let data = await ordersService.getProducts();
     setProducts(data);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const fetchCurrentUserProfile = async () => {
+    try {
+      const data = await getCurrentUser();
+      const primaryStateId = data?.state?.id ?? data?.states?.[0]?.id ?? null;
+      setUserStateId(primaryStateId);
+    } catch (error) {
+      console.log("Error fetching current user profile:", error);
+    } finally {
+      setHasLoadedUserProfile(true);
+    }
+  };
+
+  const getProductType = (itemName: string) => {
+    const match = itemName.match(/(\d+\.?\d*)\s*(LTR|ML|KG|GM|GMS|L)/i);
+    return match ? `${match[1]} ${match[2].toUpperCase()}` : "Others";
+  };
+
+  const mapOrderToRows = (order: Order): SalesRow[] => {
+    const orderItems = Array.isArray(order.items) ? order.items : [];
+
+    return orderItems.length > 0
+      ? orderItems.map((item) => {
+          const schemeLtrs = Number((item as any).scheme_ltrs || 0);
+          const isSchemeVisible = Boolean(item.scheme_id || item.scheme_name || (item as any).is_scheme_visible);
+
+          return {
+            category: item.category || "",
+            brand: item.brand || "",
+            variety: item.variety || "",
+            type: item.item_type || getProductType(item.item_name || ""),
+            item: item.item_name || "",
+            isScheme: isSchemeVisible,
+            scheme: item.scheme_id ? String(item.scheme_id) : "",
+            schemeQty: isSchemeVisible ? String(item.scheme_qty ?? "") : "",
+            schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
+            pcs: item.pcs ? String(item.pcs) : "",
+            qty: item.qty ? String(item.qty) : "",
+            ltrs: item.ltrs ? String(item.ltrs) : "",
+            boxes: item.boxes ? String(item.boxes) : "",
+            basicPrice: item.basic_price ? String(item.basic_price) : "",
+            marketPrice: item.market_price ? String(item.market_price) : "",
+            tax: item.tax_rate ? String(item.tax_rate) : "",
+            amount: item.total ? String(item.total) : "",
+            confirmed: false,
+          };
+        })
+      : [createEmptyRow()];
+  };
+
+  useEffect(() => {
+    if (!isEditMode || !editOrderId || !hasLoadedUserProfile) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadEditOrder = async () => {
+      setIsLoadingEditOrder(true);
+
+      try {
+        const order = await ordersService.getOrderDetails(editOrderId);
+        if (isCancelled) return;
+
+        await Promise.all([
+          fetchPartyAddresses(order.card_code),
+          fetchPartyCategories(order.card_code),
+        ]);
+        if (isCancelled) return;
+
+        setFormData({
+          parties: order.card_code || "",
+          dispatch: order.dispatch_from_id ? String(order.dispatch_from_id) : "",
+          date: order.created_at ? String(order.created_at).split("T")[0] : new Date().toISOString().split("T")[0],
+          billAddress: order.bill_to_id ? String(order.bill_to_id) : "",
+          shipAddress: order.ship_to_id ? String(order.ship_to_id) : "",
+          Deliverydate: order.delivery_date || "",
+          company: order.company ? String(order.company) : "",
+        });
+
+        const mappedRows = mapOrderToRows(order);
+        setRows(mappedRows);
+
+        const hasSchemeRows = mappedRows.some((row) => row.isScheme);
+        if (hasSchemeRows) {
+          const schemes = await ordersService.getSchemeProducts(undefined, userStateId ?? undefined);
+          if (isCancelled) return;
+
+          const uniqueSchemes = getUniqueSchemes(schemes);
+          const nextSchemeOptions: Record<number, SchemeProduct[]> = {};
+          mappedRows.forEach((row, index) => {
+            if (row.isScheme) {
+              nextSchemeOptions[index] = uniqueSchemes;
+            }
+          });
+          setSchemeOptions(nextSchemeOptions);
+        } else {
+          setSchemeOptions({});
+        }
+      } catch (error) {
+        console.log("Error loading order for edit:", error);
+        alert("Unable to load this order for editing.");
+        navigate(returnTo);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingEditOrder(false);
+        }
+      }
+    };
+
+    void loadEditOrder();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [editOrderId, hasLoadedUserProfile, isEditMode, navigate, returnTo, userStateId]);
+
+  const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
+    if (!shouldFetch) {
+      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+      return;
+    }
+
+    try {
+      const schemes = await ordersService.getSchemeProducts(undefined, userStateId ?? undefined);
+      setSchemeOptions((prev) => ({ ...prev, [index]: getUniqueSchemes(schemes) }));
+    } catch (error) {
+      console.log("Error fetching schemes:", error);
+      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+    }
+  };
+
+  // -------------------------------
+  // ----------Handle fxns----------
+  // --------------------------------
+
+  const validateBeforeSave = () => {
+  const confirmedRows = rows.filter((row) => row.confirmed);
+
+  if (confirmedRows.length === 0) {
+    alert("Please confirm at least one item before submitting the order.");
+    return false;
+  }
+
+  if (rows.some((row) => !row.confirmed && row.item)) {
+    alert("Please confirm the current item before submitting the order.");
+    return false;
+  }
+  
+  return true;
+};
+
+  const submitOrder = async () => {
+  const confirmedRows = rows.filter((row) => row.confirmed);
 
   const selectedParty = parties.find((p) => p.value === formData.parties);
 
   const payload = {
+    ...(editOrderId ? { order_id: editOrderId } : {}),
     card_code: formData.parties,
     card_name: selectedParty?.label || "",
     bill_to_id: Number(formData.billAddress),
@@ -122,17 +364,16 @@ export default function Add_Sales() {
         ?.address_name || "",
     dispatch_from_id: Number(formData.dispatch),
     dispatch_from_name:
-      dispatch.find((d) => d.id === Number(formData.dispatch))?.name || "",
+      branch.find((d) => d.bpl_id === Number(formData.dispatch))?.bpl_name || "",
 
     delivery_date: formData.Deliverydate,
     company: Number(formData.company),
-    po_number: formData.po_number,
 
     total_amount: totalAmount,
     tax_amount: taxAmount,
     grand_total: grandTotal,
 
-    items: rows.map((row) => ({
+    items: confirmedRows.map((row) => ({
       item_code:
         partyProducts.find(
           (p) =>
@@ -157,26 +398,56 @@ export default function Add_Sales() {
       market_price: Number(row.marketPrice),
       tax_rate: Number(row.tax),
       total: Number(row.amount || 0),
+      scheme_id: row.isScheme && row.scheme ? Number(row.scheme) : undefined,
+      scheme_qty: row.isScheme ? Number(row.schemeQty || 0) : 0,
+      scheme_ltrs: row.isScheme ? Number(row.schemeLtrs || 0) : 0,
+      is_scheme: row.isScheme,
+      total_ltrs:  Number(row.ltrs) + Number(row.schemeLtrs || 0) 
     })),
   };
 
   try {
+    setIsSaving(true);
     console.log("Submitting Payload:", payload);
     const data = await ordersService.createOrder(payload);
 
     console.log("API Response:", data);
 
-    alert("Order Added Successfully ✅");
+    alert(editOrderId ? "Order updated and sent for approval ✅" : "Order Added Successfully ✅");
+    setShowSaveConfirm(false);
+    if (editOrderId) {
+      navigate(returnTo);
+      return;
+    }
     handleClearForm();
 
   } catch (error) {
     console.error(error);
-    alert("Error creating order ❌");
+   
+console.error("Payload:", JSON.stringify(payload, null, 2));
+
+    alert(editOrderId ? "Error updating order ❌" : "Error creating order ❌");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+  const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (!validateBeforeSave()) {
+    return;
   }
 
+  setShowSaveConfirm(true);
 };
 
   const handleClearForm = () => {
+    if (isEditMode) {
+      navigate(returnTo);
+      return;
+    }
+
     setFormData({
       parties: "",
       dispatch: "",
@@ -185,51 +456,40 @@ export default function Add_Sales() {
       shipAddress: "",
       Deliverydate: "",
       company: "",
-      po_number: ""
   
     });
 
-    setRows([
-      {
-        category: "",
-        brand: "",
-        variety: "",
-        type: "",
-        item: "",
-        pcs: "",
-        qty: "",
-        ltrs: "",
-        boxes: "",
-        basicPrice: "",
-        marketPrice: "",
-        tax: "",
-        amount: "",
-      },
-    ]);
+    setRows([createEmptyRow()]);
+    setSchemeOptions({});
+    setShowSaveConfirm(false);
   };
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        category: "",
-        brand: "",
-        variety: "",
-        type: "",
-        item: "",
-        pcs: "",
-        boxes: "",
-        qty: "",
-        ltrs: "",
-        basicPrice: "",
-        marketPrice: "",
-        tax: "",
-        amount: "",
-      },
-    ]);
+    if (rows.some((row) => !row.confirmed)) {
+      return;
+    }
+    setRows((prev) => [...prev, createEmptyRow()]);
   };
 
-  const handleRowChange = (
+const handleRowSchemeToggle = (index: number, isScheme: boolean) => {
+  setRows((prev) =>
+    prev.map((row, rowIndex) => {
+      if (rowIndex === index) {
+        return {
+          ...row,
+          confirmed: false,
+          isScheme: isScheme,
+          scheme: isScheme ? row.scheme : "",
+          schemeQty: "",
+          schemeLtrs: "",
+        };
+      }
+      return row;
+    })
+  );
+};
+
+const handleRowChange = (
   index: number,
   e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
 ) => {
@@ -237,6 +497,7 @@ export default function Add_Sales() {
 
   let updatedRows = [...rows];
   let row = { ...updatedRows[index] };
+  row.confirmed = false;
 
   // assign value (RowType is all strings)
   (row as any)[name] = value;
@@ -248,6 +509,10 @@ export default function Add_Sales() {
     row.boxes = "";
     row.marketPrice = "";
     row.amount = "";
+    row.isScheme = false;
+    row.scheme = "";
+    row.schemeQty = "";
+    row.schemeLtrs = "";
 
     const partyProduct = partyProducts.find(
       (p) =>
@@ -255,7 +520,8 @@ export default function Add_Sales() {
         p.category === row.category &&
         (p.brand || "") === (row.brand || "") &&
         (p.variety || "") === (row.variety || "")
-    );
+    ) || partyProducts.find((p) => p.item_name === value && p.category === row.category)
+      || partyProducts.find((p) => p.item_name === value);
 
     if (partyProduct) {
       const match = partyProduct.item_name.match(
@@ -265,38 +531,138 @@ export default function Add_Sales() {
       row.pcs = String(partyProduct.sal_factor2 ?? "");
       row.tax = String(partyProduct.tax_rate ?? "");
       row.basicPrice = String(partyProduct.basic_rate ?? "");
+      void fetchSchemesForRow(index, true);
+    } else {
+      void fetchSchemesForRow(index, false);
     }
+  }
+
+  if (name === "category" || name === "brand" || name === "variety" || name === "type") {
+    row.item = "";
+    row.isScheme = false;
+    row.scheme = "";
+    row.schemeQty = "";
+    row.schemeLtrs = "";
+    row.pcs = "";
+    row.qty = "";
+    row.ltrs = "";
+    row.boxes = "";
+    row.basicPrice = "";
+    row.marketPrice = "";
+    row.tax = "";
+    row.amount = "";
+    setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
   }
 
   //  CALCULATIONS
-  if (name === "qty" || name === "marketPrice") {
-    const qty = Number(row.qty) || 0;
+  //  (boxes → qty)
+if (name === "boxes" || name === "marketPrice") {
+  const boxes = Number(row.boxes) || 0;
+
+  const product =
+    partyProducts.find((p) => p.item_name === row.item) ||
+    products.find((p) => p.item_name === row.item);
+
+  if (product) {
+    const factor = Number(product.sal_factor2) || 1;
+
+    // ✅ qty from boxes
+    const qty = boxes * factor;
+    row.qty = String(qty);
+
+    // ✅ liters
+    row.ltrs = String(Number(product.sal_pack_unit) * qty);
+
+    // ✅ amount
     const basic = Number(row.basicPrice) || 0;
     const market = Number(row.marketPrice) || 0;
-
     const price = market > 0 ? market : basic;
 
     row.amount = (price * qty).toFixed(2);
-
-    const product =
-      partyProducts.find((p) => (p.item_name || "") === (row.item || "")) ||
-      products.find((p) => p.item_name === row.item);
-
-    if (product) {
-      const pcsPerCase = Number(product.sal_factor2) || 0;
-      const ltrsPerPiece = Number(product.sal_pack_unit) || 0;
-      row.ltrs = String(ltrsPerPiece * pcsPerCase * qty);
-      row.boxes = String(qty * pcsPerCase);
-    }
   }
+}
+if (row.isScheme && (name === "qty" || name === "scheme")) {
 
+  const schemes = schemeOptions[index] || [];
+
+  console.log("Schemes:", schemes);
+
+  const schemeObj = schemes.find(
+    (s) => String(s.scheme_id) === String(row.scheme)
+  );
+
+  console.log("Selected Scheme:", row.scheme);
+  console.log("SchemeObj:", schemeObj);
+
+  if (schemeObj) {
+    const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
+    console.log("match", match);
+    const multiplier = match ? parseFloat(match[1]) : 1;
+
+    const qty = Number(row.qty) || 0;
+   const schemeName = (schemeObj.scheme_name || "").toLowerCase();
+
+const calculatedQty = schemeName.includes("box")
+  ? Number(row.boxes) * multiplier
+  : qty * multiplier;
+    console.log("Calculated Scheme Qty:", calculatedQty);
+
+    row.schemeQty = String(calculatedQty);
+
+    const sProduct = schemeObj.sal_pack_unit ? { sal_pack_unit: schemeObj.sal_pack_unit } : null;
+
+    console.log("Scheme Product:", sProduct);
+
+    const sPackUnit = sProduct ? Number(sProduct.sal_pack_unit) : 0;
+
+    row.schemeLtrs = String(sPackUnit * calculatedQty);
+
+    console.log("✅ FINAL schemeLtrs:", row.schemeLtrs);
+
+  } else {
+    row.schemeQty = "";
+    row.schemeLtrs = "";
+  }
+}
   updatedRows[index] = row;
   setRows(updatedRows);
-  };
+};
 
   const handleDeleteRow = (index: number) => {
     const updatedRows = rows.filter((_, i) => i !== index);
-    setRows(updatedRows);
+    setRows(updatedRows.length > 0 ? updatedRows : [createEmptyRow()]);
+    setSchemeOptions((prev) => {
+      const next: Record<number, SchemeProduct[]> = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        const currentIndex = Number(key);
+        if (currentIndex < index) next[currentIndex] = value;
+        if (currentIndex > index) next[currentIndex - 1] = value;
+      });
+      return next;
+    });
+  };
+
+  const handlePartySelect = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      parties: value,
+      billAddress: "",
+      shipAddress: "",
+    }));
+    setPartySearch("");
+    setPartyDropdownOpen(false);
+    setBillSearch("");
+    setBillDropdownOpen(false);
+    setShipSearch("");
+    setShipDropdownOpen(false);
+    setBillAddress([]);
+    setShipAddress([]);
+    setCategory([]);
+    setPartyProducts([]);
+    setRows([createEmptyRow()]);
+    setSchemeOptions({});
+    fetchPartyAddresses(value);
+    fetchPartyCategories(value);
   };
 
   const handleChange = (e: React.ChangeEvent<any>) => {
@@ -308,17 +674,61 @@ export default function Add_Sales() {
     }));
 
     if (name === "parties") {
-      fetchPartyAddresses(value);
-      fetchPartyCategories(value);
+      handlePartySelect(value);
     }
   };
 
-  const totalAmount = rows.reduce((sum, row) => {
+  const handleBillAddressSelect = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      billAddress: value,
+    }));
+    setBillSearch("");
+    setBillDropdownOpen(false);
+  };
+
+  const handleShipAddressSelect = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      shipAddress: value,
+    }));
+    setShipSearch("");
+    setShipDropdownOpen(false);
+  };
+
+  const isRowValid = (row: SalesRow) =>
+      row.category &&
+      row.brand &&
+      row.variety &&
+      row.type &&
+      row.item &&
+      Number(row.qty) > 0 &&
+      Number(row.amount) > 0;
+
+  const handleConfirmRow = (index: number) => {
+    const row = rows[index];
+
+    if (!isRowValid(row)) {
+      alert("Please complete this item before confirming it.");
+      return;
+    }
+
+    setRows((prev) =>
+      prev.map((item, rowIndex) =>
+        rowIndex === index ? { ...item, confirmed: true } : item,
+      ),
+    );
+  };
+
+  const confirmedRows = rows.filter((row) => row.confirmed);
+  const canAddMoreItems = rows.length > 0 && rows.every((row) => row.confirmed);
+
+  const totalAmount = confirmedRows.reduce((sum, row) => {
     const amount = Number(row.amount);
     return sum + (isNaN(amount) ? 0 : amount);
   }, 0);
 
-  const taxAmount = rows.reduce((sum, row) => {
+  const taxAmount = confirmedRows.reduce((sum, row) => {
     const amount = Number(row.amount);
     const taxRate = Number(row.tax);
     return sum + (isNaN(amount) ? 0 : (amount * taxRate) / 100);
@@ -326,40 +736,107 @@ export default function Add_Sales() {
 
   const grandTotal = totalAmount + taxAmount;
 
-  const getProductType = (itemName: string) => {
-    const match = itemName.match(/(\d+\.?\d*)\s*(LTR|ML|KG|GM|GMS|L)/i);
-    return match ? `${match[1]} ${match[2].toUpperCase()}` : "Others";
-  };
-  
+  const filteredParties = parties.filter((party) => {
+    const search = partySearch.trim().toLowerCase();
+    if (!search) return true;
+    return (
+      String(party.label || "").toLowerCase().includes(search) ||
+      String(party.value || "").toLowerCase().includes(search)
+    );
+  });
+  const filteredBillAddresses = billAddress.filter((address) => {
+    const search = billSearch.trim().toLowerCase();
+    const label = String(address.address_name || address.full_address || address.address_id || "");
+    if (!search) return true;
+    return label.toLowerCase().includes(search);
+  });
+  const filteredShipAddresses = shipAddress.filter((address) => {
+    const search = shipSearch.trim().toLowerCase();
+    const label = String(address.address_name || address.full_address || address.address_id || "");
+    if (!search) return true;
+    return label.toLowerCase().includes(search);
+  });
+  const selectedPartyLabel =
+    parties.find((party) => party.value === formData.parties)?.label || "";
+  const selectedBillAddress =
+    billAddress.find((address) => String(address.id) === formData.billAddress);
+  const selectedShipAddress =
+    shipAddress.find((address) => String(address.id) === formData.shipAddress);
+  const selectedBillAddressLabel =
+    selectedBillAddress?.address_name ||
+    selectedBillAddress?.full_address ||
+    selectedBillAddress?.address_id ||
+    "";
+  const selectedShipAddressLabel =
+    selectedShipAddress?.address_name ||
+    selectedShipAddress?.full_address ||
+    selectedShipAddress?.address_id ||
+    "";
   return (
-    <div className="sl-page">
-      <div className="sl-header">
-        <h1 className="sl-title">Add Sales Order</h1>
+    <div className="sl-page app-page">
+      <div className="sl-header app-page-head">
+        <div>
+          <h1 className="sl-title app-page-title">{isEditMode ? "Edit Sales Order" : "Add Sales Order"}</h1>
+        </div>
       </div>
+
+      {isEditMode && isLoadingEditOrder && (
+        <div className="sl-section-label">Loading existing order details...</div>
+      )}
 
       <form className="sl-form" onSubmit={handleSubmit}>
         {/* Party Name */}
         <div className="sl-section-label">Order Details</div>
-        <div className="sl-grid">
+        <div className="sl-grid sl-order-grid">
           <div className="sl-field">
             <label className="sl-label">Party Name</label>
-            <div className="sl-input-wrap">
-              <select
-                value={formData.parties}
-                name="parties"
-                onChange={handleChange}
-                required
+            <div className={`sl-party-dropdown${partyDropdownOpen ? " open" : ""}`} ref={partyDropdownRef}>
+              <button
+                type="button"
+                className="sl-party-trigger"
+                onClick={() => setPartyDropdownOpen((prev) => !prev)}
               >
-                <option>--select--</option>
-                {parties.length > 0
-                  ? parties.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))
-                  : null}
-              </select>
-              <div className="sl-focus-line" />
+                <span>{selectedPartyLabel || "--select--"}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    stroke="#64748b"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {partyDropdownOpen && (
+                <div className="sl-party-menu">
+                  <div className="sl-party-search-wrap">
+                    <input
+                      type="text"
+                      className="sl-party-search"
+                      placeholder="Search party..."
+                      value={partySearch}
+                      onChange={(e) => setPartySearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="sl-party-options">
+                    {filteredParties.length > 0 ? (
+                      filteredParties.map((party) => (
+                        <button
+                          type="button"
+                          key={party.value}
+                          className="sl-party-option"
+                          onClick={() => handlePartySelect(party.value)}
+                        >
+                          <span className="sl-party-option-label">{party.label}</span>
+                          <span className="sl-party-option-code">{party.value}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="sl-party-empty">No parties found</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -373,11 +850,11 @@ export default function Add_Sales() {
                 onChange={handleChange}
                 required
               >
-                <option>--select--</option>
-                {dispatch.length > 0
-                  ? dispatch.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
+                <option value="">--select--</option>
+                {branch.length > 0
+                  ? branch.map((d) => (
+                      <option key={d.bpl_id} value={d.bpl_id}>
+                        {d.bpl_name}
                       </option>
                     ))
                   : null}
@@ -398,47 +875,113 @@ export default function Add_Sales() {
           {/* Bill To */}
           <div className="sl-field">
             <label className="sl-label">Bill To Address</label>
-            <div className="sl-input-wrap">
-              <select
-                value={formData.billAddress}
-                name="billAddress"
-                onChange={handleChange}
-                required
+            <div className={`sl-party-dropdown${billDropdownOpen ? " open" : ""}`} ref={billDropdownRef}>
+              <button
+                type="button"
+                className="sl-party-trigger"
+                onClick={() => setBillDropdownOpen((prev) => !prev)}
+                disabled={billAddress.length === 0}
               >
-                <option>--select--</option>
-                {billAddress.length > 0
-                  ? billAddress.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.address_name || b.full_address || b.address_id}
-                      </option>
-                    ))
-                  : null}
-              </select>
-              <div className="sl-focus-line" />
+                <span>{selectedBillAddressLabel || "--select--"}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    stroke="#64748b"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {billDropdownOpen && (
+                <div className="sl-party-menu">
+                  <div className="sl-party-search-wrap">
+                    <input
+                      type="text"
+                      className="sl-party-search"
+                      placeholder="Search bill to..."
+                      value={billSearch}
+                      onChange={(e) => setBillSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="sl-party-options">
+                    {filteredBillAddresses.length > 0 ? (
+                      filteredBillAddresses.map((b) => (
+                        <button
+                          type="button"
+                          key={b.id}
+                          className="sl-party-option"
+                          onClick={() => handleBillAddressSelect(String(b.id))}
+                        >
+                          <span className="sl-party-option-label">
+                            {b.address_name || b.full_address || b.address_id}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="sl-party-empty">No addresses found</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+            <input type="hidden" name="billAddress" value={formData.billAddress} required />
           </div>
 
           {/* Ship To */}
           <div className="sl-field">
             <label className="sl-label">Ship To Address</label>
-            <div className="sl-input-wrap">
-              <select
-                value={formData.shipAddress}
-                name="shipAddress"
-                onChange={handleChange}
-                required
+            <div className={`sl-party-dropdown${shipDropdownOpen ? " open" : ""}`} ref={shipDropdownRef}>
+              <button
+                type="button"
+                className="sl-party-trigger"
+                onClick={() => setShipDropdownOpen((prev) => !prev)}
+                disabled={shipAddress.length === 0}
               >
-                <option>--select--</option>
-                {shipAddress.length > 0
-                  ? shipAddress.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.address_name || s.full_address || s.address_id}
-                      </option>
-                    ))
-                  : null}
-              </select>
-              <div className="sl-focus-line" />
+                <span>{selectedShipAddressLabel || "--select--"}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    stroke="#64748b"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {shipDropdownOpen && (
+                <div className="sl-party-menu">
+                  <div className="sl-party-search-wrap">
+                    <input
+                      type="text"
+                      className="sl-party-search"
+                      placeholder="Search ship to..."
+                      value={shipSearch}
+                      onChange={(e) => setShipSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="sl-party-options">
+                    {filteredShipAddresses.length > 0 ? (
+                      filteredShipAddresses.map((s) => (
+                        <button
+                          type="button"
+                          key={s.id}
+                          className="sl-party-option"
+                          onClick={() => handleShipAddressSelect(String(s.id))}
+                        >
+                          <span className="sl-party-option-label">
+                            {s.address_name || s.full_address || s.address_id}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="sl-party-empty">No addresses found</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+            <input type="hidden" name="shipAddress" value={formData.shipAddress} required />
           </div>
 
           {/* Delivery Date */}
@@ -450,6 +993,7 @@ export default function Add_Sales() {
                 name="Deliverydate"
                 value={formData.Deliverydate}
                 onChange={handleChange}
+                required
               />
               <div className="sl-focus-line" />
             </div>
@@ -467,9 +1011,9 @@ export default function Add_Sales() {
                 <th>Type</th>
                 <th>Item</th>
                 <th>Pcs</th>
+                 <th>Boxes</th>
                 <th>Qty</th>
                 <th>Ltrs</th>
-                <th>Boxes</th>
                 <th>Basic Price</th>
                 <th>Market Price</th>
                 <th>Tax %</th>
@@ -480,233 +1024,305 @@ export default function Add_Sales() {
 
             <tbody>
               {rows.map((row, index) => (
-                <tr key={index}>
-                  {/* Category */}
-                  <td>
-                    <select
-                      value={row.category}
-                      name="category"
-                      onChange={(e) => handleRowChange(index, e)}
-                    >
-                      <option value="">--select--</option>
-                      {category.map((c, i) => (
-                        <option key={i} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  {/* Brand */}
-                  <td>
-                    <select
-                      value={row.brand}
-                      name="brand"
-                      onChange={(e) => handleRowChange(index, e)}
-                    >
-                      <option value="">--select--</option>
-
-                      {[
-                        ...new Set(
-                          partyProducts
-                            .filter((p) => p.category === row.category)
-                            .map((p) => p.brand),
-                        ),
-                      ].map((b, i) => (
-                        <option key={i} value={b ?? ""}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  {/* Variety */}
-                  <td>
-                    <select
-                      value={row.variety}
-                      name="variety"
-                      onChange={(e) => handleRowChange(index, e)}
-                    >
-                      <option value="">--select--</option>
-
-                      {[
-                        ...new Set(
-                          partyProducts
-                            .filter(
-                              (p) =>
-                                p.category === row.category &&
-                                (p.brand || "") === (row.brand || ""),
-                            )
-                            .map((p) => p.variety),
-                        ),
-                      ].map((v, i) => (
-                        <option key={i} value={v ?? ""}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  {/* Type */}
-                  <td>
-                    <select
-                      value={row.type}
-                      name="type"
-                      onChange={(e) => handleRowChange(index, e)}
-                    >
-                      <option value="">--select--</option>
-
-                      {[
-                        ...new Set(
-                          partyProducts
-                            .filter(
-                              (p) =>
-                                p.category === row.category &&
-                                (p.brand || "") === (row.brand || "") &&
-                                (p.variety || "") === (row.variety || ""),
-                            )
-                            .map((p) => {
-                              const match = p.item_name.match(
-                                /(\d+\.?\d*)\s*(LTR|ML|KG|GM|GMS|L)/i,
-                              );
-
-                              return match
-                                ? `${match[1]} ${match[2].toUpperCase()}`
-                                : "Others";
-                            }),
-                        ),
-                      ]
-                        // Sort types properly
-                        .sort((a, b) => {
-                          if (a === "Others") return 1; // Others always last
-                          if (b === "Others") return -1;
-
-                          const numA = parseFloat(a);
-                          const numB = parseFloat(b);
-
-                          return numA - numB;
-                        })
-                        .map((t, i) => (
-                          <option key={i} value={t}>
-                            {t}
+                <Fragment key={index}>
+                  <tr key={`main-${index}`}>
+                    <td>
+                      <select
+                        value={row.category}
+                        name="category"
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                        required
+                      >
+                        <option value="">--select--</option>
+                        {category.map((c, i) => (
+                          <option key={i} value={c}>
+                            {c}
                           </option>
                         ))}
-                    </select>
-                  </td>
+                      </select>
+                    </td>
 
-                  {/* Item */}
-                  <td>
-                    <select
-                      value={row.item}
-                      name="item"
-                      onChange={(e) => handleRowChange(index, e)}
-                    >
-                      <option value="">--select--</option>
-
-                      {partyProducts
-                        .filter(
-                          (p) =>
-                            p.category === row.category &&
-                            (p.brand || "") === (row.brand || "") &&
-                            (p.variety || "") === (row.variety || "") &&
-                            (row.type
-                              ? getProductType(p.item_name) === row.type
-                              : true),
-                        )
-                        .map((p, i) => (
-                          <option key={i} value={p.item_name}>
-                            {p.item_name}
+                    <td>
+                      <select
+                        value={row.brand}
+                        name="brand"
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                        required
+                      >
+                        <option value="">--select--</option>
+                        {[
+                          ...new Set(
+                            partyProducts
+                              .filter((p) => p.category === row.category)
+                              .map((p) => p.brand),
+                          ),
+                        ].map((b, i) => (
+                          <option key={i} value={b ?? ""}>
+                            {b}
                           </option>
                         ))}
-                    </select>
-                  </td>
+                      </select>
+                    </td>
 
-                  {/* PCS */}
-                  <td>
-                    <input
-                      type="number"
-                      value={row.pcs ? Number(row.pcs).toFixed(1) : ""}
-                      readOnly
-                    />
-                  </td>
+                    <td>
+                      <select
+                        value={row.variety}
+                        name="variety"
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                        required
+                      >
+                        <option value="">--select--</option>
+                        {[
+                          ...new Set(
+                            partyProducts
+                              .filter(
+                                (p) =>
+                                  p.category === row.category &&
+                                  (p.brand || "") === (row.brand || ""),
+                              )
+                              .map((p) => p.variety),
+                          ),
+                        ].map((v, i) => (
+                          <option key={i} value={v ?? ""}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
 
-                  {/* Qty */}
-                  <td>
-                    <input
-                      type="number"
-                      name="qty"
-                      value={row.qty}
-                      onChange={(e) => handleRowChange(index, e)}
-                    />
-                  </td>
+                    <td>
+                      <select
+                        value={row.type}
+                        name="type"
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                        required
+                      >
+                        <option value="">--select--</option>
+                        {[
+                          ...new Set(
+                            partyProducts
+                              .filter(
+                                (p) =>
+                                  p.category === row.category &&
+                                  (p.brand || "") === (row.brand || "") &&
+                                  (p.variety || "") === (row.variety || ""),
+                              )
+                              .map((p) => {
+                                const match = p.item_name.match(
+                                  /(\d+\.?\d*)\s*(LTR|ML|KG|GM|GMS|L)/i,
+                                );
+                                return match
+                                  ? `${match[1]} ${match[2].toUpperCase()}`
+                                  : "Others";
+                              }),
+                          ),
+                        ]
+                          .sort((a, b) => {
+                            if (a === "Others") return 1;
+                            if (b === "Others") return -1;
+                            return parseFloat(a) - parseFloat(b);
+                          })
+                          .map((t, i) => (
+                            <option key={i} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
 
-                  {/* Ltrs */}
-                  <td>
-                    <input type="number" value={row.ltrs} readOnly />
-                  </td>
+                    <td>
+                      <select
+                        value={row.item}
+                        name="item"
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                        required
+                      >
+                        <option value="">--select--</option>
+                        {partyProducts
+                          .filter(
+                            (p) =>
+                              p.category === row.category &&
+                              (p.brand || "") === (row.brand || "") &&
+                              (p.variety || "") === (row.variety || "") &&
+                              (row.type
+                                ? getProductType(p.item_name) === row.type
+                                : true),
+                          )
+                          .map((p, i) => (
+                            <option key={i} value={p.item_name}>
+                              {p.item_name}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
 
-                  <td>
-                    <input type="number" value={row.boxes} readOnly />
-                  </td>
+                    <td>
+                      <input
+                        type="number"
+                        value={row.pcs ? Number(row.pcs).toFixed(1) : ""}
+                        readOnly
+                      />
+                    </td>
 
-                  {/* Basic Price */}
-                  <td>
-                    <input type="number" value={row.basicPrice} readOnly />
-                  </td>
+                    <td>
+                     <input
+  type="number"
+  name="boxes"  
+  value={row.boxes}
+  onChange={(e) => handleRowChange(index, e)}
+  disabled={row.confirmed && !isEditMode}
+  required
+/>
+                    </td>
 
-                  {/* Market Price */}
-                  <td>
-                    <input
-                      type="number"
-                      name="marketPrice"
-                      value={row.marketPrice}
-                      onChange={(e) => handleRowChange(index, e)}
-                    />
-                  </td>
+                    <td>
+                       <input type="number" value={row.qty} readOnly />
+                    </td>
+                   
 
-                  {/* Tax */}
-                  <td>
-                    <input type="text"  value={(Number(row.tax)).toFixed(2)} readOnly />
-                  </td>
+                    <td>
+                      <input type="number" value={row.ltrs} readOnly />
+                    </td>
 
-                  {/* Amount */}
-                  <td>
-                    <input type="number" value={row.amount} readOnly />
-                  </td>
+                    
 
-                  {/* Delete */}
-                  <td>
-                    <button
-                      type="button"
-                      className="sl-delete-btn"
-                      onClick={() => handleDeleteRow(index)}
-                    >
-                      X
-                    </button>
-                  </td>
-                </tr>
+                    <td>
+                      <input type="number" value={row.basicPrice} readOnly />
+                    </td>
+
+                    <td>
+                      <input
+                        type="number"
+                        name="marketPrice"
+                        value={row.marketPrice}
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                      />
+                    </td>
+
+                    <td>
+                      <input type="text" value={(Number(row.tax)).toFixed(2)} readOnly />
+                    </td>
+
+                    <td>
+                      <input type="number" value={row.amount} readOnly />
+                    </td>
+
+                    <td className="sl-row-actions">
+                      {!row.confirmed ? (
+                        <button
+                          type="button"
+                          className="sl-confirm-item-btn"
+                          onClick={() => handleConfirmRow(index)}
+                        >
+                          Confirm
+                        </button>
+                      ) : (
+                        <span className="sl-row-confirmed-badge">Confirmed</span>
+                      )}
+                      <button
+                        type="button"
+                        className="sl-delete-btn"
+                        onClick={() => handleDeleteRow(index)}
+                        aria-label={`Delete item ${index + 1}`}
+                        title="Delete item"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4.5A1.5 1.5 0 019.5 3h5A1.5 1.5 0 0116 4.5V6" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 6l-1 13a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+
+                  {row.item && (
+                    <tr key={`scheme-${index}`} className="sl-scheme-row-wrap">
+                      <td colSpan={14}>
+                        <div className="sl-scheme-row">
+                          <div className="sl-scheme-toggle-compact">
+                            <span className="sl-scheme-toggle-label">Scheme</span>
+                            <label className="sl-switch">
+                              <input
+                                type="checkbox"
+                                checked={row.isScheme}
+                                onChange={(e) => handleRowSchemeToggle(index, e.target.checked)}
+                                disabled={row.confirmed && !isEditMode}
+                              />
+                              <span className="sl-switch-slider" />
+                            </label>
+                          </div>
+
+                          <div className="sl-scheme-dropdown-field">
+                            <label className="sl-scheme-field-label">Scheme</label>
+                            <select
+                              value={row.scheme}
+                              name="scheme"
+                              onChange={(e) => handleRowChange(index, e)}
+                              disabled={(row.confirmed && !isEditMode) || !row.isScheme || !(schemeOptions[index] || []).length}
+                            >
+                              <option value="">Select Scheme...</option>
+                              {(schemeOptions[index] || []).map((scheme) => (
+                        <option key={scheme.scheme_id} value={scheme.scheme_id}>
+                                  {scheme.scheme_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="sl-scheme-qty-field">
+                            <label className="sl-scheme-field-label">Scheme Qty</label>
+                            <input
+                              type="text"
+                              name="schemeQty"
+                      value={row.isScheme && row.schemeQty ? row.schemeQty : ""}
+                              readOnly
+                            />
+                          </div>
+
+                          <div className="sl-scheme-qty-field">
+                            <label className="sl-scheme-field-label">Scheme Ltrs</label>
+                            <input
+                              type="text"
+                              name="schemeLtrs"
+                              value={row.isScheme && row.schemeLtrs ? Number(row.schemeLtrs).toFixed(2) : ""}
+                              readOnly
+                            />
+                          </div>
+
+                          <div className="sl-scheme-qty-field">
+                            <label className="sl-scheme-field-label">Total Ltrs</label>
+                            <input
+                              type="text"
+                              name="totalLtrs"
+                              value={row.isScheme && row.schemeLtrs ? (Number(row.ltrs) + Number(row.schemeLtrs)).toFixed(2) : Number(row.ltrs).toFixed(2)}
+                              readOnly
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
-        <button type="button" className="sl-add-row" onClick={handleAddRow}>
-          <span>+ Add Row</span>
-        </button>
+        {canAddMoreItems && (
+          <button type="button" className="sl-add-row" onClick={handleAddRow}>
+            <span>+ Add Item</span>
+          </button>
+        )}
 
         <div className="sl-section-label">Summary</div>
-        <div className="sl-grid">
-          <div className="sl-field">
-            <label className="sl-label">PO Number</label>
-            <div className="sl-input-wrap">
-              <input
-                type="text"
-                name="po_number"
-                value={formData.po_number || ""}
-                onChange={handleChange}
-              />
-              <div className="sl-focus-line" />
-            </div>
-          </div>
+        <div className="sl-grid sl-summary-grid">
+          
 
           <div className="sl-field">
             <label className="sl-label">Company</label>
@@ -737,15 +1353,6 @@ export default function Add_Sales() {
               <div className="sl-focus-line" />
             </div>
           </div>
-
-          <div className="sl-field">
-            <label className="sl-label">Choose PO</label>
-            <div className="sl-input-wrap">
-              <input type="file" />
-              <div className="sl-focus-line" />
-            </div>
-          </div>
-
           <div className="sl-field">
             <label className="sl-label">Tax</label>
             <div className="sl-input-wrap">
@@ -772,251 +1379,43 @@ export default function Add_Sales() {
         </div>
 
         <div className="sl-actions">
-          <button type="submit" className="sl-btn-save">
-            <span>Save Order</span>
+          <button type="submit" className="sl-btn-save" disabled={isSaving || confirmedRows.length === 0 || rows.some((row) => !row.confirmed && row.item)}>
+            <span>{isEditMode ? "Update Order" : "Save Order"}</span>
           </button>
           <button type="button" className="sl-btn-clear" onClick={handleClearForm}>
-            <span>Clear</span>
+            <span>{isEditMode ? "Cancel" : "Clear"}</span>
           </button>
         </div>
       </form>
 
-      <style>{`
-   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-
-/* ================= PAGE ================= */
-.sl-page {
-font-family: 'Inter', sans-serif;
-background: #f1f5f9;
-padding: 6px 16px; /* FIX: remove extra top space */
-}
-
-/* ================= HEADER ================= */
-.sl-header {
-margin-bottom: 6px; /* FIX: less gap */
-}
-
-.sl-title {
-font-size: 20px;
-font-weight: 600;
-color: #1e293b;
-text-align: left;
-margin-top: -1rem;
-}
-
-/* ================= FORM ================= */
-.sl-form {
-width: 100%;
-max-width: 1100px;
-}
-
-/* ================= SECTION ================= */
-.sl-section-label {
-font-size: 12px;
-font-weight: 600;
-color: #ffffff;
-background: #1e293b;
-padding: 6px 10px;
-border-radius: 4px;
-margin: 8px 0;
-}
-
-/* ================= GRID ================= */
-.sl-grid {
-display: grid;
-grid-template-columns: repeat(3, 1fr);
-gap: 12px;
-}
-
-/* ================= FIELD ================= */
-.sl-field {
-display: flex;
-flex-direction: column;
-}
-
-/* 🔥 LABEL FIX */
-.sl-label {
-font-size: 13px;
-font-weight: 500;
-color: #1e293b; /* FIX: darker = visible */
-margin-bottom: 3px;
-text-align: left;
-}
-
-/* ================= INPUT WRAP ================= */
-.sl-input-wrap {
-
-border: 2px solid #94a3b8; 
-border-radius: 6px;
-padding: 5px 8px;
-color: black;
-}
-
-/* focus */
-.sl-input-wrap:focus-within {
-border-color: #2563eb;
-color: black;
-}
-
-/* ================= INPUT + SELECT ================= */
-.sl-input-wrap input,
-.sl-input-wrap select {
-width: 100%;
-border: none;
-outline: none;
-font-size: 13px;
-background: transparent;
-color: #111827;
-color-scheme: light;
-}
-
-.sl-input-wrap select {
-background: #ffffff;
-}
-
-
-
-/* ================= TABLE ================= */
-.sl-table-wrap {
-margin-top: 10px;
-border-radius: 6px;
-border: 1px solid #cbd5e1;
-background: #ffffff;
-overflow-x: auto;
-
-}
-
-.sl-table-wrap::-webkit-scrollbar {
-height: 8px;
-}
-
-.sl-table-wrap::-webkit-scrollbar-track {
-background: #e2e8f0;
-border-radius: 0 0 6px 6px;
-}
-
-.sl-table-wrap::-webkit-scrollbar-thumb {
-background: #64748b;
-border-radius: 6px;
-}
-
-.sl-table-wrap::-webkit-scrollbar-thumb:hover {
-background: #475569;
-}
-
-
-
-
-
-
-.sl-table {
-width: 100%;
-min-width: 1200px; 
-border-collapse: collapse;
-}
-
-/* header */
-.sl-table thead {
-background: #1e293b;
-}
-
-.sl-table th {
-color: #ffffff;
-padding: 8px;
-font-size: 12px;
-text-align: left;
-}
-
-/* rows */
-.sl-table td {
-padding: 5px;
-border-bottom: 1px solid #8a8b8b;
-}
-
-/* ================= TABLE INPUT ================= */
-.sl-table td input,
-.sl-table td select {
-width: 100%;
-border: 1.5px solid #94a3b8;
-border-radius: 4px;
-padding: 4px;
-font-size: 12px;
-background: #ffffff;
-color: black;
-color-scheme: light;
-}
-
-.sl-table td input:focus,
-.sl-table td select:focus {
-border-color: #2563eb;
-}
-
-/* ================= ADD ROW ================= */
-.sl-add-row {
-  display: block;
-  width: fit-content;     /* button chhota rahe */
-  margin-top: 10px;
-  margin-bottom: 20px;
-  margin-left: 0;         /* LEFT ALIGN */
-  padding: 6px 12px;
-  background: #2563eb;
-  color: #fff;
-  border-radius: 5px;
-  border: none;
-  cursor: pointer;
-}
-/* ================= DELETE ================= */
-.sl-delete-btn {
-background: #fee2e2;
-color: #dc2626;
-border: none;
-padding: 4px 6px;
-border-radius: 4px;
-cursor: pointer;
-}
-
-
-/* ================= BUTTONS ================= */
-.sl-actions {
-display: flex;
-gap: 10px;
-margin-top: 10px;
-}
-
-.sl-btn-save {
-background: #2563eb;
-color: #ffffff;
-padding: 8px 14px;
-border-radius: 5px;
-border: none;
-font-size: 13px;
-cursor: pointer;
-}
-
-.sl-btn-clear {
-border: 1px solid #ca1111;
-padding: 8px 14px;
-background: #ca1111;
-border-radius: 5px;
-font-size: 13px;
-cursor: pointer;
-}
-
-/* ================= RESPONSIVE ================= */
-@media (max-width: 1024px) {
-.sl-grid {
-grid-template-columns: repeat(2, 1fr);
-}
-}
-
-@media (max-width: 768px) {
-.sl-grid {
-grid-template-columns: 1fr;
-}
-}
-
-      `}</style>
+      {showSaveConfirm && (
+        <div className="sl-modal-overlay">
+          <div className="sl-modal" role="dialog" aria-modal="true" aria-labelledby="sl-save-confirm-title">
+            <div id="sl-save-confirm-title" className="sl-modal-title">{isEditMode ? "Confirm Update" : "Confirm Save"}</div>
+            <p className="sl-modal-text">
+              {isEditMode ? "Are you sure you want to update this order?" : "Are you sure you want to save this order?"}
+            </p>
+            <div className="sl-modal-actions">
+              <button
+                type="button"
+                className="sl-modal-btn sl-modal-btn-secondary"
+                onClick={() => setShowSaveConfirm(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="sl-modal-btn sl-modal-btn-primary"
+                onClick={submitOrder}
+                disabled={isSaving}
+              >
+                {isSaving ? (isEditMode ? "Updating..." : "Saving...") : (isEditMode ? "Yes, Update" : "Yes, Save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-  
 }

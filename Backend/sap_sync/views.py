@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from django.db.models import Q
-from .models import Product, Party, PartyAddress, SyncLog, SyncSchedule,Branch
+from .models import Product, Party, PartyAddress, SyncLog, SyncSchedule, Branch, SalesQuotationLog
 from .serializers import (ProductSerializer, PartySerializer, PartyListSerializer,
     PartyAddressSerializer, SyncLogSerializer, SyncScheduleSerializer,BranchSerializer)
 from .services import SyncService
@@ -401,6 +401,35 @@ class BranchListView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = BranchSerializer
     queryset = Branch.objects.all().order_by('category', 'bpl_id')
+
+
+class SalesQuotationLogByOrderView(APIView):
+    """Get the latest successful SAP quotation log for an order."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        quotation_log = (
+            SalesQuotationLog.objects
+            .filter(order_id=str(order_id), status='SUCCESS', sap_doc_num__isnull=False)
+            .order_by('-created_at')
+            .first()
+        )
+
+        if not quotation_log:
+            return Response({
+                'success': False,
+                'message': 'Quotation log not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'success': True,
+            'data': {
+                'order_id': quotation_log.order_id,
+                'sap_doc_num': str(quotation_log.sap_doc_num),
+                'sap_doc_entry': quotation_log.sap_doc_entry,
+                'created_at': quotation_log.created_at.isoformat() if quotation_log.created_at else None,
+            }
+        })
 
 class SyncBranchesView(APIView):
     """Sync branches from SAP"""

@@ -152,9 +152,9 @@ export default function OrderDetailsScreen() {
                 <InfoRow label="Item Code" value={item.item_code} />
                 <InfoRow label="Basic Price" value={`₹${item.basic_price}`} />
                 <InfoRow label="Market Price" value={`₹${item.market_price}`} highlight={isFlagged} />
-                <InfoRow label="Boxes" value={item.qty} />
+                <InfoRow label="Boxes" value={item.boxes} />
                 <InfoRow label="PCS/Case" value={item.pcs} />
-                <InfoRow label="Total PCS" value={item.boxes} />
+                <InfoRow label="Total PCS" value={item.qty} />
                 <InfoRow label="Item Ltrs" value={itemLtrs} />
                 <InfoRow label="Total Ltrs" value={totalLtrs} bold />
                 <InfoRow label="Total" value={`₹${item.total}`} />

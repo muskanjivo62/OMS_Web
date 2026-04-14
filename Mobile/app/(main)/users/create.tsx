@@ -45,12 +45,9 @@ export default function CreateUserScreen() {
   const [mainGroups, setMainGroups] = useState<MainGroup[]>();
   const [roles, setRoles] = useState<UserRole[]>([]);
   
-  const updateField = (field: string, value: string) => {
-    setFormData({ ...formData, [field]: value });
-    if (errors[field]) {
-      setErrors({ ...errors, [field]: "" });
-    }
-  };
+  const updateField = (field: string, value: any) => {
+  setFormData({ ...formData, [field]: value });
+};
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -98,17 +95,17 @@ export default function CreateUserScreen() {
 
     try {
 
-      const userData = {
-        name: formData.name,
-        username: formData.username,
-        password: formData.password,
-        email: formData.email || "",
-        phone: formData.phone || "",
-        role: formData.role,
-        company: formData.companies,
-        main_groups: formData.mainGroup.join(","), // ← Convert array to string
-        states: formData.state.join(","),
-      };
+    const userData = {
+  name: formData.name,
+  username: formData.username,
+  password: formData.password,
+  email: formData.email || "",
+  phone: formData.phone || "",
+  role: Number(formData.role),
+  company: formData.companies,
+  main_groups: formData.mainGroup, 
+  states: formData.state,          
+};
 
       console.log("Creating user:", userData);
       const response = await userService.createUser(userData);
@@ -458,7 +455,7 @@ export default function CreateUserScreen() {
               email: "",
               phone: "",
               role: "",
-              companies: [],
+              companies: 0,
               mainGroup: [],
               state: [],
             })

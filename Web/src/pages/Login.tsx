@@ -121,6 +121,10 @@ const handleLogin = async () => {
     console.log(data);
     localStorage.setItem("access", data.data.tokens.access);
     localStorage.setItem("refresh", data.data.tokens.refresh);
+    localStorage.setItem("username", data.data.user.username);
+    localStorage.setItem("name", data.data.user.name);
+
+    console.log("Access Token:", data.data.user.username);
 
     showToast("Login successful. Redirecting...", "success");
 

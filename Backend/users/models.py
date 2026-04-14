@@ -209,6 +209,18 @@ class User(AbstractUser):
         blank=True,
         related_name='users'
     )
+
+    main_groups = models.ManyToManyField(
+        'MainGroup',
+        blank=True,
+        related_name='m2m_users'
+    )
+
+    states = models.ManyToManyField(
+        'State',
+        blank=True,
+        related_name='m2m_users'
+    )
     
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

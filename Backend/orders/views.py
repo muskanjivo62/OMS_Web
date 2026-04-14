@@ -12,7 +12,7 @@ from datetime import datetime
 from functools import lru_cache
 from rest_framework.permissions import IsAdminUser
 import calendar
-from django.db.models import Sum, Count,F
+from django.db.models import Sum, Count,F,Q
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from collections import defaultdict
@@ -21,14 +21,18 @@ from rest_framework import permissions
 from sap_sync.models import Party as SapParty, PartyAddress as SapPartyAddress, Product as SapProduct
 from .models import Order, OrderStatus
 from .models import PartyProductAssignment
-from users.models import SchemeProduct
+from users.models import SchemeProduct, User
+
+BILLING_ACTIVE_CODES = ['BILLING', 'BILLING_PENDING']
+BILLING_RESOLVED_CODES = ['BILLING_REJECTED', 'COMPLETED']
 
 def _get_base_orders(user):
     """Scope orders by user role:
     - admin: all orders
     - manager: only orders created by this user
+    - auditor: orders currently in or previously routed through auditor review
     - approver: orders pending approval (NEED_APPROVAL, RATE_APPROVAL)
-    - billing: orders in billing stage (BILLING, BILLING_PENDING)
+    - billing: orders currently in billing or already resolved by this billing user
     """
     role = getattr(user, 'role', None)
     role_name = getattr(role, 'name', '').lower() if role else ''
@@ -36,11 +40,249 @@ def _get_base_orders(user):
         return Order.objects.all()
     if role_name == 'manager':
         return Order.objects.filter(created_by=user.id)
+    if role_name == 'auditor':
+        return Order.objects.filter(
+            Q(status__code='AUDITOR_APPROVAL') |
+            Q(logs__action__code='AUDITOR_APPROVAL') |
+            Q(logs__action__name__icontains='auditor')
+        ).distinct()
     if role_name == 'approver':
         return Order.objects.filter(status__code__in=['NEED_APPROVAL', 'RATE_APPROVAL'])
     if role_name == 'billing':
-        return Order.objects.filter(status__code__in=['BILLING', 'BILLING_PENDING'])
+        handled_order_ids = (
+            OrdersLog.objects
+            .filter(performed_by=user)
+            .filter(
+                Q(action__code__in=BILLING_RESOLVED_CODES) |
+                Q(action__name__icontains='billing reject') |
+                Q(action__name__icontains='complete')
+            )
+            .values_list('order_id', flat=True)
+            .distinct()
+        )
+        return Order.objects.filter(
+            Q(status__code__in=BILLING_ACTIVE_CODES) |
+            Q(id__in=handled_order_ids)
+        ).distinct()
     return Order.objects.none()
+
+class WDashboardKPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = timezone.now().date()
+        now = timezone.now()
+        year = int(request.query_params.get('year', now.year))
+
+        year_start = timezone.make_aware(datetime(year, 1, 1))
+        year_end = timezone.make_aware(datetime(year, 12, 31, 23, 59, 59))
+
+        base_order_ids = _get_base_orders(request.user).values_list('id', flat=True).distinct()
+        all_orders = Order.objects.filter(id__in=base_order_ids)
+        year_orders = all_orders.filter(created_at__gte=year_start, created_at__lte=year_end)
+
+        if year == now.year:
+            today_orders = year_orders.filter(created_at__date=today).count()
+            current_month_start = today.replace(day=1)
+            this_month_orders = year_orders.filter(created_at__date__gte=current_month_start).count()
+        else:
+            month_start = timezone.make_aware(datetime(year, now.month, 1))
+            last_day = calendar.monthrange(year, now.month)[1]
+            month_end = timezone.make_aware(datetime(year, now.month, last_day, 23, 59, 59))
+            today_orders = 0
+            this_month_orders = year_orders.filter(created_at__gte=month_start, created_at__lte=month_end).count()
+
+        total_orders = year_orders.count()
+        total_revenue = year_orders.aggregate(total=Sum('total_amount'))['total'] or 0
+        accepted_orders = 0
+        rejected_orders = 0
+        pending_review_orders = 0
+        user_counts = {}
+
+        role = getattr(request.user, 'role', None)
+        role_name = getattr(role, 'name', '').lower() if role else ''
+        if role_name == 'admin':
+            user_counts = {
+                'manager': User.objects.filter(role__name__iexact='manager', is_active=True).count(),
+                'auditor': User.objects.filter(role__name__iexact='auditor', is_active=True).count(),
+                'billing': User.objects.filter(role__name__iexact='billing', is_active=True).count(),
+            }
+        if role_name == 'auditor':
+            auditor_handled_orders = year_orders.filter(
+                logs__action__code='AUDITOR_APPROVAL',
+                logs__performed_by=request.user,
+            ).distinct()
+
+            accepted_orders = auditor_handled_orders.filter(
+                Q(logs__action__code__in=['BILLING', 'BILLING_PENDING']) |
+                Q(logs__action__name__icontains='billing')
+            ).distinct().count()
+            rejected_orders = auditor_handled_orders.filter(
+                Q(status__code__in=['REJECTED', 'BILLING_REJECTED']) |
+                Q(logs__action__code__in=['REJECTED', 'BILLING_REJECTED']) |
+                Q(logs__action__name__icontains='reject')
+            ).exclude(
+                Q(logs__action__code__in=['BILLING', 'BILLING_PENDING']) |
+                Q(logs__action__name__icontains='billing')
+            ).distinct().count()
+            pending_review_orders = year_orders.filter(status__code='AUDITOR_APPROVAL').distinct().count()
+
+        status_counts = {}
+        for os in OrderStatus.objects.all():
+            status_counts[os.name] = year_orders.filter(status=os).count()
+
+        return Response({
+            'total_orders': total_orders,
+            'total_revenue': str(total_revenue),
+            'today_orders': today_orders,
+            'this_month_orders': this_month_orders,
+            'status_counts': status_counts,
+            'user_counts': user_counts,
+            'accepted_orders': accepted_orders,
+            'rejected_orders': rejected_orders,
+            'pending_review_orders': pending_review_orders,
+            'reviewed_orders': accepted_orders + rejected_orders,
+        })
+
+class WDashboardChartsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        now = timezone.now()
+        # Donut charts filter
+        year = int(request.query_params.get('year', now.year))
+        month = int(request.query_params.get('month', 0))
+        # Line chart filter (independent)
+        line_year = int(request.query_params.get('line_year', now.year))
+
+        # Date boundaries for donut charts: month=0 means year-to-date
+        if month == 0:
+            range_start = timezone.make_aware(datetime(year, 1, 1))
+            if year == now.year:
+                range_end = timezone.make_aware(datetime(now.year, now.month, now.day, 23, 59, 59))
+            else:
+                range_end = timezone.make_aware(datetime(year, 12, 31, 23, 59, 59))
+        else:
+            range_start = timezone.make_aware(datetime(year, month, 1))
+            last_day = calendar.monthrange(year, month)[1]
+            range_end = timezone.make_aware(datetime(year, month, last_day, 23, 59, 59))
+
+        base_order_ids = _get_base_orders(request.user).values_list('id', flat=True).distinct()
+        base_orders = Order.objects.filter(id__in=base_order_ids)
+        filtered_orders = base_orders.filter(
+            created_at__gte=range_start,
+            created_at__lte=range_end
+        )
+
+        # CHART 1: Monthly Sales Timeline (full line_year Jan-Dec)
+        year_start = timezone.make_aware(datetime(line_year, 1, 1))
+        year_end = timezone.make_aware(datetime(line_year, 12, 31, 23, 59, 59))
+        monthly_sales = (
+            base_orders
+            .filter(created_at__gte=year_start, created_at__lte=year_end)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(revenue=Sum('total_amount'), count=Count('id', distinct=True))
+            .order_by('month')
+        )
+        sales_map = {
+            entry['month'].month: {
+                'revenue': float(entry['revenue'] or 0),
+                'count': entry['count'],
+            }
+            for entry in monthly_sales
+        }
+        monthly_sales_data = [
+            {
+                'month': f'{line_year}-{m:02d}',
+                'label': calendar.month_abbr[m],
+                'revenue': sales_map.get(m, {}).get('revenue', 0),
+                'count': sales_map.get(m, {}).get('count', 0),
+            }
+            for m in range(1, 13)
+        ]
+
+        # CHART 2: State-wise Orders (selected month)
+        # No FK between Order and Parties; join via card_code in Python
+        card_codes_in_month = list(
+            filtered_orders.values_list('card_code', flat=True).distinct()
+        )
+        state_map = {}
+        if card_codes_in_month:
+            parties = Parties.objects.filter(
+                card_code__in=card_codes_in_month
+            ).values_list('card_code', 'state')
+            state_map = {cc: (st or 'Unknown') for cc, st in parties}
+
+        state_counts = defaultdict(int)
+        for order in filtered_orders.values('card_code'):
+            state = state_map.get(order['card_code'], 'Unknown')
+            state_counts[state] += 1
+
+        statewise_data = sorted(
+            [{'state': k, 'orders': v} for k, v in state_counts.items()],
+            key=lambda x: x['orders'],
+            reverse=True
+        )
+
+        # CHART 3: Status Distribution (selected month) - include all statuses
+        status_counts_map = dict(
+            filtered_orders
+            .values('status')
+            .annotate(count=Count('id', distinct=True))
+            .values_list('status', 'count')
+        )
+        status_data = [
+            {'status': os.code, 'label': os.name, 'count': status_counts_map.get(os.id, 0)}
+            for os in OrderStatus.objects.all()
+        ]
+
+        # CHART 4: Top Parties by Revenue (selected period)
+        top_parties = (
+            filtered_orders
+            .values('card_code', 'card_name')
+            .annotate(revenue=Sum('total_amount'), count=Count('id', distinct=True))
+            .order_by('-count', '-revenue')
+        )
+        top_parties_data = [
+            {
+                'card_code': entry['card_code'],
+                'card_name': entry['card_name'],
+                'count': entry['count'],
+                'revenue': float(entry['revenue'] or 0),
+            }
+            for entry in top_parties
+        ]
+
+        # CHART 5: Category-wise Sales (selected month)
+        category_sales = (
+            OrderItem.objects
+            .filter(order__in=filtered_orders)
+            .values('category')
+            .annotate(total_sales=Sum('total'), count=Count('id', distinct=True))
+            .order_by('-total_sales')
+        )
+        category_data = [
+            {
+                'category': entry['category'] or 'Unknown',
+                'total_sales': float(entry['total_sales'] or 0),
+                'count': entry['count'],
+            }
+            for entry in category_sales
+        ]
+
+        return Response({
+            'filter': {'year': year, 'month': month, 'line_year': line_year},
+            'monthly_sales': monthly_sales_data,
+            'statewise_orders': statewise_data,
+            'status_distribution': status_data,
+            'top_parties': top_parties_data,
+            'category_sales': category_data,
+        })
+
+
+
+
   
 class DashboardKPIView(APIView):
     permission_classes = [AllowAny]
@@ -172,13 +414,14 @@ class DashboardChartsView(APIView):
         top_parties = (
             filtered_orders
             .values('card_code', 'card_name')
-            .annotate(revenue=Sum('total_amount'))
-            .order_by('-revenue')
+            .annotate(revenue=Sum('total_amount'), count=Count('id'))
+            .order_by('-revenue', '-count')
         )
         top_parties_data = [
             {
                 'card_code': entry['card_code'],
                 'card_name': entry['card_name'],
+                'count': entry['count'],
                 'revenue': float(entry['revenue'] or 0),
             }
             for entry in top_parties
@@ -1150,20 +1393,24 @@ class OrderListView(APIView):
     permission_classes = [AllowAny]
         
     def get(self, request):
-        
-        status_filter = request.query_params.get('status', None) 
-        user_id = request.query_params.get('user_id', None) 
-        
-        orders = Order.objects.filter(sap_created=False).order_by('-created_at')
-        
+
+        status_filter = request.query_params.get('status', None)
+        user_id = request.query_params.get('user_id', None)
+        billing_view = request.query_params.get('billing', 'false').lower() == 'true'
+
+        if billing_view:
+            # Billing view: show all billing-related orders regardless of sap_created
+            orders = Order.objects.filter(status_id__in=[3, 5, 6, 8]).order_by('-created_at')
+        else:
+            orders = Order.objects.filter(sap_created=False).order_by('-created_at')
+            # Filter by status
+            if status_filter:
+                orders = orders.filter(status_id=status_filter)
+
         # Filter by user_id
         if user_id:
             orders = orders.filter(created_by=user_id)
-        
-        # Filter by status
-        if status_filter:
-            orders = orders.filter(status_id=status_filter)
-        
+
         data = []
         for order in orders:
             items_qs = OrderItem.objects.filter(order=order)
@@ -1176,6 +1423,7 @@ class OrderListView(APIView):
                 'total_amount': str(order.total_amount),
                 'status': order.status.code,
                 'status_display': order.status.name,
+                'sap_doc_number': order.sap_doc_number or '',
                 'items_count': items_count,
                 'created_by': order.created_by.name if order.created_by else None,
                 'created_at': order.created_at,
@@ -1193,4 +1441,4 @@ class OrderListView(APIView):
                 'items': OrderItemSerializer(items_qs, many=True).data
             })
 
-        return Response(data)  
+        return Response(data)

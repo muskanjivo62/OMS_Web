@@ -49,6 +49,13 @@ export interface Log {
   triggered_by: string;
 }
 
+export interface QuotationLog {
+  order_id: string;
+  sap_doc_num: string;
+  sap_doc_entry?: number | null;
+  created_at?: string | null;
+}
+
 export const sapService = {
 
   getProducts: async () => {
@@ -76,11 +83,39 @@ export const sapService = {
     return response.data;
   },
 
+  getQuotationLog: async (orderId: number) => {
+    const response = await api.get(`/sap/quotation-log/${orderId}/`);
+    return response.data?.data as QuotationLog;
+  },
+
    syncData: async (endpoint: string) => {
 
     const response = await api.post(`/sap/sync/${endpoint}/`);
 
     return response.data;
-  }
+  },
+
+  assignParties: async (userId: number, cardCodes: string[]) => {
+    const response = await api.post(`/auth/assign-parties/`, {
+      user_id: userId,
+      card_codes: cardCodes,
+    });
+    return response.data;
+  },
+
+  getUserParties: async (userId: number) => {
+    const response = await api.get(`/auth/users/${userId}/parties/`);
+    return response.data;
+  },
+
+  removeParty: async (userId: number, cardCode: string) => {
+    const response = await api.post(`/auth/remove-party/`, {
+      user_id: userId,
+      card_code: cardCode,
+    });
+    return response.data;
+  },
+
+
 
 };

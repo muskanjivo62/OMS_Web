@@ -42,9 +42,9 @@ def _to_float(value, default=0.0):
 
 def _get_sap_line_quantity(item):
     qty = _to_float(getattr(item, "qty", None), 0)
-    pcs = _to_float(getattr(item, "pcs", None), 0)
-    boxes = _to_float(getattr(item, "boxes", None), 0)
-    ltrs = _to_float(getattr(item, "ltrs", None), 0)
+    # pcs = _to_float(getattr(item, "pcs", None), 0)
+    # boxes = _to_float(getattr(item, "boxes", None), 0)
+    # ltrs = _to_float(getattr(item, "ltrs", None), 0)
 
     # Current OMS flow stores:
     #   qty   -> ordered boxes/cases
@@ -54,20 +54,20 @@ def _get_sap_line_quantity(item):
     #   boxes -> boxes/cases
     #
     # Detect the legacy pattern and normalize to boxes/cases for SAP.
-    if qty > 0 and pcs > 0 and boxes > 0:
-        if abs((qty * pcs) - boxes) <= 0.01:
-            return qty
-        if abs((boxes * pcs) - qty) <= 0.01:
-            return boxes
+    # if pcs > 0 and boxes > 0:
+    #     if abs((qty * pcs) - boxes) <= 0.01:
+    #         return qty
+    #     if abs((boxes * pcs) - qty) <= 0.01:
+    #         return boxes
 
     if qty > 0:
         return qty
+    
+    # if boxes > 0 and pcs <= 1:
+    #     return boxes
 
-    if boxes > 0 and pcs <= 1:
-        return boxes
-
-    if ltrs > 0 and pcs <= 1:
-        return ltrs
+    # if ltrs > 0 and pcs <= 1:
+    #     return ltrs
 
     return 0.0
 
@@ -534,7 +534,7 @@ class SyncService:
             return fallback.isoformat()
 
         document_lines = []
-
+            
         for item in order.items.all():
             document_lines.append(
                 {

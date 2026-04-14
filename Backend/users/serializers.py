@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.db.utils import ProgrammingError
 from django.contrib.auth import authenticate
-from .models import User, Company, MainGroup, State, UserRole, SchemeProduct
+from .models import User, Company, MainGroup, State, UserRole, SchemeProduct, UserState
 
 class SchemeProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,6 +31,7 @@ class StateSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     company = serializers.SerializerMethodField()
     main_group = serializers.SerializerMethodField()
+    main_groups = serializers.SerializerMethodField()
     state = serializers.SerializerMethodField()
     states = serializers.SerializerMethodField()
     role = serializers.CharField(source='role.name', read_only=True)
@@ -41,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'name', 'username', 'email', 'phone',
-            'role','role_display', 'company', 'main_group', 'state', 'states', 'is_active'
+            'role','role_display', 'company', 'main_group','main_groups', 'state', 'states', 'is_active'
         ]
 
     def get_company(self, obj):
@@ -53,6 +54,12 @@ class UserSerializer(serializers.ModelSerializer):
         if not obj.main_group:
             return None
         return MainGroupSerializer(obj.main_group).data
+    
+    def get_main_groups(self, obj):
+        groups = obj.main_groups.all()
+        if not groups.exists():
+            return []
+        return MainGroupSerializer(groups, many=True).data
 
     def get_state(self, obj):
         if not obj.state:
@@ -70,7 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
             return []
 
         try:
-            for user_state in user_states_manager.select_related('state').all():
+            for user_state in user_states_manager.all():
                 state = user_state.state
                 if not state or state.id in seen_state_ids:
                     continue
@@ -115,6 +122,10 @@ class CreateUserSerializer(serializers.Serializer):
     company = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all(), required=False, allow_null=True)
     main_group = serializers.PrimaryKeyRelatedField(queryset=MainGroup.objects.all(), required=False, allow_null=True)
     state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all(), required=False, allow_null=True)
+    main_groups = serializers.PrimaryKeyRelatedField(queryset=MainGroup.objects.all(), required=False, allow_null=True, many=True)
+    states = serializers.PrimaryKeyRelatedField(queryset=State.objects.all(), required=False, allow_null=True, many=True)
+
+
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -125,11 +136,29 @@ class CreateUserSerializer(serializers.Serializer):
         if value and User.objects.filter(email=value).exists():
             raise serializers.ValidationError('Email already exists')
         return value    
-
     def create(self, validated_data):
         password = validated_data.pop('password')
+        main_groups = validated_data.pop('main_groups', [])
+        states_list = validated_data.pop('states', [])
+
+        if main_groups and not validated_data.get('main_group'):
+            validated_data['main_group'] = main_groups[0]
+        if states_list and not validated_data.get('state'):
+            validated_data['state'] = states_list[0]
+
         user = User.objects.create(**validated_data)
         user.set_password(password)
         user.save()
+
+        if main_groups:
+            user.main_groups.set(main_groups)
+
+        if states_list:
+            existing_state_ids = set(
+                UserState.objects.filter(user=user).values_list('state_id', flat=True)
+            )
+            for state in states_list:
+                if state.id not in existing_state_ids:
+                    UserState.objects.create(user=user, state=state)
         return user
     

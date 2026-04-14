@@ -9,16 +9,16 @@ type SidebarProps = {
 };
 
 export default function Sidebar({ children }: SidebarProps) {
-
-  // const [userOpen, setUserOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [userName, setUserName] = useState("");
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  
   const location = useLocation();
+  const roleLabel = userRole ? userRole.toUpperCase() : "USER";
+  const displayName = userName || "User";
 
-  // Close sidebar
   const closeSidebar = () => {
     setMenuOpen(false);
   };
@@ -28,13 +28,13 @@ export default function Sidebar({ children }: SidebarProps) {
   }, []);
 
   const fetchCurrentUser = async () => {
-   try {
-    const data = await getCurrentUser();
-    console.log("dataofuser",+JSON.stringify(data));
-    setUserRole(data.role);
-   } catch (error) {
-    console.error("Failed to fetch user:", error);
-   }
+    try {
+      const data = await getCurrentUser();
+      setUserRole(data.role);
+      setUserName(data.full_name || data.name || data.username || "");
+    } catch (error) {
+      console.error("Failed to fetch user:", error);
+    }
   };
 
   useEffect(() => {
@@ -45,9 +45,19 @@ export default function Sidebar({ children }: SidebarProps) {
     }
   }, []);
 
+  useEffect(() => {
+    setSalesOpen(
+      location.pathname === "/Add_Sales" || location.pathname === "/View_Orders"
+    );
+    setReportsOpen(
+      location.pathname === "/Daily_Report" ||
+        location.pathname === "/PersonWise_Report" ||
+        location.pathname === "/Sales_Report"
+    );
+  }, [location.pathname]);
+
   return (
     <>
-      {/* ================= HEADER ================= */}
       <header className="header">
         <div className="logo-area">
           <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
@@ -55,60 +65,55 @@ export default function Sidebar({ children }: SidebarProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
             </svg>
           </button>
-          {/* <div className="logo-mark">
-            <i className="fa-solid fa-truck-fast" style={{fontSize:'11px'}} />
-          </div> */}
+          <div className="logo-mark" aria-hidden="true">
+            <img src="/logo.png" alt="OMS logo" className="logo-mark-img" />
+          </div>
           <span className="logo-text">OMS</span>
         </div>
 
         <div className="header-right">
-          <span className="admin-text">{userRole?.toUpperCase()}</span>
+          <div className="header-profile">
+            <span className="header-profile-name">{displayName}</span>
+            <span className="header-profile-role">{roleLabel}</span>
+          </div>
         </div>
       </header>
 
       {menuOpen && <div className="overlay" onClick={closeSidebar}></div>}
 
-      {/* ================= SIDEBAR ================= */}
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
         <ul>
-          {/* Dashboard */}
           <li className={location.pathname === "/Dashboard" ? "active" : ""}>
             <Link to="/Dashboard" onClick={closeSidebar}>
               Dashboard
             </Link>
           </li>
 
-          {/* <div className="sb-rule" /> */}
-
-          {/* User Management — Admin only */}
           {(userRole?.toLowerCase() === "admin") && (
-            // <li>
-            //   <div className="dropdown-toggle" onClick={() => setUserOpen(!userOpen)}>
-            //     User Management
-            //     <span className={`sb-chevron ${userOpen ? "open" : ""}`}></span>
-            //   </div>
-            //   {userOpen && (
-            //     <ul className="dropdown-list">
-            //       {/* <li><Link to="/ManageRole" onClick={closeSidebar}>Manage Role</Link></li> */}
-            //       <li><Link to="/App_User" onClick={closeSidebar}>App Users</Link></li>
-            //     </ul>
-            //   )}
-            // </li>
-
-             <li className={location.pathname === "/App_User" ? "active" : ""}>
+            <li className={location.pathname === "/App_User" ? "active" : ""}>
               <Link to="/App_User" onClick={closeSidebar}>App User</Link>
             </li>
           )}
 
-          {/* SAP Sync — Admin only */}
           {(userRole?.toLowerCase() === "admin") && (
+
+            <>
             <li className={location.pathname === "/Sap_sync" ? "active" : ""}>
               <Link to="/Sap_sync" onClick={closeSidebar}>SAP Sync</Link>
             </li>
+
+             <li className={location.pathname === "/Party_Assignment" ? "active" : ""}>
+              <Link to="/Party_Assignment" onClick={closeSidebar}>Party Assignment</Link>
+            </li>
+
+            <li className={location.pathname === "/Party_Product_Assignment" ? "active" : ""}>
+              <Link to="/Party_Product_Assignment" onClick={closeSidebar}>Party Product Assignment</Link>
+            </li>
+
+            </>
           )}
 
-          {/* Sales — Manager only */}
-          {(userRole?.toLowerCase() === "manager") && (
+          {(userRole?.toLowerCase() === "manager" || userRole?.toLowerCase() == "billing") && (
             <li>
               <div className="dropdown-toggle" onClick={() => setSalesOpen(!salesOpen)}>
                 Sales
@@ -123,29 +128,54 @@ export default function Sidebar({ children }: SidebarProps) {
             </li>
           )}
 
-          {/* Auditor */}
           {(userRole?.toLowerCase() ===  "auditor") && (
-            <li className={location.pathname === "/Auditor_orders" ? "active" : ""}>
-              <Link to="/Auditor_orders" onClick={closeSidebar}>Orders</Link>
-            </li>
+            <>
+              <li className={location.pathname === "/Auditor_orders" ? "active" : ""}>
+                <Link to="/Auditor_orders" onClick={closeSidebar}>Orders</Link>
+              </li>
+              <li className={location.pathname === "/Auditor_status_tracking" ? "active" : ""}>
+                <Link to="/Auditor_status_tracking" onClick={closeSidebar}>Status Tracking</Link>
+              </li>
+            </>
           )}
 
-          {/* Billing */}
           {(userRole?.toLowerCase() ===  "billing" ) && (
-            <li className={location.pathname === "/Billing_orders" ? "active" : ""}>
-              <Link to="/Billing_orders" onClick={closeSidebar}>Orders</Link>
+            <>
+              <li className={location.pathname === "/Billing_orders" ? "active" : ""}>
+                <Link to="/Billing_orders" onClick={closeSidebar}>Orders</Link>
+              </li>
+              <li className={location.pathname === "/Billing_status_tracking" ? "active" : ""}>
+                <Link to="/Billing_status_tracking" onClick={closeSidebar}>Status Tracking</Link>
+              </li>
+            </>
+          )}
+
+          {(userRole?.toLowerCase() ===  "manager" ) && (
+            <>
+              <li className={location.pathname === "/Order_Tracking" ? "active" : ""}>
+                <Link to="/Order_Tracking" onClick={closeSidebar}>Order Tracker</Link>
+              </li>
+            </>
+          )}
+
+          {(userRole?.toLowerCase() ===  "billing" || userRole?.toLowerCase() === "admin") && (
+            <li>
+              <div className="dropdown-toggle" onClick={() => setReportsOpen(!reportsOpen)}>
+                Reports
+                <span className={`sb-chevron ${reportsOpen ? "open" : ""}`}></span>
+              </div>
+              {reportsOpen && (
+                <ul className="dropdown-list">
+                  <li><Link to="/Daily_Report" onClick={closeSidebar}>Daily Report</Link></li>
+                  <li><Link to="/PersonWise_Report" onClick={closeSidebar}>Person Wise Report</Link></li>
+                  <li><Link to="/Sales_Report" onClick={closeSidebar}>Sales Report</Link></li>
+                  
+                </ul>
+              )}
             </li>
           )}
 
-          {/* <div className="sb-rule" /> */}
-
-          {/* <li className={location.pathname === "/Pricelist" ? "active" : ""}>
-            <Link to="/Pricelist" onClick={closeSidebar}>Pricelist</Link>
-          </li>
-
-          <li className={location.pathname === "/Reports" ? "active" : ""}>
-            <Link to="/Reports" onClick={closeSidebar}>Reports</Link>
-          </li> */}
+         
         </ul>
 
         <div className="sb-logout-wrap">
@@ -183,10 +213,7 @@ export default function Sidebar({ children }: SidebarProps) {
         </div>
       )}
 
-      {/* ================= CONTENT ================= */}
       <main className="content-area">{children}</main>
-
     </>
   );
-  
 }

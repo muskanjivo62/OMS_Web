@@ -5,9 +5,13 @@ import api from "./api";
 export interface User {
   id: number;
   name: string;
+  username: string;
   email: string;
+  role: string;
   role_name: string;
   is_active: boolean;
+  main_groups?: { id: number; name: string }[];
+  states?: { id: number; name: string }[];
 }
 
 export interface Option {
@@ -24,7 +28,9 @@ export interface CreateUserData {
   role: number;
   company?: number | null;
   mainGroup?: number;
+  mainGroups?: number[];
   state?: number;
+  states?: number[];
 }
 
 /* ================= SERVICE ================= */
@@ -56,6 +62,60 @@ export const userService = {
     return response.data;
   },
 
+  getUserParties: async (userId: number) => {
+    const response = await api.get(`/auth/users/${userId}/parties/`);
+    return response.data;
+  },
+
+ assignPartiesToUser: async (userId: number, partyCodes: string[]) => {
+  const payload = {
+    user_id: userId,
+    card_codes: partyCodes,   
+  };
+
+  const response = await api.post(`/auth/assign-parties/`, payload);
+  return response.data;
+},
+
+ removePartiesToUser: async (userId: number, partyCodes: string) => {
+  const payload = {
+    user_id: userId,
+    card_codes: partyCodes,   
+  };
+
+  const response = await api.post(`/auth/remove-party/`, payload);
+  return response.data;
+},
+
+getPartyProducts: async (card_code: string) => {
+  const response = await api.get(`/auth/parties/${card_code}/products/`);
+  return response.data;
+},
+
+removePartyProduct: async (card_code: string, itemCode: string, category: string) => {
+   const response = await api.post('/auth/party-product/remove/', {
+        card_code: card_code,
+        item_code: itemCode,
+        category:  category
+      });
+
+        return response.data; },
+
+  bulkAssignPartiesToUser: async (card_code: string, payload: any[]) => {
+    const response = await api.post(`/auth/party-product/bulk-add/`, {
+      card_codes: card_code,   
+      products : payload
+    });
+    return response.data;
+  },
+
+  editRate: async (card_code: string, item_code: string, category: string, new_rate: number) => {
+    const response = await api.post('/auth/party-product/update-rate/', {
+      card_code, item_code, category, basic_rate: new_rate
+    });
+    return response.data;
+  },
+
   createUser: async (data: CreateUserData) => {
 
     const payload = {
@@ -64,10 +124,12 @@ export const userService = {
       password: data.password,
       email: data.email,
       phone: data.phone,
-      role: data.role,
-      company: data.company,
-      main_group: data.mainGroup,
-      state: data.state
+      role: data.role || null,
+      company: data.company || null,
+      main_group: data.mainGroup || null,
+      main_groups: data.mainGroups || [],
+      state: data.state || null,
+      states: data.states || []
     };
 
     const response = await api.post("/auth/users/create/", payload);

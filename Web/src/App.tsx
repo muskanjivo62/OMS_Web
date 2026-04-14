@@ -8,6 +8,15 @@ import Add_Sales from "./pages/Add_Sales";
 import View_Orders from "./pages/View_Orders";
 import Auditor_orders from "./pages/Auditor_Order";
 import Billing_orders from "./pages/Billing_Order";
+import Order_Status_Tracking from "./pages/Order_Status_Tracking";
+import Daily_Report from "./pages/Daily_Report";
+import PersonWise_Report from "./pages/PersonWise_Report";
+import Sales_Report from "./pages/Sales_Report";
+import Order_Tracking from "./pages/Order_Tracking";
+import "./styles/AppShell.css";
+import "./styles/UIConsistency.css";
+import Party_Assignment from "./pages/Party_Assignment";
+import Party_Product_Assignment from "./pages/Party_Product_Assignment";
 
 function App() {
   return (
@@ -73,10 +82,73 @@ function App() {
             </Sidebar>}
         />
 
+        <Route
+          path="/Auditor_status_tracking"
+          element={
+            <Sidebar>
+              <Order_Status_Tracking mode="auditor" />
+            </Sidebar>}
+        />
+
+        <Route
+          path="/Billing_status_tracking"
+          element={
+            <Sidebar>
+              <Order_Status_Tracking mode="billing" />
+            </Sidebar>}
+        />
+
+         <Route
+          path="/Daily_Report"
+          element={
+            <Sidebar>
+              <Daily_Report />
+            </Sidebar>}
+        />
+
+         <Route
+          path="/PersonWise_Report"
+          element={
+            <Sidebar>
+              <PersonWise_Report />
+            </Sidebar>}
+        />
+
+        <Route
+          path="/Sales_Report"
+          element={
+            <Sidebar>
+              <Sales_Report />
+            </Sidebar>}
+        />
+
+        <Route
+          path="/Order_Tracking"
+          element={
+            <Sidebar>
+              <Order_Tracking />
+            </Sidebar>}
+        />
+
+        <Route
+          path="/Party_Assignment"
+          element={
+            <Sidebar>
+              <Party_Assignment />
+            </Sidebar>}
+        />
+
+           <Route
+          path="/Party_Product_Assignment"
+          element={
+            <Sidebar>
+              <Party_Product_Assignment />
+            </Sidebar>}
+        />
+
        </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
-

@@ -24,12 +24,26 @@ export interface PartyProduct {
   basic_rate: string | number;
 }
 
+export interface SchemeProduct {
+  scheme_id: number;
+  scheme_name: string;
+  item_code: string;
+  item_name: string;
+  state?: number;
+  state_name?: string;
+  sal_factor2: string | number;
+  sal_pack_unit: string | null;
+}
+
 export interface RowType {
   category: string;
   brand: string;
   variety: string;
   type: string;
   item: string;
+  isScheme: boolean;
+  scheme: string;
+  schemeQty: string;
   pcs: string;
   qty: string;
   ltrs: string;
@@ -47,6 +61,8 @@ export interface OrderItem {
   brand: string;
   variety: string;
   item_type: string;
+  scheme_name?: string;
+  scheme_qty?: number | string;
 
   qty: number;
   pcs: number;
@@ -57,9 +73,12 @@ export interface OrderItem {
   market_price: number;
   tax_rate: number;
   total: number;
+  scheme_id?: number;
+  total_ltrs: number;
 }
 
 export interface CreateOrder {
+  order_id?: number;
   card_code: string;
   card_name: string;
   bill_to_id: number;
@@ -71,7 +90,6 @@ export interface CreateOrder {
 
   delivery_date: string;
   company: number;
-  po_number: string;
 
   total_amount: number;
   tax_amount: number;
@@ -82,21 +100,40 @@ export interface CreateOrder {
 
 export interface Order {
   id: number;
+  status?: number;
   order_number: string;
   card_code: string;
   card_name: string;
+  bill_to_id?: number;
   delivery_date: string;
   status_display: string;
+  bill_to_address_id?: number;
   bill_to_address: string;
+  ship_to_id?: number;
   ship_to_address: string;
+  dispatch_from_id?: number;
+  dispatch_from_name?: string;
   po_number: string;
+  company?: string | number;
+  remarks?: string;
   items: OrderItem[];
   created_at: string;
+  created_by: string | number;
+  total_amount: number;
+  sap_doc_number?: string;
 }
 
 export interface OrderStatus {
   id: number;
   name: string;
+}
+
+export interface OrderLog {
+  id: number;
+  status_name: string;
+  remarks: string;
+  performed_by_name: string | null;
+  created_at: string;
 }
 
 
@@ -113,7 +150,9 @@ export const ordersService = {
   },
 
   getPartyAdd: async (card_code: string) => {
-    const response = await api.get(`/orders/party-address/${card_code}/`);
+    const response = await api.get(`/orders/addresses/`, {
+    params: { card_code }
+  });
     return response.data;
   },
 
@@ -125,6 +164,16 @@ export const ordersService = {
   getProducts: async () => {
     const response = await api.get("/orders/products/");
     return response.data;
+  },
+
+  getSchemeProducts: async (item_code?: string, state_id?: number) => {
+    const response = await api.get("/orders/scheme-products/", {
+      params: {
+        ...(item_code ? { item_code } : {}),
+        ...(state_id ? { state_id } : {}),
+      },
+    });
+    return response.data?.data || [];
   },
 
   createOrder: async (formData: CreateOrder) => {
@@ -140,23 +189,47 @@ export const ordersService = {
         market_price: Number(item.market_price),
         tax_rate: Number(item.tax_rate),
         total: Number(item.total),
+        scheme_id: item.scheme_id ? Number(item.scheme_id) : undefined,
+        scheme_qty: item.scheme_qty ? Number(item.scheme_qty) : 0,
+        total_ltrs: item.total_ltrs,
       })),
     };
     const response = await api.post("/orders/create/", payload);
     return response.data;
   },
 
-  async getOrders(status?: number) {
-    let url = "/orders/list/";
-    if (status) {
-      url += `?status=${status}`;
-    }
+  async getOrders(status?: number, billing?: boolean) {
+    const params: string[] = [];
+    if (status) params.push(`status=${status}`);
+    if (billing) params.push('billing=true');
+    const url = "/orders/list/" + (params.length ? `?${params.join('&')}` : '');
     const response = await api.get(url);
     return response.data;
   },
 
+  getOrdersByUser: async (userId: number) => {
+    const response = await api.get(`/orders/ordersbyuser/${userId}/`);
+    return response.data as Order[];
+  },
+
+  getOrderDetails: async (orderId: number) => {
+    const response = await api.get(`/orders/orderdetailsbyid/${orderId}/`);
+    return response.data as Order;
+  },
+
+  getOrderLogs: async (orderId: number) => {
+    const response = await api.get(`/orders/${orderId}/orderlogs/`);
+    return response.data as OrderLog[];
+  },
+
   getOrdersStatus: async () => {
     const response = await api.get("/orders/status/");
+    return response.data;
+  },
+
+  getBranches: async () => {
+    const response = await api.get("/orders/branch/"
+    );
     return response.data;
   },
 

@@ -5,7 +5,7 @@ from .views import (
     PartyListView, PartyDetailView, PartyByCodeView, PartyAddressListView,
     BranchListView, SyncLogListView, SyncScheduleListView,
     SyncScheduleDetailView, ToggleScheduleView, SyncStatusView,
-    PushSalesQuotationView, TestSalesQuotation, ApproveOrderAPIView,
+    PushSalesQuotationView, TestSalesQuotation, ApproveOrderAPIView, SalesQuotationLogByOrderView,
 )
  
 urlpatterns = [
@@ -35,6 +35,7 @@ urlpatterns = [
     
     # ============ Sync Logs ============
     path('logs/', SyncLogListView.as_view(), name='sync-logs'),
+    path('quotation-log/<int:order_id>/', SalesQuotationLogByOrderView.as_view(), name='quotation-log-by-order'),
     
     # ============ Schedule Management ============
     path('schedules/', SyncScheduleListView.as_view(), name='schedule-list'),
