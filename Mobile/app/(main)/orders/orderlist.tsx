@@ -144,6 +144,7 @@ export default function BillingOrderList() {
         onPress: async () => {
           try {
             setActionLoading({ id: order.id, type: "approve" });
+            
 
             const approvalItems = (Array.isArray(order.items) ? order.items : []).flatMap(
               (item: any) => {
@@ -224,6 +225,8 @@ export default function BillingOrderList() {
               }
               throw new Error(errorMessage);
             }
+
+            await productService.updatestatus(order.id, "9", "approved by billing");
 
             setApprovalResult({
               message: res?.message || "Order approved and pushed to SAP successfully",

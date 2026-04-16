@@ -21,7 +21,7 @@ type AuditorTab = "pending" | "others";
 
 const OTHER_STATUS_OPTIONS = [
   { label: "Approved by Auditor", value: "3" },
-  { label: "Rejected by Auditor", value: "4" },
+  { label: "Rejected by Auditor", value: "7" },
 ];
 
 export default function AuditorApprovalScreen() {
@@ -130,7 +130,7 @@ export default function AuditorApprovalScreen() {
       setActionLoading({ id: selectedOrderId!, type: "reject" });
       await productService.updatestatus(
         selectedOrderId!,
-        "4",
+        "7",
         rejectReason,
       );
       setRejectModalVisible(false);

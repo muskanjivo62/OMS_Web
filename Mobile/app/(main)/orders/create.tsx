@@ -1081,10 +1081,10 @@ export default function CreateOrderScreen() {
       return;
     }
 
-    if ((row.isScheme || row.isComboProduct) && !row.selectedScheme) {
-      Alert.alert("Error", "Please select a scheme before confirming this item");
-      return;
-    }
+    // if ((row.isScheme || row.isComboProduct) && !row.selectedScheme) {
+    //   Alert.alert("Error", "Please select a scheme before confirming this item");
+    //   return;
+    // }
 
     const product = partyProducts.find(
       (p: any) => String(p.item_code) === String(row.selectedProduct),

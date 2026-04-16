@@ -633,6 +633,34 @@
   gap: 6px;
 }
 
+.db-party-list--spacious {
+  margin-top: 12px;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 118, 110, 0.45) rgba(226, 232, 240, 0.65);
+}
+
+.db-party-list--spacious::-webkit-scrollbar {
+  width: 8px;
+}
+
+.db-party-list--spacious::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.65);
+  border-radius: 999px;
+}
+
+.db-party-list--spacious::-webkit-scrollbar-thumb {
+  background: rgba(15, 118, 110, 0.45);
+  border-radius: 999px;
+}
+
+.db-party-list--spacious::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 118, 110, 0.62);
+}
+
 .db-party-list-item {
   display: grid;
   grid-template-columns: 22px 10px minmax(0, 1fr) auto;
@@ -643,10 +671,36 @@
   background: rgba(248, 250, 252, 0.95);
 }
 
+.db-party-list-item--detailed {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 9px 10px;
+}
+
+.db-party-list-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .db-party-list-rank {
   font-size: 10px;
   font-weight: 700;
   color: #64748b;
+}
+
+.db-party-list-details {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .db-party-list-name {
@@ -658,10 +712,64 @@
   white-space: nowrap;
 }
 
+.db-party-list-name--wrap {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.db-party-list-code {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
+
 .db-party-list-count {
   font-size: 11px;
   font-weight: 700;
   color: #1e293b;
+}
+
+.db-party-list-count--detailed {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.db-overview-top--compact {
+  gap: 12px;
+}
+
+.db-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.85);
+}
+
+.db-segmented-btn {
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.db-segmented-btn:hover {
+  background: rgba(255, 255, 255, 0.55);
+  color: #0f172a;
+}
+
+.db-segmented-btn.is-active {
+  background: linear-gradient(135deg, #0f766e, #2563eb);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
 }
 
 .db-empty-state {
@@ -755,6 +863,25 @@
   .db-overview-top,
   .db-chart-head {
     flex-direction: column;
+  }
+
+  .db-segmented-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .db-segmented-btn {
+    flex: 1;
+    text-align: center;
+  }
+
+  .db-party-list-item--detailed {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .db-party-list-count--detailed {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .db-chart-metric {

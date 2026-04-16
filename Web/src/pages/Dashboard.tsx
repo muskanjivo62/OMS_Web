@@ -47,8 +47,14 @@ interface CurrentUser {
 }
 
 type SupportedRole = "admin" | "auditor" | "manager" | "billing";
+type TopPartyView = "all" | 5 | 10;
 
 const PALETTE = ["#0f766e", "#2563eb", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2", "#4f46e5", "#ea580c"];
+const TOP_PARTY_VIEW_OPTIONS: Array<{ label: string; value: TopPartyView }> = [
+  { label: "All", value: "all" },
+  { label: "Top 5", value: 5 },
+  { label: "Top 10", value: 10 },
+];
 
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, index) => currentYear - index);
@@ -119,6 +125,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [year, setYear] = useState(currentYear);
+  const [topPartyView, setTopPartyView] = useState<TopPartyView>(5);
 
   const isUnauthorized = (result: PromiseSettledResult<unknown>) =>
     result.status === "rejected" &&
@@ -215,9 +222,12 @@ export default function Dashboard() {
   const topParties = useMemo(
     () =>
       (charts?.top_parties ?? [])
-        .filter((item) => (item.count ?? 0) > 0 || (item.revenue ?? 0) > 0)
-        .slice(0, 10),
+        .filter((item) => (item.count ?? 0) > 0 || (item.revenue ?? 0) > 0),
     [charts?.top_parties]
+  );
+  const visibleTopParties = useMemo(
+    () => (topPartyView === "all" ? topParties : topParties.slice(0, topPartyView)),
+    [topParties, topPartyView]
   );
   const topParty = topParties[0];
 
@@ -457,17 +467,47 @@ export default function Dashboard() {
         </div>
         <div className="db-overview-grid">
           <div className="db-overview-card db-overview-card--pulse">
-            <div className="db-highlight-label">Top Parties</div>
-            <div className="db-highlight-sub">{topParty ? `${topParty.card_name} leads with ${fmt(topParty.count)} orders` : "No party data available"}</div>
+            <div className="db-overview-top db-overview-top--compact">
+              <div>
+                <div className="db-highlight-label">Top Parties</div>
+                <div className="db-highlight-sub">
+                  {topParty
+                    ? `${topParty.card_name} leads with ${fmt(topParty.count)} orders`
+                    : "No party data available"}
+                </div>
+              </div>
+              <div className="db-segmented-control" role="tablist" aria-label="Top parties view">
+                {TOP_PARTY_VIEW_OPTIONS.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    className={`db-segmented-btn${topPartyView === option.value ? " is-active" : ""}`}
+                    onClick={() => setTopPartyView(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             {topParties.length === 0 ? (
               <div className="db-no-data" style={{ minHeight: 80 }}>No party data for this period</div>
             ) : (
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                {topParties.slice(0, 4).map((item, index) => (
-                  <div key={item.card_code} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 18, height: 18, borderRadius: "50%", background: PALETTE[index % PALETTE.length], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 700, flexShrink: 0 }}>{index + 1}</span>
-                    <span style={{ flex: 1, fontSize: 12, color: "#1e293b", fontWeight: 500, wordBreak: "break-word" }}>{item.card_name}</span>
-                    <span style={{ fontSize: 12, color: "#5b6878", fontWeight: 600, flexShrink: 0 }}>{fmt(item.count)}</span>
+              <div className="db-party-list db-party-list--spacious">
+                {visibleTopParties.map((item, index) => (
+                  <div key={item.card_code} className="db-party-list-item db-party-list-item--detailed">
+                    <span
+                      className="db-party-list-badge"
+                      style={{ background: PALETTE[index % PALETTE.length] }}
+                    >
+                      {index + 1}
+                    </span>
+                    <div className="db-party-list-details">
+                      <span className="db-party-list-name db-party-list-name--wrap">{item.card_name}</span>
+                      <span className="db-party-list-code">{item.card_code}</span>
+                    </div>
+                    <span className="db-party-list-count db-party-list-count--detailed">
+                      {fmt(item.count)} orders
+                    </span>
                   </div>
                 ))}
               </div>
