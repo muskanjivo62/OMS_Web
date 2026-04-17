@@ -186,11 +186,11 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
         "Item Name": item.item_name,
         Scheme: item.scheme_name || "",
         "Scheme Qty": item.scheme_qty || "",
-        "Scheme Ltrs": (item as any).scheme_ltrs || "",
+        
         Qty: item.qty,
         Boxes: item.boxes,
         Liters: item.ltrs,
-        "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2),
+        "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2),
         "Total Amount": item.total,
       }));
     } else {
@@ -464,7 +464,7 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
                     <th>Pcs</th>
                     <th>Boxes</th>
                     <th>Ltrs</th>
-                    <th>Scheme Ltrs</th>
+                    {/* <th>Scheme Ltrs</th> */}
                     <th>Total Ltrs</th>
                     <th>Amount</th>
                   </tr>
@@ -483,8 +483,8 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
                         <td>{item.pcs}</td>
                         <td>{Number(item.boxes).toFixed(2)}</td>
                         <td>{item.ltrs}</td>
-                        <td>{item.scheme_name ? (item as any).scheme_ltrs || 0 : "—"}</td>
-                        <td>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2)}</td>
+                        {/* <td>{item.scheme_name ? (item as any).scheme_ltrs || 0 : "—"}</td> */}
+                        <td>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2)}</td>
                         <td>{Number(item.total).toFixed(2)}</td>
                       </tr>
                     ))

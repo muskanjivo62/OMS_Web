@@ -347,11 +347,11 @@ export default function Sales_Report() {
           "Item Name": item.item_name,
           Scheme: item.scheme_name || "",
           "Scheme Qty": item.scheme_qty || "",
-          "Scheme Ltrs": (item as any).scheme_ltrs || "",
+          // "Scheme Ltrs": (item as any).scheme_ltrs || "",
           Qty: item.qty,
           Boxes: item.boxes,
           Liters: item.ltrs,
-          "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2),
+          "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2),
           "Tax Rate": item.tax_rate,
           "Total Amount": item.total,
           "Grand Total": (
@@ -389,7 +389,7 @@ export default function Sales_Report() {
       "Item Name": "",
       Scheme: "",
       "Scheme Qty": "",
-      "Scheme Ltrs": "",
+      // "Scheme Ltrs": "",
       Qty: "",
       Boxes: "",
       Liters: "",
@@ -429,11 +429,11 @@ export default function Sales_Report() {
             "Item Name": item.item_name,
             Scheme: item.scheme_name || "",
             "Scheme Qty": item.scheme_qty || "",
-            "Scheme Ltrs": (item as any).scheme_ltrs || "",
+            // "Scheme Ltrs": (item as any).scheme_ltrs || "",
             Qty: item.qty,
             Boxes: item.boxes,
             Liters: item.ltrs,
-            "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2),
+            "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2),
             "Tax Rate": item.tax_rate,
             "Total Amount": item.total,
             "Grand Total": (
@@ -474,7 +474,7 @@ export default function Sales_Report() {
       "Item Name": "",
       Scheme: "",
       "Scheme Qty": "",
-      "Scheme Ltrs": "",
+      // "Scheme Ltrs": "",
       Qty: "",
       Boxes: "",
       Liters: "",
@@ -966,7 +966,7 @@ export default function Sales_Report() {
                     <th>Pcs</th>
                     <th>Boxes</th>
                     <th>Ltrs</th>
-                    <th>Scheme Ltrs</th>
+                    {/* <th>Scheme Ltrs</th> */}
                     <th>Total Ltrs</th>
                     <th>Basic Price</th>
                     <th>Market Price</th>
@@ -999,8 +999,8 @@ export default function Sales_Report() {
                           {Number(item.boxes).toFixed(2)}
                         </td>
                         <td style={{ textAlign: "center" }}>{item.ltrs}</td>
-                        <td style={{ textAlign: "center" }}>{item.scheme_name ? ((item as any).scheme_ltrs || 0) : "—"}</td>
-                        <td style={{ textAlign: "center" }}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2)}</td>
+                          {/* <td style={{ textAlign: "center" }}>{item.scheme_name ? ((item as any).scheme_ltrs || 0) : "—"}</td> */}
+                        <td style={{ textAlign: "center" }}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2)}</td>
                         <td style={{ textAlign: "right" }}>
                           {Number(item.basic_price).toFixed(2)}
                         </td>

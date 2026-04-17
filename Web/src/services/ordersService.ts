@@ -63,6 +63,8 @@ export interface OrderItem {
   item_type: string;
   scheme_name?: string;
   scheme_qty?: number | string;
+  qty_scheme?: number | string;
+  scheme_ltrs?: number | string;
 
   qty: number;
   pcs: number;
@@ -136,6 +138,31 @@ export interface OrderLog {
   created_at: string;
 }
 
+const toNumber = (value: string | number | null | undefined) =>
+  typeof value === "number" ? value : Number(value || 0);
+
+const normalizeOrderItem = (item: OrderItem): OrderItem => {
+  const schemeQty = item.scheme_qty ?? item.qty_scheme ?? 0;
+  // const schemeLtrs =
+  //   item.scheme_ltrs ??
+  //   ((item as any).total_ltrs !== undefined
+  //     ? Math.max(toNumber((item as any).total_ltrs) - toNumber(item.ltrs), 0)
+  //     : schemeQty);
+  const totalLtrs = (item as any).total_ltrs ?? toNumber(item.ltrs) + toNumber(schemeQty);
+
+  return {
+    ...item,
+    scheme_qty: schemeQty,
+    // scheme_ltrs: schemeLtrs,
+    total_ltrs: totalLtrs,
+  };
+};
+
+const normalizeOrder = (order: Order): Order => ({
+  ...order,
+  items: Array.isArray(order.items) ? order.items.map(normalizeOrderItem) : [],
+});
+
 
 export const ordersService = {
 
@@ -201,17 +228,17 @@ export const ordersService = {
     if (billing) params.push('billing=true');
     const url = "/orders/list/" + (params.length ? `?${params.join('&')}` : '');
     const response = await api.get(url);
-    return response.data;
+    return Array.isArray(response.data) ? response.data.map(normalizeOrder) : response.data;
   },
 
   getOrdersByUser: async (userId: number) => {
     const response = await api.get(`/orders/ordersbyuser/${userId}/`);
-    return response.data as Order[];
+    return (response.data as Order[]).map(normalizeOrder);
   },
 
   getOrderDetails: async (orderId: number) => {
     const response = await api.get(`/orders/orderdetailsbyid/${orderId}/`);
-    return response.data as Order;
+    return normalizeOrder(response.data as Order);
   },
 
   getOrderLogs: async (orderId: number) => {

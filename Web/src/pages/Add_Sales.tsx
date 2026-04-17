@@ -8,7 +8,7 @@ import "../styles/Add_Sales.css";
 
 type SalesRow = RowType & {
   confirmed: boolean;
-  schemeLtrs?: string;
+  // schemeLtrs?: string;
   schemeItemCode?: string;
 };
 
@@ -21,7 +21,7 @@ const createEmptyRow = (): SalesRow => ({
   isScheme: false,
   scheme: "",
   schemeQty: "",
-  schemeLtrs: "",
+  // schemeLtrs: "",
   pcs: "",
   qty: "",
   ltrs: "",
@@ -208,7 +208,7 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
 
     return orderItems.length > 0
       ? orderItems.map((item) => {
-          const schemeLtrs = Number((item as any).scheme_ltrs || 0);
+          // const schemeLtrs = Number((item as any).scheme_ltrs || 0);
           const isSchemeVisible = Boolean(item.scheme_id || item.scheme_name || (item as any).is_scheme_visible);
 
           return {
@@ -220,7 +220,7 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
             isScheme: isSchemeVisible,
             scheme: item.scheme_id ? String(item.scheme_id) : "",
             schemeQty: isSchemeVisible ? String(item.scheme_qty ?? "") : "",
-            schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
+            // schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
             pcs: item.pcs ? String(item.pcs) : "",
             qty: item.qty ? String(item.qty) : "",
             ltrs: item.ltrs ? String(item.ltrs) : "",
@@ -399,9 +399,9 @@ const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
       total: Number(row.amount || 0),
       scheme_id: row.isScheme && row.scheme ? Number(row.scheme) : undefined,
       scheme_qty: row.isScheme ? Number(row.schemeQty || 0) : 0,
-      scheme_ltrs: row.isScheme ? Number(row.schemeLtrs || 0) : 0,
+      // scheme_ltrs: row.isScheme ? Number(row.schemeLtrs || 0) : 0,
       is_scheme: row.isScheme,
-      total_ltrs:  Number(row.ltrs) + Number(row.schemeLtrs || 0) 
+      total_ltrs:  Number(row.ltrs) + Number(row.schemeQty || 0) 
     })),
   };
 
@@ -480,7 +480,7 @@ const handleRowSchemeToggle = (index: number, isScheme: boolean) => {
           isScheme: isScheme,
           scheme: isScheme ? row.scheme : "",
           schemeQty: "",
-          schemeLtrs: "",
+          // schemeLtrs: "",
         };
       }
       return row;
@@ -511,7 +511,7 @@ const handleRowChange = (
     row.isScheme = false;
     row.scheme = "";
     row.schemeQty = "";
-    row.schemeLtrs = "";
+    // row.schemeLtrs = "";
 
     const partyProduct = partyProducts.find(
       (p) =>
@@ -541,7 +541,7 @@ const handleRowChange = (
     row.isScheme = false;
     row.scheme = "";
     row.schemeQty = "";
-    row.schemeLtrs = "";
+    // row.schemeLtrs = "";
     row.pcs = "";
     row.qty = "";
     row.ltrs = "";
@@ -580,7 +580,7 @@ if (name === "boxes" || name === "marketPrice") {
     row.amount = (price * qty).toFixed(2);
   }
 }
-if (name === "boxes" || name === "marketPrice") {
+if (name === "boxes" || name === "marketPrice" || name === "scheme") {
   const boxes = Number(row.boxes) || 0;
 
   const product =
@@ -619,11 +619,11 @@ if (name === "boxes" || name === "marketPrice") {
 
       row.schemeQty = String(calculatedQty);
 
-      const sPackUnit = Number((schemeObj as any).sal_pack_unit || 0);
-      row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
+      // const sPackUnit = Number((schemeObj as any).sal_pack_unit || product?.sal_pack_unit || 0);
+      // row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
     } else {
       row.schemeQty = "";
-      row.schemeLtrs = "";
+      // row.schemeLtrs = "";
     }
   }
 }
@@ -1298,7 +1298,7 @@ if (name === "boxes" || name === "marketPrice") {
                             />
                           </div>
 
-                          <div className="sl-scheme-qty-field">
+                          {/* <div className="sl-scheme-qty-field">
                             <label className="sl-scheme-field-label">Scheme Ltrs</label>
                             <input
                               type="text"
@@ -1306,14 +1306,14 @@ if (name === "boxes" || name === "marketPrice") {
                               value={row.isScheme && row.schemeLtrs ? Number(row.schemeLtrs).toFixed(2) : ""}
                               readOnly
                             />
-                          </div>
+                          </div> */}
 
                           <div className="sl-scheme-qty-field">
                             <label className="sl-scheme-field-label">Total Ltrs</label>
                             <input
                               type="text"
                               name="totalLtrs"
-                              value={row.isScheme && row.schemeLtrs ? (Number(row.ltrs) + Number(row.schemeLtrs)).toFixed(2) : Number(row.ltrs).toFixed(2)}
+                              value={row.isScheme && row.schemeQty ? (Number(row.ltrs) + Number(row.schemeQty)).toFixed(2) : Number(row.ltrs).toFixed(2)}
                               readOnly
                             />
                           </div>

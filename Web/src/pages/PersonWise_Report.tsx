@@ -220,11 +220,11 @@ export default function PersonWise_Report() {
           "Item Name": item.item_name,
           "Scheme": item.scheme_name || "",
           "Scheme Qty": item.scheme_qty || "",
-          "Scheme Ltrs": (item as any).scheme_ltrs || "",
+          // "Scheme Ltrs": (item as any).scheme_ltrs || "",
           "Qty": item.qty,
           "Boxes": item.boxes,
           "Liters": item.ltrs,
-          "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2),
+          "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2),
           "Tax Rate": item.tax_rate,
           "Total Amount": item.total,
           "Grand Total": (Number(item.total || 0) + (Number(item.total || 0) * Number(item.tax_rate || 0) / 100)).toFixed(2),
@@ -253,7 +253,7 @@ export default function PersonWise_Report() {
       "Item Name": "",
       "Scheme": "",
       "Scheme Qty": "",
-      "Scheme Ltrs": "",
+      // "Scheme Ltrs": "",
       "Qty": "",
       "Boxes": "",
       "Liters": "",
@@ -288,11 +288,11 @@ export default function PersonWise_Report() {
         "Item Name": item.item_name,
         "Scheme": item.scheme_name || "",
         "Scheme Qty": item.scheme_qty || "",
-        "Scheme Ltrs": (item as any).scheme_ltrs || "",
+        // "Scheme Ltrs": (item as any).scheme_ltrs || "",
         "Qty": item.qty,
         "Boxes": item.boxes,
         "Liters": item.ltrs,
-        "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2),
+        "Total Ltrs": (item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2),
         "Tax Rate": item.tax_rate,
         "Total Amount": item.total,
         "Grand Total": (Number(item.total || 0) + (Number(item.total || 0) * Number(item.tax_rate || 0) / 100)).toFixed(2),
@@ -324,7 +324,7 @@ export default function PersonWise_Report() {
       "Item Name": "",
       "Scheme": "",
       "Scheme Qty": "",
-      "Scheme Ltrs": "",
+      // "Scheme Ltrs": "",
       "Qty": "",
       "Boxes": "",
       "Liters": "",
@@ -583,7 +583,9 @@ export default function PersonWise_Report() {
                 <thead>
                   <tr>
                     <th>#</th><th>Item Code</th><th style={{ minWidth: '250px' }}>Item Name</th><th>Category</th>
-                    <th>Scheme</th><th>Scheme Qty</th><th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th><th>Scheme Ltrs</th><th>Total Ltrs</th>
+                    <th>Scheme</th><th>Scheme Qty</th><th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th>
+                    {/* <th>Scheme Ltrs</th>*/}
+                    <th>Total Ltrs</th> 
                     <th>Basic Price</th><th>Market Price</th><th>Tax %</th>
                     <th style={{textAlign:'right'}}>Amount</th>
                   </tr>
@@ -601,8 +603,8 @@ export default function PersonWise_Report() {
                       <td style={{textAlign:'center'}}>{item.pcs}</td>
                       <td style={{textAlign:'center'}}>{Number(item.boxes).toFixed(2)}</td>
                       <td style={{textAlign:'center'}}>{item.ltrs}</td>
-                      <td style={{textAlign:'center'}}>{item.scheme_name ? ((item as any).scheme_ltrs || 0) : "—"}</td>
-                      <td style={{textAlign:'center'}}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_ltrs || 0)).toFixed(2)}</td>
+                      {/* <td style={{textAlign:'center'}}>{item.scheme_name ? ((item as any).scheme_ltrs || 0) : "—"}</td> */}
+                      <td style={{textAlign:'center'}}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2)}</td>
                       <td style={{textAlign:'right'}}>{Number(item.basic_price).toFixed(2)}</td>
                       <td style={{textAlign:'right'}}>{Number(item.market_price).toFixed(2)}</td>
                       <td style={{textAlign:'center'}}>{Number(item.tax_rate).toFixed(2)}</td>
