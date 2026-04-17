@@ -3,12 +3,7 @@ from django.contrib.auth.models import AbstractUser
 
 class SchemeProduct(models.Model):
     scheme_id = models.AutoField(primary_key=True)
-    state = models.ForeignKey(
-        'users.State',
-        on_delete=models.PROTECT,
-        db_column='state_id',
-        related_name='scheme_products'
-    )
+    state_code = models.CharField(max_length=20, db_index=True,null=True, blank=True)  
     # item_code = models.ForeignKey(
     #     'sap_sync.Product',
     #     on_delete=models.PROTECT,

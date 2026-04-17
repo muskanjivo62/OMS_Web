@@ -4,7 +4,7 @@ from .views import DashboardKPIView,WDashboardKPIView,WDashboardChartsView,Order
 
 urlpatterns=[
     
-    path('scheme-products/', SchemeProductView.as_view(), name='scheme-products'),
+    # path('scheme-products/', SchemeProductView.as_view(), name='scheme-products'),
     path('parties/',PartyView.as_view(),name='parties'),
     path('dispatches/',DispatchLocationListView.as_view(),name='dispatches'),
     path('addresses/', PartyAddressesView.as_view(), name='party-addresses'),

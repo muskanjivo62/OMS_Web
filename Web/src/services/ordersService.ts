@@ -166,14 +166,11 @@ export const ordersService = {
     return response.data;
   },
 
-  getSchemeProducts: async (item_code?: string, state_id?: number) => {
-    const response = await api.get("/orders/scheme-products/", {
-      params: {
-        ...(item_code ? { item_code } : {}),
-        ...(state_id ? { state_id } : {}),
-      },
-    });
-    return response.data?.data || [];
+  getSchemeProducts: async (state_code?: string) => {
+    const response = await api.get(`/orders/schemes/?state_code=${state_code}`);
+    console.log("state code", state_code);
+    console.log("Fetched schemes from API:", response.data);
+    return response.data || [];
   },
 
   createOrder: async (formData: CreateOrder) => {

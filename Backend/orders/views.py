@@ -530,7 +530,7 @@ class PartyProductsView(APIView):
 #         return Response(rows)
         
 class PartyView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         user_id = request.user.id
@@ -549,6 +549,7 @@ class PartyView(APIView):
                 'value': p.card_code,
                 'label': f"{p.card_name} ({p.card_code})",
                 'category': p.category,
+                'state': p.state,
             }
             for p in parties
         ]
@@ -1076,14 +1077,16 @@ class SchemeListView(APIView):
 
     def get(self, request):
         from users.models import SchemeProduct
-        state_id = request.query_params.get('state_id')
+        state_code = request.query_params.get('state_code')
         queryset = SchemeProduct.objects.filter(is_active=True)
 
-        if state_id:
-            filtered_queryset = queryset.filter(state_id=state_id)
-            queryset = filtered_queryset if filtered_queryset.exists() else queryset
+        if state_code:
+            filtered_queryset = queryset.filter(state_code=state_code)
+            print(f"Filtering schemes for state_code={state_code}, found {filtered_queryset} schemes")
+            queryset = filtered_queryset 
+            print(f"After filtering, using {queryset} schemes for response")
 
-        schemes = queryset.order_by('scheme_name', 'scheme_id').values('scheme_id', 'scheme_name').distinct()
+        schemes = queryset.order_by('scheme_name', 'scheme_id','state_code').values('scheme_id', 'scheme_name','state_code').distinct()
         return Response(list(schemes))
 
 class OrderStatusList(APIView):
@@ -1099,7 +1102,7 @@ class SchemeProductView(APIView):
     def get(self, request):
         queryset = SchemeProduct.objects.select_related('state').filter(is_active=True)
 
-        state_id = request.query_params.get('state_id')
+        state_code = request.query_params.get('state_code')
         product_id = request.query_params.get('product_id')
         item_code = request.query_params.get('item_code')
         scheme_id = request.query_params.get('scheme_id')
@@ -1109,8 +1112,8 @@ class SchemeProductView(APIView):
             queryset = queryset.filter(scheme_id=scheme_id)
         if scheme_name:
             queryset = queryset.filter(scheme_name=scheme_name)
-        if state_id:
-            queryset = queryset.filter(state_id=state_id)
+        if state_code:
+            queryset = queryset.filter(state__state_code=state_code)
         if product_id:
             product = SapProduct.objects.filter(id=product_id).only('item_code').first()
             queryset = queryset.filter(item_code=product.item_code) if product else queryset.none()

@@ -4,6 +4,7 @@ import {api} from './api';
 export interface Party {
   value: string;
   label: string;
+  state: string;
 }
 
 export interface DispatchLocation {
@@ -88,41 +89,42 @@ export const dispatchService = {
 };
 
 export const schemeService = {
-  getSchemes: async (stateId?: number | null): Promise<{ scheme_id: number; scheme_name: string }[]> => {
-    const endpoint = stateId ? `/orders/schemes/?state_id=${stateId}` : '/orders/schemes/';
+  getSchemes: async (stateCode?: string | null): Promise<{ scheme_id: number; scheme_name: string }[]> => {
+    console.log("Fetching schemes for state code:", stateCode);
+    const endpoint = stateCode ? `/orders/schemes/?state_code=${stateCode}` : "";
     const res = await api.get(endpoint);
 
     if (Array.isArray(res) && res.length) {
       return res;
     }
 
-    if (stateId) {
-      const fallbackRes = await api.get('/orders/schemes/');
-      return Array.isArray(fallbackRes) ? fallbackRes : [];
-    }
+    // if (stateCode) {
+    //   const fallbackRes = await api.get('/orders/schemes/');
+    //   return Array.isArray(fallbackRes) ? fallbackRes : [];
+    // }
 
     return Array.isArray(res) ? res : [];
   },
-  getSchemeProductsByName: async (schemeName: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
-    const res = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_id=${stateId}`);
+  getSchemeProductsByName: async (schemeName: string, stateCode: string): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
+    const res = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_code=${encodeURIComponent(stateCode)}`);
     return res?.data || [];
   },
   // Fetches ALL combo items for a scheme_id by first resolving the scheme_name
-  getComboBySchemeId: async (schemeId: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
-    const res1 = await api.get(`/orders/scheme-products/?scheme_id=${schemeId}&state_id=${stateId}`);
+  getComboBySchemeId: async (schemeId: string, stateCode: string): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
+    const res1 = await api.get(`/orders/scheme-products/?scheme_id=${schemeId}&state_code=${encodeURIComponent(stateCode)}`);
     const seed: { scheme_name?: string } = res1?.data?.[0] ?? {};
     if (!seed.scheme_name) return [];
-    const res2 = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(seed.scheme_name)}&state_id=${stateId}`);
+    const res2 = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(seed.scheme_name)}&state_code=${encodeURIComponent(stateCode)}`);
     return res2?.data || [];
   },
-  getComboByItemCode: async (itemCode: string, stateId: number): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
+  getComboByItemCode: async (itemCode: string, stateCode: string): Promise<{ scheme_name: string; sal_factor2: number; sal_pack_unit: string }[]> => {
     // Step 1: find which combo scheme this item belongs to
-    const res1 = await api.get(`/orders/scheme-products/?item_code=${encodeURIComponent(itemCode)}&state_id=${stateId}`);
+    const res1 = await api.get(`/orders/scheme-products/?item_code=${encodeURIComponent(itemCode)}&state_code=${encodeURIComponent(stateCode)}`);
     const records: { scheme_name: string }[] = res1?.data || [];
     if (!records.length) return [];
     const schemeName = records[0].scheme_name;
     // Step 2: fetch ALL items in that combo by scheme_name
-    const res2 = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_id=${stateId}`);
+    const res2 = await api.get(`/orders/scheme-products/?scheme_name=${encodeURIComponent(schemeName)}&state_code=${encodeURIComponent(stateCode)}`);
     return res2?.data || [];
   },
 };

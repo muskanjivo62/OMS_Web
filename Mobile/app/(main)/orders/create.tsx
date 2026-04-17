@@ -390,7 +390,7 @@ export default function CreateOrderScreen() {
 
   // ── Confirmed order items ─────────────────────────────────────────────────
   const [orderItems, setOrderItems] = useState<OrderItemType[]>([]);
-  const [assignedStateId, setAssignedStateId] = useState<number>(1);
+  const [assignedStateCode, setAssignedStateCode] = useState<string>("");
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -414,26 +414,22 @@ export default function CreateOrderScreen() {
     );
   };
 
-  useEffect(() => {
-    const loadAssignedStateId = async () => {
-      try {
-        const storedUser = await storage.getUser();
-        const stateId =
-          storedUser?.states?.[0]?.id ??
-          storedUser?.state?.id ??
-          user?.states?.[0]?.id ??
-          user?.state?.id ??
-          1;
+  // useEffect(() => {
+  //   const loadAssignedStateId = async () => {
+  //     try {
+  //       const storedParty = await orderService.getParties();
+  //       const stateCode =
+  //         storedParty?.state;
 
-        setAssignedStateId(stateId);
-      } catch (error) {
-        console.log("Failed to load user states from storage:", error);
-        setAssignedStateId(user?.states?.[0]?.id ?? user?.state?.id ?? 1);
-      }
-    };
+  //       setAssignedStateCode(stateCode);
+  //     } catch (error) {
+  //       console.log("Failed to load user states from storage:", error);
+  //       setAssignedStateCode(user?.states?.[0]?.code ?? user?.state?.code ?? "DEFAULT");
+  //     }
+  //   };
 
-    loadAssignedStateId();
-  }, [user]);
+  //   loadAssignedStateId();
+  // }, [user]);
 
   // ─── Fetch master data on mount ────────────────────────────────────────────
   useEffect(() => {
@@ -452,17 +448,27 @@ export default function CreateOrderScreen() {
       const partiesData = await orderService.getParties();
       console.log("getallparties"+JSON.stringify(partiesData));
       const partiesList = Array.isArray(partiesData) ? partiesData : [];
+      console.log("partiesList:", partiesList);
+
+      // const state_code: string = partiesList.find((p: any) => String(p.value) === String(partyName))?.state || "";
+      // setAssignedStateCode(state_code);
+      // console.log("Assigned state code:", state_code);
 
       const oilParties = partiesList.filter(
         (p: any) => p.category?.toUpperCase() === ACTIVE_CATEGORY,
       );
 
+      console.log("Oil parties:", oilParties);
+
       setParties(
         (oilParties.length > 0 ? oilParties : partiesList).map((p) => ({
           label: p.label,
           value: p.value,
+          state: p.state,
         })),
       );
+
+      setAssignedStateCode(partiesList.find((p: any) => String(p.value) === String(partyName))?.state || "");
 
       // const dispatchesData = await dispatchService.getDispatch();
       // setDispatches(
@@ -493,6 +499,7 @@ export default function CreateOrderScreen() {
     if (!id) return;
     try {
       const order = await orderService.getorderdetailsbyid(id);
+      console.log("Loaded order for edit:", order);
 
       // Header fields
       setPartyName(order.card_code);
@@ -603,6 +610,27 @@ export default function CreateOrderScreen() {
     setCategories([]);
     setItemRows([]);
     setOrderItems([]);
+
+     try {
+    const partiesData = await orderService.getParties();
+    const partiesList = Array.isArray(partiesData) ? partiesData : [];
+
+    const selectedParty = partiesList.find(
+      (p: any) =>
+        String(p.value) === String(cardCode) &&
+        p.category?.toUpperCase() === ACTIVE_CATEGORY
+    );
+
+    const stateCode = selectedParty?.state || "";
+    console.log("Assigned state code from selected party:", stateCode);
+    setAssignedStateCode(stateCode);
+
+    const addressData = await orderService.getAddresses(cardCode);
+    // rest of your existing code...
+  } catch (err) {
+    console.log("Failed to fetch party data:", err);
+  }
+
 
     try {
       const addressData = await orderService.getAddresses(cardCode);
@@ -818,7 +846,8 @@ export default function CreateOrderScreen() {
         }),
       });
       try {
-        const schemeData = await schemeService.getSchemes(assignedStateId);
+        const schemeData = await schemeService.getSchemes(assignedStateCode);
+        console.log("Fetched schemes:", schemeData);
         const schemes = schemeData.map((s) => ({
           label: s.scheme_name,
           value: String(s.scheme_id),
@@ -847,14 +876,14 @@ export default function CreateOrderScreen() {
           try {
             const fullComboItems = await schemeService.getSchemeProductsByName(
               comboSchemeName,
-              assignedStateId,
+              assignedStateCode,
             );
             schemeLtrsPerBox = calculateLtrsPerBox(fullComboItems);
           } catch {
             try {
               const fullComboItems = await schemeService.getComboByItemCode(
                 String(product.item_code),
-                assignedStateId,
+                assignedStateCode,
               );
               schemeLtrsPerBox = calculateLtrsPerBox(fullComboItems);
             } catch {

@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ordersService } from "../services/ordersService";
 import { userService } from "../services/userService";
-import { getCurrentUser } from "../services/authService";
+// import { getCurrentUser } from "../services/authService";
 import type { Order, Product, PartyProduct, RowType, SchemeProduct } from "../services/ordersService";
 import "../styles/Add_Sales.css";
 
@@ -33,20 +33,20 @@ const createEmptyRow = (): SalesRow => ({
   confirmed: false,
 });
 
-const getUniqueSchemes = (schemes: SchemeProduct[]) => {
-  const seen = new Set<string>();
+// const getUniqueSchemes = (schemes: SchemeProduct[]) => {
+//   const seen = new Set<string>();
 
-  return schemes.filter((scheme) => {
-    const normalizedName = (scheme.scheme_name || "").trim().toLowerCase();
+//   return schemes.filter((scheme) => {
+//     const normalizedName = (scheme.scheme_name || "").trim().toLowerCase();
 
-    if (!normalizedName || seen.has(normalizedName)) {
-      return false;
-    }
+//     if (!normalizedName || seen.has(normalizedName)) {
+//       return false;
+//     }
 
-    seen.add(normalizedName);
-    return true;
-  });
-};
+//     seen.add(normalizedName);
+//     return true;
+//   });
+// };
 
 type EditOrderLocationState = {
   editOrderId?: number;
@@ -75,7 +75,7 @@ const [products, setProducts] = useState<Product[]>([]);
 const [company, setCompany] = useState<any[]>([]);
 const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
 const [schemeOptions, setSchemeOptions] = useState<Record<number, SchemeProduct[]>>({});
-const [userStateId, setUserStateId] = useState<number | null>(null);
+const [stateCode, setStateCode] = useState<string | null>(null);
 const [hasLoadedUserProfile, setHasLoadedUserProfile] = useState(false);
 const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 const [isSaving, setIsSaving] = useState(false);
@@ -102,7 +102,7 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     fetchBranch ();
     fetchProducts();
     fetchCompany();
-    fetchCurrentUserProfile();
+    // fetchCurrentUserProfile();
     
   }, []);
 
@@ -180,8 +180,12 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     try {
       let partyProductsData = await ordersService.getPartyProduct(card_code);
       setPartyProducts(partyProductsData);
+
+      console.log("Fetched party products:", partyProductsData);
       const categories = [...new Set(partyProductsData.map((p: PartyProduct) => p.category))] as string[];
       setCategory(categories);
+      
+      
       return partyProductsData;
     } catch (error) {
       console.log("Error fetching categories:", error);
@@ -192,18 +196,6 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
   const fetchProducts = async () => {
     let data = await ordersService.getProducts();
     setProducts(data);
-  };
-
-  const fetchCurrentUserProfile = async () => {
-    try {
-      const data = await getCurrentUser();
-      const primaryStateId = data?.state?.id ?? data?.states?.[0]?.id ?? null;
-      setUserStateId(primaryStateId);
-    } catch (error) {
-      console.log("Error fetching current user profile:", error);
-    } finally {
-      setHasLoadedUserProfile(true);
-    }
   };
 
   const getProductType = (itemName: string) => {
@@ -278,14 +270,16 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
 
         const hasSchemeRows = mappedRows.some((row) => row.isScheme);
         if (hasSchemeRows) {
-          const schemes = await ordersService.getSchemeProducts(undefined, userStateId ?? undefined);
+          const schemes = await ordersService.getSchemeProducts(stateCode ?? '');
+          console.log("Fetched schemes for edit order:", schemes);
           if (isCancelled) return;
 
-          const uniqueSchemes = getUniqueSchemes(schemes);
+          // const uniqueSchemes = getUniqueSchemes(schemes);
           const nextSchemeOptions: Record<number, SchemeProduct[]> = {};
           mappedRows.forEach((row, index) => {
             if (row.isScheme) {
-              nextSchemeOptions[index] = uniqueSchemes;
+              nextSchemeOptions[index] = schemes;
+              console.log(`Assigned schemes to row ${index}:`, schemes);
             }
           });
           setSchemeOptions(nextSchemeOptions);
@@ -308,22 +302,27 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     return () => {
       isCancelled = true;
     };
-  }, [editOrderId, hasLoadedUserProfile, isEditMode, navigate, returnTo, userStateId]);
+  }, [editOrderId, hasLoadedUserProfile, isEditMode, navigate, returnTo, stateCode]);
 
-  const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
-    if (!shouldFetch) {
-      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
-      return;
-    }
+const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
+  if (!shouldFetch || !stateCode) {
+    setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+    return;
+  }
 
-    try {
-      const schemes = await ordersService.getSchemeProducts(undefined, userStateId ?? undefined);
-      setSchemeOptions((prev) => ({ ...prev, [index]: getUniqueSchemes(schemes) }));
-    } catch (error) {
-      console.log("Error fetching schemes:", error);
-      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
-    }
-  };
+  try {
+    const schemes = await ordersService.getSchemeProducts(stateCode);
+    console.log("Fetched schemes for row:", schemes);
+
+    setSchemeOptions((prev) => ({
+      ...prev,
+      [index]: schemes,
+    }));
+  } catch (error) {
+    console.log("Error fetching schemes:", error);
+    setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+  }
+};
 
   // -------------------------------
   // ----------Handle fxns----------
@@ -581,47 +580,51 @@ if (name === "boxes" || name === "marketPrice") {
     row.amount = (price * qty).toFixed(2);
   }
 }
-if (row.isScheme && (name === "qty" || name === "scheme")) {
+if (name === "boxes" || name === "marketPrice") {
+  const boxes = Number(row.boxes) || 0;
 
-  const schemes = schemeOptions[index] || [];
+  const product =
+    partyProducts.find((p) => p.item_name === row.item) ||
+    products.find((p) => p.item_name === row.item);
 
-  console.log("Schemes:", schemes);
+  if (product) {
+    const factor = Number(product.sal_factor2) || 1;
 
-  const schemeObj = schemes.find(
-    (s) => String(s.scheme_id) === String(row.scheme)
-  );
+    const qty = boxes * factor;
+    row.qty = String(qty);
 
-  console.log("Selected Scheme:", row.scheme);
-  console.log("SchemeObj:", schemeObj);
+    row.ltrs = String(Number(product.sal_pack_unit) * qty);
 
-  if (schemeObj) {
-    const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
-    console.log("match", match);
-    const multiplier = match ? parseFloat(match[1]) : 1;
+    const basic = Number(row.basicPrice) || 0;
+    const market = Number(row.marketPrice) || 0;
+    const price = market > 0 ? market : basic;
 
-    const qty = Number(row.qty) || 0;
-   const schemeName = (schemeObj.scheme_name || "").toLowerCase();
+    row.amount = (price * qty).toFixed(2);
+  }
 
-const calculatedQty = schemeName.includes("box")
-  ? Number(row.boxes) * multiplier
-  : qty * multiplier;
-    console.log("Calculated Scheme Qty:", calculatedQty);
+  if (row.isScheme && row.scheme) {
+    const schemes = schemeOptions[index] || [];
+    const schemeObj = schemes.find(
+      (s) => String(s.scheme_id) === String(row.scheme)
+    );
 
-    row.schemeQty = String(calculatedQty);
+    if (schemeObj) {
+      const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
+      const multiplier = match ? parseFloat(match[1]) : 1;
+      const schemeName = (schemeObj.scheme_name || "").toLowerCase();
 
-    const sProduct = schemeObj.sal_pack_unit ? { sal_pack_unit: schemeObj.sal_pack_unit } : null;
+      const calculatedQty = schemeName.includes("box")
+        ? boxes * multiplier
+        : (Number(row.qty) || 0) * multiplier;
 
-    console.log("Scheme Product:", sProduct);
+      row.schemeQty = String(calculatedQty);
 
-    const sPackUnit = sProduct ? Number(sProduct.sal_pack_unit) : 0;
-
-    row.schemeLtrs = String(sPackUnit * calculatedQty);
-
-    console.log("✅ FINAL schemeLtrs:", row.schemeLtrs);
-
-  } else {
-    row.schemeQty = "";
-    row.schemeLtrs = "";
+      const sPackUnit = Number((schemeObj as any).sal_pack_unit || 0);
+      row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
+    } else {
+      row.schemeQty = "";
+      row.schemeLtrs = "";
+    }
   }
 }
   updatedRows[index] = row;
@@ -663,6 +666,15 @@ const calculatedQty = schemeName.includes("box")
     setSchemeOptions({});
     fetchPartyAddresses(value);
     fetchPartyCategories(value);
+
+    const selectedParty = parties.find((p) => p.value === value);
+    console.log("Selected party on select:", selectedParty);
+    if (selectedParty && selectedParty.state) {
+      setStateCode(selectedParty.state);
+    } else {
+      setStateCode(null);
+    }
+
   };
 
   const handleChange = (e: React.ChangeEvent<any>) => {
