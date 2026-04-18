@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path,include
-from .views import DashboardKPIView,WDashboardKPIView,WDashboardChartsView,OrderLogsByOrderView, OrderDetailsByOrderView,OrdersByUserView,DashboardChartsView,OrderStatusList,BranchView,PartyView,DispatchLocationListView, SchemeProductView,UpdateOrderStatusView,PartyAddressesView,ProductFiltersView,ProductListView,PartyProductsView,CreateOrderView,UpdateOrderView,OrderListView,RejectOrderView,ApproveOrderView,SchemeListView
+from .views import DashboardKPIView,WDashboardKPIView,WDashboardChartsView,OrderLogsByOrderView, OrderDetailsByOrderView,OrdersByUserView,DashboardChartsView,OrderStatusList,BranchView,PartyView,DispatchLocationListView, SchemeProductView,UpdateOrderStatusView,PartyAddressesView,ProductFiltersView,ProductListView,PartyProductsView,CreateOrderView,UpdateOrderView,OrderListView,RejectOrderView,ApproveOrderView,SchemeListView,CreateSchemeView
 
 urlpatterns=[
     
@@ -28,5 +28,6 @@ urlpatterns=[
     path("orderdetailsbyid/<int:order_id>/",OrderDetailsByOrderView.as_view(),name="order-details-by-id"),
     path("<int:order_id>/orderdetails/",OrderDetailsByOrderView.as_view(),name="order-details-by-orderid"),
     path("ordersbyuser/<int:user_id>/",OrdersByUserView.as_view(),name="orders-by-user"),
+    path("create-scheme/",CreateSchemeView.as_view(), name="create-scheme"),
     
 ]

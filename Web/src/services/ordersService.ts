@@ -265,4 +265,18 @@ export const ordersService = {
     return response.data;
   },
 
+ createScheme: async (data: {
+  scheme_name: string;
+  item_code: string;
+  state_code: string;
+}) => {
+  const response = await api.post("/orders/create-scheme/", data, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  return response.data;
+}
+
 };

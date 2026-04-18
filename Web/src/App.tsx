@@ -17,6 +17,7 @@ import "./styles/AppShell.css";
 import "./styles/UIConsistency.css";
 import Party_Assignment from "./pages/Party_Assignment";
 import Party_Product_Assignment from "./pages/Party_Product_Assignment";
+import Add_Scheme from "./pages/Add_Scheme";
 
 function App() {
   return (
@@ -143,6 +144,14 @@ function App() {
           element={
             <Sidebar>
               <Party_Product_Assignment />
+            </Sidebar>}
+        />
+
+        <Route
+          path="/Add_Scheme"
+          element={
+            <Sidebar>
+              <Add_Scheme />
             </Sidebar>}
         />
 

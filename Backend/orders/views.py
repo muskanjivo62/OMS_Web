@@ -1,7 +1,7 @@
 from urllib import request
 from django.shortcuts import render
 import re
-from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer,OrderItemSerializer
+from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer,OrderItemSerializer, CreateSchemeSerializer
 from .models import PartyProductAssignment,OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -1445,3 +1445,25 @@ class OrderListView(APIView):
             })
 
         return Response(data)
+    
+class CreateSchemeView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = CreateSchemeSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Scheme created successfully',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        return Response({
+            'success': False,
+            'message': 'Failed to create scheme',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    permission_classes = [AllowAny]

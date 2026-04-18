@@ -11,22 +11,12 @@ import {
   HiArrowDownTray    // Download
 } from "react-icons/hi2";
 
-type StateType = {
-  id: number;
-  name: string;
-  code: string;
-};
-
 export default function Daily_Report() {
-  const stateRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<HTMLDivElement>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [states, setStates] = useState<StateType[]>([]);
   const [mainGroup, setMainGroup] = useState<{ id: number; name: string }[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [mgDropdownOpen, setMgDropdownOpen] = useState(false);
-  const [selectedStates, setSelectedStates] = useState<number[]>([]);
-  const [stDropdownOpen, setStDropdownOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [showDetails, setShowDetails] = useState(false);
@@ -41,15 +31,6 @@ export default function Daily_Report() {
       setOrders(data);
     } catch (error) {
       console.error("Failed to fetch orders:", error);
-    }
-  };
-
-  const fetchstates = async () => {
-    try {
-      const data = await userService.getState();
-      setStates(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch states:", error);
     }
   };
 
@@ -73,20 +54,12 @@ export default function Daily_Report() {
 
   useEffect(() => {
     fetchmainGroup();
-    fetchstates();
     fetchUsers();
     fetchOrders();
   }, []);
 
   useEffect(() => {
   const handleClickOutside = (event: MouseEvent) => {
-    if (
-      stateRef.current &&
-      !stateRef.current.contains(event.target as Node)
-    ) {
-      setStDropdownOpen(false);
-    }
-
     if (
       groupRef.current &&
       !groupRef.current.contains(event.target as Node)
@@ -106,16 +79,10 @@ export default function Daily_Report() {
     if (u.role_name?.toLowerCase() !== "manager" && u.role?.toLowerCase() !== "manager") return false;
 
     const userGroupIds = (u.main_groups || []).map((g) => g.id);
-    const userStateIds = (u.states || []).map((s) => s.id);
 
     if (selectedGroups.length > 0) {
       const hasGroup = selectedGroups.some((id) => userGroupIds.includes(id));
       if (!hasGroup) return false;
-    }
-
-    if (selectedStates.length > 0) {
-      const hasState = selectedStates.some((id) => userStateIds.includes(id));
-      if (!hasState) return false;
     }
 
     return true;
@@ -132,17 +99,6 @@ export default function Daily_Report() {
   const toggleAllGroups = () => {
     const allSelected = selectedGroups.length === mainGroup.length;
     setSelectedGroups(allSelected ? [] : mainGroup.map((g) => g.id));
-  };
-
-  const toggleState = (id: number) => {
-    setSelectedStates((prev) =>
-      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
-    );
-  };
-
-  const toggleAllStates = () => {
-    const allSelected = selectedStates.length === states.length;
-    setSelectedStates(allSelected ? [] : states.map((s) => s.id));
   };
 
   const selectedUserObj = filteredUsers.find((u) => u.name === selectedUser);
@@ -166,7 +122,7 @@ export default function Daily_Report() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedGroups, selectedStates, selectedUser, orders]);
+  }, [selectedGroups, selectedUser, orders]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -317,7 +273,7 @@ export default function Daily_Report() {
     saveAs(file, `Daily_Report_${selectedUser}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  const isFilterReady = selectedGroups.length > 0 && selectedStates.length > 0;
+  const isFilterReady = selectedGroups.length > 0;
 
   return (
     <div className="dr-page">
@@ -332,37 +288,11 @@ export default function Daily_Report() {
           <div className="dr-filter-card">
             <div className="dr-filter-row">
 
-              
-              {/* State */}
-              <div className="dr-field">
-                {/* <label className="dr-label">State</label> */}
-                <div className="dr-dropdown"  ref={stateRef}>
-                  <div className="dr-dropdown-trigger" onClick={() => { setStDropdownOpen((v) => !v); setMgDropdownOpen(false); }}>
-                    {selectedStates.length === 1 ? states.find((s) => s.id === selectedStates[0])?.name || "1 selected" : selectedStates.length > 1 ? `${selectedStates.length} selected` : "Select State"}
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#64748b" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </div>
-                  {stDropdownOpen && (
-                    <div className="dr-dropdown-menu">
-                      <label className="dr-dropdown-item dr-select-all">
-                        <input type="checkbox" checked={states.length > 0 && selectedStates.length === states.length} onChange={toggleAllStates} />
-                        Select All
-                      </label>
-                      {states.map((s) => (
-                        <label key={s.id} className="dr-dropdown-item">
-                          <input type="checkbox" checked={selectedStates.includes(s.id)} onChange={() => toggleState(s.id)} />
-                          {s.name}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Main Group */}
               <div className="dr-field">
                 {/* <label className="dr-label">Main Group</label> */}
                 <div className="dr-dropdown" ref={groupRef}>
-                  <div className="dr-dropdown-trigger" onClick={() => { setMgDropdownOpen((v) => !v); setStDropdownOpen(false); }}>
+                  <div className="dr-dropdown-trigger" onClick={() => setMgDropdownOpen((v) => !v)}>
                     {selectedGroups.length === 1 ? mainGroup.find((g) => g.id === selectedGroups[0])?.name || "1 selected" : selectedGroups.length > 1 ? `${selectedGroups.length} selected` : "Select Main Group"}
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="#64748b" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
@@ -393,7 +323,7 @@ export default function Daily_Report() {
                   disabled={!isFilterReady}
                   style={!isFilterReady ? { opacity: 0.5, cursor: "not-allowed" } : {}}
                 >
-                  <option value="">{!isFilterReady ? "Select Group & State first" : "-- Select User --"}</option>
+                  <option value="">{!isFilterReady ? "Select Main Group first" : "-- Select User --"}</option>
                   {userNames.map((name, index) => (
                     <option key={index} value={name}>{name}</option>
                   ))}

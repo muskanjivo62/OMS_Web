@@ -110,6 +110,12 @@ export default function Sidebar({ children }: SidebarProps) {
               <Link to="/Party_Product_Assignment" onClick={closeSidebar}>Party Product Assignment</Link>
             </li>
 
+             <li className={location.pathname === "/Add_Scheme" ? "active" : ""}>
+              <Link to="/Add_Scheme" onClick={closeSidebar}>Add Scheme</Link>
+            </li>
+
+
+
             </>
           )}
 

@@ -12,12 +12,6 @@ import {
   HiArrowDownTray    // Download    
 } from "react-icons/hi2";
 
-type StateType = {
-  id: number;
-  name: string;
-  code: string;
-};
-
 const now = new Date();
 
 // First day of current month
@@ -36,14 +30,11 @@ export default function Sales_Report() {
   const [selectedParty, setSelectedParty] = useState<string>("");
   const [partySearch, setPartySearch] = useState<string>("");
   const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
-  const [states, setStates] = useState<StateType[]>([]);
   const [mainGroup, setMainGroup] = useState<{ id: number; name: string }[]>(
     [],
   );
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [mgDropdownOpen, setMgDropdownOpen] = useState(false);
-  const [selectedStates, setSelectedStates] = useState<number[]>([]);
-  const [stDropdownOpen, setStDropdownOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
     // const [selectedUser] = useState<string>("");
   const [showDetails, setShowDetails] = useState(false);
@@ -55,7 +46,6 @@ export default function Sales_Report() {
   const itemsPerPage = 10;
   const [users, setUsers] = useState<User[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
-  const stateRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<HTMLDivElement>(null);
   const partyDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -65,15 +55,6 @@ export default function Sales_Report() {
       setOrders(data);
     } catch (error) {
       console.error("Failed to fetch orders:", error);
-    }
-  };
-
-  const fetchstates = async () => {
-    try {
-      const data = await userService.getState();
-      setStates(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch states:", error);
     }
   };
 
@@ -116,7 +97,6 @@ export default function Sales_Report() {
 
   useEffect(() => {
     fetchmainGroup();
-    fetchstates();
     fetchVariety();
     fetchParties();
     fetchUsers();
@@ -125,13 +105,6 @@ export default function Sales_Report() {
 
    useEffect(() => {
   const handleClickOutside = (event: MouseEvent) => {
-    if (
-      stateRef.current &&
-      !stateRef.current.contains(event.target as Node)
-    ) {
-      setStDropdownOpen(false);
-    }
-
     if (
       groupRef.current &&
       !groupRef.current.contains(event.target as Node)
@@ -156,50 +129,24 @@ export default function Sales_Report() {
 
   const filteredUsers = users.filter((u) => {
     const userGroupIds = (u.main_groups || []).map((g: any) => g.id);
-    const userStateIds = (u.states || []).map((s: any) => s.id);
 
     const matchGroup =
       selectedGroups.length === 0 ||
       selectedGroups.some((id) => userGroupIds.includes(id));
 
-    const matchState =
-      selectedStates.length === 0 ||
-      selectedStates.some((id) => userStateIds.includes(id));
-
-    return matchGroup && matchState;
+    return matchGroup;
   });
 
   const allowedUserIds = filteredUsers.map((u) => u.id);
   const normalize = (value?: string | null) =>
     (value || "").toLowerCase().trim();
-  const selectedStateNames = states
-    .filter((state) => selectedStates.includes(state.id))
-    .map((state) => normalize(state.name));
-  const selectedStateCodes = states
-    .filter((state) => selectedStates.includes(state.id))
-    .map((state) => normalize(state.code));
   const selectedGroupNames = mainGroup
     .filter((group) => selectedGroups.includes(group.id))
     .map((group) => normalize(group.name));
 
   const filteredPartyOptions = parties.filter((party) => {
-    const partyState = normalize(party.state);
     const partyGroup = normalize(party.main_group);
 
-    const matchState =
-      selectedStateNames.length === 0 ||
-      selectedStateNames.some(
-        (stateName) =>
-          partyState === stateName ||
-          partyState.includes(stateName) ||
-          stateName.includes(partyState),
-      ) ||
-      selectedStateCodes.some(
-        (stateCode) =>
-          partyState === stateCode ||
-          partyState.includes(stateCode) ||
-          stateCode.includes(partyState),
-      );
     const matchGroup =
       selectedGroupNames.length === 0 ||
       selectedGroupNames.some(
@@ -209,15 +156,12 @@ export default function Sales_Report() {
           groupName.includes(partyGroup),
       );
 
-    return matchState && matchGroup;
+    return matchGroup;
   });
-
-  const visiblePartyOptions =
-    selectedStates.length > 0 ? filteredPartyOptions : [];
 
   const partyDropdownOptions = Array.from(
     new Map(
-      visiblePartyOptions
+      filteredPartyOptions
         .filter((party) => party.card_name?.trim() && party.card_code?.trim())
         .map((party) => [party.card_code.trim(), party]),
     ).values(),
@@ -245,13 +189,6 @@ export default function Sales_Report() {
     }
   }, [partyDropdownOptions, selectedParty]);
 
-  useEffect(() => {
-    if (selectedStates.length === 0) {
-      setSelectedParty("");
-      setPartySearch("");
-      setPartyDropdownOpen(false);
-    }
-  }, [selectedStates]);
   const toggleGroup = (id: number) => {
     setSelectedGroups((prev) =>
       prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
@@ -261,17 +198,6 @@ export default function Sales_Report() {
   const toggleAllGroups = () => {
     const allSelected = selectedGroups.length === mainGroup.length;
     setSelectedGroups(allSelected ? [] : mainGroup.map((g) => g.id));
-  };
-
-  const toggleState = (id: number) => {
-    setSelectedStates((prev) =>
-      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
-    );
-  };
-
-  const toggleAllStates = () => {
-    const allSelected = selectedStates.length === states.length;
-    setSelectedStates(allSelected ? [] : states.map((s) => s.id));
   };
 
     // const selectedUserObj = filteredUsers.find((u) => u.name === selectedUser);
@@ -311,7 +237,6 @@ export default function Sales_Report() {
     setCurrentPage(1);
   }, [
     selectedGroups,
-    selectedStates,
     selectedParty,
     selectedVariety,
     fromDate,
@@ -515,71 +440,13 @@ export default function Sales_Report() {
 
           <div className="dr-filter-card">
             <div className="dr-filter-row">
-              {/* State */}
-              <div className="dr-field">
-                <label className="dr-label">State</label>
-                <div className="dr-dropdown" ref={stateRef}>
-                  <div
-                    className="dr-dropdown-trigger"
-                    onClick={() => {
-                      setStDropdownOpen((v) => !v);
-                      setMgDropdownOpen(false);
-                    }}
-                  >
-                    {selectedStates.length === 1
-                      ? states.find((s) => s.id === selectedStates[0])?.name ||
-                        "1 selected"
-                      : selectedStates.length > 1
-                        ? `${selectedStates.length} selected`
-                        : "Select State"}
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path
-                        d="M3 4.5L6 7.5L9 4.5"
-                        stroke="#64748b"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  {stDropdownOpen && (
-                    <div className="dr-dropdown-menu">
-                      <label className="dr-dropdown-item dr-select-all">
-                        <input
-                          type="checkbox"
-                          checked={
-                            states.length > 0 &&
-                            selectedStates.length === states.length
-                          }
-                          onChange={toggleAllStates}
-                        />
-                        Select All
-                      </label>
-                      {states.map((s) => (
-                        <label key={s.id} className="dr-dropdown-item">
-                          <input
-                            type="checkbox"
-                            checked={selectedStates.includes(s.id)}
-                            onChange={() => toggleState(s.id)}
-                          />
-                          {s.name}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Main Group */}
               <div className="dr-field">
                 <label className="dr-label">Main Group</label>
                 <div className="dr-dropdown" ref={groupRef}>
                   <div
                     className="dr-dropdown-trigger"
-                    onClick={() => {
-                      setMgDropdownOpen((v) => !v);
-                      setStDropdownOpen(false);
-                    }}
+                    onClick={() => setMgDropdownOpen((v) => !v)}
                   >
                     {selectedGroups.length === 1
                       ? mainGroup.find((g) => g.id === selectedGroups[0])
@@ -635,13 +502,10 @@ export default function Sales_Report() {
                   <button
                     type="button"
                     className="sl-party-trigger"
-                    disabled={selectedStates.length === 0}
                     onClick={() => setPartyDropdownOpen((prev) => !prev)}
                   >
                     <span className="sl-party-trigger-text">
-                      {selectedStates.length === 0
-                        ? "Select State First"
-                        : selectedPartyDetails ? (
+                      {selectedPartyDetails ? (
                             <>
                               <span className="sl-party-trigger-label">
                                 {selectedPartyDetails.card_name}
@@ -664,7 +528,7 @@ export default function Sales_Report() {
                       />
                     </svg>
                   </button>
-                  {partyDropdownOpen && selectedStates.length > 0 && (
+                  {partyDropdownOpen && (
                     <div className="sl-party-menu">
                       <div className="sl-party-search-wrap">
                         <input
@@ -748,7 +612,7 @@ export default function Sales_Report() {
             </div>
           </div>
 
-          {(selectedStates.length > 0 || selectedGroups.length > 0 || selectedParty || selectedVariety) && (
+          {(selectedGroups.length > 0 || selectedParty || selectedVariety) && (
             <div className="dr-report-card">
               <div className="dr-report-header">
                 <h2 className="dr-report-title">

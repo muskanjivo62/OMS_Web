@@ -52,7 +52,7 @@ class SchemeProductSerializer(serializers.ModelSerializer):
             'scheme_name',
             'is_active',
             'state',
-            'state_name',
+            'state_code',
             'product_id',
             'item_code',
             'item_name',
@@ -198,3 +198,8 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = "__all__"
+
+class CreateSchemeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchemeProduct
+        fields = ["scheme_name", "item_code", "state_code"]
