@@ -45,7 +45,7 @@ export default function Auditor_orders() {
   const approveStatus = async (orderId: number) => {
     try {
       await ordersService.UpdateStatus(orderId, 10);
-      alert("Status Updated");
+      alert("Order Approved");
       fetchOrders();
     } catch (error: any) {
       alert("Error: " + (error?.response?.data?.message || "Unknown error"));

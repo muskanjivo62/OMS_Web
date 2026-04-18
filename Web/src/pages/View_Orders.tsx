@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { ordersService } from "../services/ordersService";
-import type { OrderItem, Order, OrderStatus } from "../services/ordersService";
+import type { OrderItem, Order, OrderStatus, PartyProduct } from "../services/ordersService";
 import { loadCurrentUserOrders } from "../utils/orderHistory";
 import "../styles/View_Orders.css";
 import { 
@@ -22,6 +22,15 @@ const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   .toISOString()
   .split("T")[0];
 
+type PartyFilterOption = {
+  cardCode: string;
+  cardName: string;
+};
+
+type ItemFilterOption = {
+  itemCode: string;
+  itemName: string;
+};
 
 export default function View_Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -29,53 +38,171 @@ export default function View_Orders() {
   const [orderDetails, setOrderDetails] = useState<Order | null>(null);
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
+  const [partyFilter, setPartyFilter] = useState("");
+  const [itemFilter, setItemFilter] = useState("");
   const [status, setStatus] = useState<OrderStatus[]>([]);
+  const [partyOptions, setPartyOptions] = useState<PartyFilterOption[]>([]);
+  const [partyItems, setPartyItems] = useState<PartyProduct[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [fromDate, setFromDate] = useState(firstDay);
   const [toDate, setToDate] = useState(lastDay);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
   useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const data = await loadCurrentUserOrders();
+        setOrders(data);
+      } catch (error) {
+        console.log("Error fetching orders:", error);
+      }
+    };
+
+    const fetchOrderStatus = async () => {
+      try {
+        const data = await ordersService.getOrdersStatus();
+        setStatus(data);
+      } catch (error) {
+        console.log("Error fetching order Status:", error);
+      }
+    };
+
+    const fetchAssignedParties = async () => {
+      try {
+        const data = await ordersService.getPartyName();
+        const parties = Array.isArray(data) ? data : [];
+        const uniqueParties = new Map<string, PartyFilterOption>();
+
+        parties.forEach((party) => {
+          const cardCode = String(party.value || party.card_code || "").trim();
+          const rawLabel = String(party.label || party.card_name || "").trim();
+          const cardName = rawLabel.replace(/\s*\([^)]*\)\s*$/, "") || cardCode;
+          const key = cardCode || cardName;
+
+          if (!key) return;
+
+          uniqueParties.set(key, { cardCode, cardName });
+        });
+
+        setPartyOptions(
+          Array.from(uniqueParties.values()).sort((a, b) =>
+            a.cardName.localeCompare(b.cardName),
+          ),
+        );
+      } catch (error) {
+        console.log("Error fetching assigned parties:", error);
+      }
+    };
+
     fetchOrders();
     fetchOrderStatus();
+    fetchAssignedParties();
   }, []);
-
-  const fetchOrders = async () => {
-    try {
-      let data = await loadCurrentUserOrders();
-      setOrders(data);
-    } catch (error) {
-      console.log("Error fetching orders:", error);
-    }
-  };
-
-  const fetchOrderStatus = async () => {
-    try {
-      let data = await ordersService.getOrdersStatus();
-      setStatus(data);
-    } catch (error) {
-      console.log("Error fetching order Status:", error);
-    }
-  };
 
   // console.log("Selected Items:", JSON.stringify(selectedItems));
   // console.log("Order Details:", JSON.stringify(orderDetails));
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchPartyItems = async () => {
+      if (!partyFilter) {
+        setPartyItems([]);
+        setItemFilter("");
+        return;
+      }
+
+      setIsLoadingItems(true);
+      setItemFilter("");
+
+      try {
+        const data = await ordersService.getPartyProduct(partyFilter);
+        if (isCancelled) return;
+
+        setPartyItems(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.log("Error fetching party items:", error);
+        if (!isCancelled) {
+          setPartyItems([]);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingItems(false);
+        }
+      }
+    };
+
+    fetchPartyItems();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [partyFilter]);
+
+  const itemOptions = useMemo<ItemFilterOption[]>(() => {
+    const uniqueItems = new Map<string, ItemFilterOption>();
+
+    partyItems.forEach((item) => {
+      const itemCode = String(item.item_code || "").trim();
+      const itemName = String(item.item_name || "").trim();
+      const key = itemCode || itemName;
+
+      if (!key) return;
+
+      uniqueItems.set(key, {
+        itemCode,
+        itemName: itemName || itemCode,
+      });
+    });
+
+    return Array.from(uniqueItems.values()).sort((a, b) =>
+      a.itemName.localeCompare(b.itemName),
+    );
+  }, [partyItems]);
 
   const filteredOrders = orders.filter((order) => {
     const matchStatus = statusFilter ? order.status_display === statusFilter : true;
     let matchDate = true;
 
+    const matchParty = partyFilter
+      ? order.card_code === partyFilter || order.card_name === partyFilter
+      : true;
+    const matchItem = itemFilter
+      ? Boolean(
+          order.items?.some(
+            (item) => item.item_code === itemFilter || item.item_name === itemFilter,
+          ),
+        )
+      : true;
+
     if (fromDate && toDate) {
       const orderDate = new Date(order.created_at);
-      const from = new Date(`${fromDate}T23:59:59.999`);
+      const from = new Date(`${fromDate}T00:00:00.000`);
       const to = new Date(`${toDate}T23:59:59.999`);
 
       matchDate = orderDate >= from && orderDate <= to;
     }
 
-    return matchStatus && matchDate;
+    return matchStatus && matchDate && matchParty && matchItem;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
+  const pageNumber = Math.min(currentPage, totalPages);
+  const paginatedOrders = filteredOrders.slice(
+    (pageNumber - 1) * itemsPerPage,
+    pageNumber * itemsPerPage,
+  );
 
+  const getItemTotalLtrs = (item: OrderItem) => {
+    const totalLtrs = Number(item.total_ltrs);
+
+    if (Number.isFinite(totalLtrs) && totalLtrs > 0) {
+      return totalLtrs;
+    }
+
+    return Number(item.ltrs || 0) + Number(item.scheme_qty || 0);
+  };
 
 
   const downloadExcel = (order: Order) => {
@@ -98,10 +225,10 @@ export default function View_Orders() {
         "Scheme": item.scheme_name || "",
         "Scheme Qty": item.scheme_qty || "",
         // "Scheme Ltrs": (item as any).scheme_ltrs || "",
-       "Qty": item.qty,
+        "Qty": item.qty,
         "Boxes": item.boxes,
         "Liters": item.ltrs,
-        "Total Ltrs": item.total_ltrs,
+        "Total Ltrs": getItemTotalLtrs(item),
         "Total Amount": item.total,
       }));
     } else {
@@ -151,10 +278,49 @@ export default function View_Orders() {
                   <option key={s.id} value={s.name}>{s.name}</option>
                 ))}
               </select>
+
+              <select
+                className="vo-status-select"
+                value={partyFilter}
+                onChange={(e) => {
+                  setPartyFilter(e.target.value);
+                  setItemFilter("");
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">All Parties</option>
+                {partyOptions.map((party) => (
+                  <option key={party.cardCode || party.cardName} value={party.cardCode || party.cardName}>
+                    {party.cardName}{party.cardCode ? ` (${party.cardCode})` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="vo-status-select"
+                value={itemFilter}
+                disabled={!partyFilter || isLoadingItems}
+                onChange={(e) => { setItemFilter(e.target.value); setCurrentPage(1); }}
+              >
+                <option value="">
+                  {partyFilter
+                    ? isLoadingItems
+                      ? "Loading Items..."
+                      : "All Items"
+                    : "Select Party First"}
+                </option>
+                {itemOptions.map((item) => (
+                  <option key={item.itemCode || item.itemName} value={item.itemCode || item.itemName}>
+                    {item.itemName}{item.itemCode ? ` (${item.itemCode})` : ""}
+                  </option>
+                ))}
+              </select>
+
               <div className="vo-date-wrap">
                 <label className="vo-date-label">From</label>
                 <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }} className="vo-date-input" />
               </div>
+
               <div className="vo-date-wrap">
                 <label className="vo-date-label">To</label>
                 <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }} className="vo-date-input" />
@@ -178,7 +344,7 @@ export default function View_Orders() {
               </thead>
               <tbody>
                 {filteredOrders.length > 0 ? (
-                  filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order) => (
+                  paginatedOrders.map((order) => (
                     <tr key={order.id}>
                       <td>{order.order_number}</td>
                       <td>{order.card_code}</td>
@@ -222,9 +388,9 @@ export default function View_Orders() {
 
           {filteredOrders.length > itemsPerPage && (
             <div className="vo-pagination">
-              <button className="vo-pg-btn" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>← Prev</button>
-              <span className="vo-pg-info">{currentPage} / {Math.ceil(filteredOrders.length / itemsPerPage)}</span>
-              <button className="vo-pg-btn" disabled={currentPage === Math.ceil(filteredOrders.length / itemsPerPage)} onClick={() => setCurrentPage((p) => p + 1)}>Next →</button>
+              <button className="vo-pg-btn" disabled={pageNumber === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>← Prev</button>
+              <span className="vo-pg-info">{pageNumber} / {totalPages}</span>
+              <button className="vo-pg-btn" disabled={pageNumber === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next →</button>
             </div>
           )}
         </>
@@ -307,7 +473,7 @@ export default function View_Orders() {
                       <td style={{textAlign:'center'}}>{Number(item.boxes).toFixed(2)}</td>
                       <td style={{textAlign:'center'}}>{item.ltrs}</td>
                       {/* <td style={{textAlign:'center'}}>{item.scheme_name ? ((item as any).scheme_ltrs || 0) : "—"}</td> */}
-                      <td style={{textAlign:'center'}}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2)}</td>
+                      <td style={{textAlign:'center'}}>{getItemTotalLtrs(item).toFixed(2)}</td>
                       <td style={{textAlign:'right'}}>{Number(item.basic_price).toFixed(2)}</td>
                       <td style={{textAlign:'right'}}>{Number(item.market_price).toFixed(2)}</td>
                       <td style={{textAlign:'center'}}>{Number(item.tax_rate).toFixed(2)}</td>
@@ -323,7 +489,7 @@ export default function View_Orders() {
           <div className="vo-d-summary">
             <div className="vo-d-sum-row">
               <span className="vo-d-sum-label">Total Ltrs</span>
-              <span className="vo-d-sum-val">{selectedItems.reduce((s, i) => s + (Number((i as any).total_ltrs) || (Number(i.ltrs || 0) + Number((i as any).scheme_ltrs || 0))), 0).toFixed(2)}</span>
+              <span className="vo-d-sum-val">{selectedItems.reduce((s, i) => s + getItemTotalLtrs(i), 0).toFixed(2)}</span>
             </div>
             <div className="vo-d-sum-row">
               <span className="vo-d-sum-label">Subtotal</span>

@@ -71,6 +71,17 @@ def _get_sap_line_quantity(item):
 
     return 0.0
 
+
+def _get_sap_unit_price(item):
+    basic_price = _to_float(getattr(item, "basic_price", None), 0)
+    market_price = _to_float(getattr(item, "market_price", None), 0)
+
+    if basic_price == 0 and market_price > 0:
+        return market_price
+
+    return basic_price
+
+
 class SyncService:
     def __init__(self, triggered_by='manual'):
         self.triggered_by = triggered_by
@@ -540,7 +551,7 @@ class SyncService:
                 {
                     "ItemCode": item.item_code,
                     "Quantity": _get_sap_line_quantity(item),
-                    "UnitPrice": float(item.basic_price),
+                    "UnitPrice": _get_sap_unit_price(item),
                     "WarehouseCode": "GP-FG",
                 }
             )

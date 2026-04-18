@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ordersService } from "../services/ordersService";
 import { userService } from "../services/userService";
 // import { getCurrentUser } from "../services/authService";
-import type { Order, Product, PartyProduct, RowType, SchemeProduct } from "../services/ordersService";
+import type { Order, OrderItem, Product, PartyProduct, RowType, SchemeProduct } from "../services/ordersService";
 import "../styles/Add_Sales.css";
 
 type SalesRow = RowType & {
@@ -53,6 +53,20 @@ type EditOrderLocationState = {
   returnTo?: string;
 };
 
+type EditOrderFallback = {
+  cardName: string;
+  partyLabel: string;
+  billAddress: string;
+  shipAddress: string;
+};
+
+const emptyEditOrderFallback: EditOrderFallback = {
+  cardName: "",
+  partyLabel: "",
+  billAddress: "",
+  shipAddress: "",
+};
+
 export default function Add_Sales() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -76,7 +90,7 @@ const [company, setCompany] = useState<any[]>([]);
 const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
 const [schemeOptions, setSchemeOptions] = useState<Record<number, SchemeProduct[]>>({});
 const [stateCode, setStateCode] = useState<string | null>(null);
-const [hasLoadedUserProfile, setHasLoadedUserProfile] = useState(false);
+const [editOrderFallback, setEditOrderFallback] = useState<EditOrderFallback>(emptyEditOrderFallback);
 const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 const [isSaving, setIsSaving] = useState(false);
 const [isLoadingEditOrder, setIsLoadingEditOrder] = useState(false);
@@ -203,13 +217,59 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     return match ? `${match[1]} ${match[2].toUpperCase()}` : "Others";
   };
 
+  const valueToString = (value: string | number | null | undefined) =>
+    value === null || value === undefined || value === "" ? "" : String(value);
+
+  const mergeOrderItemsIntoPartyProducts = (
+    sourceProducts: PartyProduct[],
+    order: Order,
+  ) => {
+    const productMap = new Map<string, PartyProduct>();
+
+    sourceProducts.forEach((product) => {
+      const key = `${product.item_code || product.item_name}|${product.category || ""}`;
+      productMap.set(key, product);
+    });
+
+    order.items?.forEach((item) => {
+      const key = `${item.item_code || item.item_name}|${item.category || ""}`;
+      if (productMap.has(key)) return;
+
+      productMap.set(key, {
+        item_code: item.item_code || "",
+        item_name: item.item_name || "",
+        category: item.category || "",
+        brand: item.brand || "",
+        variety: item.variety || "",
+        sal_factor2: item.pcs || "",
+        sal_pack_unit:
+          Number(item.qty) > 0
+            ? String(Number(item.ltrs || 0) / Number(item.qty))
+            : "",
+        tax_rate: item.tax_rate || "",
+        basic_rate: item.basic_price || "",
+      });
+    });
+
+    return Array.from(productMap.values());
+  };
+
   const mapOrderToRows = (order: Order): SalesRow[] => {
     const orderItems = Array.isArray(order.items) ? order.items : [];
 
     return orderItems.length > 0
       ? orderItems.map((item) => {
-          // const schemeLtrs = Number((item as any).scheme_ltrs || 0);
-          const isSchemeVisible = Boolean(item.scheme_id || item.scheme_name || (item as any).is_scheme_visible);
+          const itemWithExtras = item as OrderItem & {
+            scheme?: number | string | null;
+            is_scheme_visible?: boolean;
+          };
+          const schemeId = item.scheme_id ?? itemWithExtras.scheme;
+          const isSchemeVisible = Boolean(
+            schemeId ||
+            item.scheme_name ||
+            item.scheme_qty ||
+            itemWithExtras.is_scheme_visible,
+          );
 
           return {
             category: item.category || "",
@@ -218,25 +278,25 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
             type: item.item_type || getProductType(item.item_name || ""),
             item: item.item_name || "",
             isScheme: isSchemeVisible,
-            scheme: item.scheme_id ? String(item.scheme_id) : "",
-            schemeQty: isSchemeVisible ? String(item.scheme_qty ?? "") : "",
+            scheme: schemeId ? String(schemeId) : "",
+            schemeQty: isSchemeVisible ? valueToString(item.scheme_qty) : "",
             // schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
-            pcs: item.pcs ? String(item.pcs) : "",
-            qty: item.qty ? String(item.qty) : "",
-            ltrs: item.ltrs ? String(item.ltrs) : "",
-            boxes: item.boxes ? String(item.boxes) : "",
-            basicPrice: item.basic_price ? String(item.basic_price) : "",
-            marketPrice: item.market_price ? String(item.market_price) : "",
-            tax: item.tax_rate ? String(item.tax_rate) : "",
-            amount: item.total ? String(item.total) : "",
-            confirmed: false,
+            pcs: valueToString(item.pcs),
+            qty: valueToString(item.qty),
+            ltrs: valueToString(item.ltrs),
+            boxes: valueToString(item.boxes),
+            basicPrice: valueToString(item.basic_price),
+            marketPrice: valueToString(item.market_price),
+            tax: valueToString(item.tax_rate),
+            amount: valueToString(item.total),
+            confirmed: true,
           };
         })
       : [createEmptyRow()];
   };
 
   useEffect(() => {
-    if (!isEditMode || !editOrderId || !hasLoadedUserProfile) {
+    if (!isEditMode || !editOrderId) {
       return;
     }
 
@@ -249,11 +309,49 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
         const order = await ordersService.getOrderDetails(editOrderId);
         if (isCancelled) return;
 
-        await Promise.all([
+        setEditOrderFallback({
+          cardName: order.card_name || "",
+          partyLabel: order.card_name
+            ? `${order.card_name} (${order.card_code})`
+            : order.card_code || "",
+          billAddress: order.bill_to_address || "",
+          shipAddress: order.ship_to_address || "",
+        });
+
+        setParties((prev) =>
+          prev.some((party) => party.value === order.card_code)
+            ? prev
+            : [
+                {
+                  value: order.card_code,
+                  label: order.card_name
+                    ? `${order.card_name} (${order.card_code})`
+                    : order.card_code,
+                  category: "oil",
+                  state: "",
+                },
+                ...prev,
+              ],
+        );
+
+        const [, fetchedPartyProducts] = await Promise.all([
           fetchPartyAddresses(order.card_code),
           fetchPartyCategories(order.card_code),
         ]);
         if (isCancelled) return;
+
+        const mergedPartyProducts = mergeOrderItemsIntoPartyProducts(
+          fetchedPartyProducts,
+          order,
+        );
+        setPartyProducts(mergedPartyProducts);
+        setCategory([
+          ...new Set(
+            mergedPartyProducts
+              .map((product) => product.category)
+              .filter((itemCategory): itemCategory is string => Boolean(itemCategory)),
+          ),
+        ]);
 
         setFormData({
           parties: order.card_code || "",
@@ -270,7 +368,7 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
 
         const hasSchemeRows = mappedRows.some((row) => row.isScheme);
         if (hasSchemeRows) {
-          const schemes = await ordersService.getSchemeProducts(stateCode ?? '');
+          const schemes = await ordersService.getSchemeProducts('');
           console.log("Fetched schemes for edit order:", schemes);
           if (isCancelled) return;
 
@@ -302,7 +400,7 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     return () => {
       isCancelled = true;
     };
-  }, [editOrderId, hasLoadedUserProfile, isEditMode, navigate, returnTo, stateCode]);
+  }, [editOrderId, isEditMode, navigate, returnTo]);
 
 const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
   if (!shouldFetch || !stateCode) {
@@ -352,7 +450,7 @@ const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
   const payload = {
     ...(editOrderId ? { order_id: editOrderId } : {}),
     card_code: formData.parties,
-    card_name: selectedParty?.label || "",
+    card_name: selectedParty?.label || editOrderFallback.cardName || "",
     bill_to_id: Number(formData.billAddress),
     bill_to_address:
       billAddress.find((b) => b.id === Number(formData.billAddress))
@@ -646,6 +744,7 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
   };
 
   const handlePartySelect = (value: string) => {
+    setEditOrderFallback(emptyEditOrderFallback);
     setFormData((prev) => ({
       ...prev,
       parties: value,
@@ -769,7 +868,9 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
     return label.toLowerCase().includes(search);
   });
   const selectedPartyLabel =
-    parties.find((party) => party.value === formData.parties)?.label || "";
+    parties.find((party) => party.value === formData.parties)?.label ||
+    editOrderFallback.partyLabel ||
+    "";
   const selectedBillAddress =
     billAddress.find((address) => String(address.id) === formData.billAddress);
   const selectedShipAddress =
@@ -778,11 +879,13 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
     selectedBillAddress?.address_name ||
     selectedBillAddress?.full_address ||
     selectedBillAddress?.address_id ||
+    (formData.billAddress ? editOrderFallback.billAddress : "") ||
     "";
   const selectedShipAddressLabel =
     selectedShipAddress?.address_name ||
     selectedShipAddress?.full_address ||
     selectedShipAddress?.address_id ||
+    (formData.shipAddress ? editOrderFallback.shipAddress : "") ||
     "";
   return (
     <div className="sl-page app-page">

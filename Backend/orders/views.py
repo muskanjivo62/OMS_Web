@@ -26,6 +26,18 @@ from users.models import SchemeProduct, User
 BILLING_ACTIVE_CODES = ['BILLING', 'BILLING_PENDING']
 BILLING_RESOLVED_CODES = ['BILLING_REJECTED', 'COMPLETED']
 
+
+def _get_rate_approval_reason(item, basic_price, market_price):
+    item_name = item.get('item_name') or item.get('item_code') or 'Item'
+
+    if basic_price == 0:
+        return f"{item_name}: Basic price is 0 (Market ₹{market_price})"
+
+    if market_price > 0 and market_price < basic_price:
+        return f"{item_name}: Market ₹{market_price} < Basic ₹{basic_price}"
+
+    return None
+
 def _get_base_orders(user):
     """Scope orders by user role:
     - admin: all orders
@@ -817,9 +829,10 @@ class UpdateOrderView(APIView):
 
             bp = _to_float(item.get('basic_price', 0))
             mp = _to_float(item.get('market_price', 0))
-            if mp > 0 and mp < bp:
+            rate_approval_reason = _get_rate_approval_reason(item, bp, mp)
+            if rate_approval_reason:
                 needs_approval = True
-                flagged_items.append(f"{item.get('item_name')}: Market ₹{mp} < Basic ₹{bp}")
+                flagged_items.append(rate_approval_reason)
 
         order.total_amount = sum(_to_float(item.get('total', 0)) for item in items)
 
@@ -930,9 +943,10 @@ class CreateOrderView(APIView):
                 )
                 bp = _to_float(item.get('basic_price', 0))
                 mp = _to_float(item.get('market_price', 0))
-                if mp > 0 and mp < bp:
+                rate_approval_reason = _get_rate_approval_reason(item, bp, mp)
+                if rate_approval_reason:
                     needs_approval = True
-                    flagged_items.append(f"{item.get('item_name')}: Market ₹{mp} < Basic ₹{bp}")
+                    flagged_items.append(rate_approval_reason)
 
             order.total_amount = sum(_to_float(item.get('total', 0)) for item in items)
             next_status = get_status('Rate Approval') if needs_approval else get_status('Auditor Approval')
@@ -1040,9 +1054,10 @@ class CreateOrderView(APIView):
 
             bp = _to_float(item.get('basic_price', 0))
             mp = _to_float(item.get('market_price', 0))
-            if mp > 0 and mp < bp:
+            rate_approval_reason = _get_rate_approval_reason(item, bp, mp)
+            if rate_approval_reason:
                 needs_approval = True
-                flagged_items.append(f"{item.get('item_name')}: Market ₹{mp} < Basic ₹{bp}")
+                flagged_items.append(rate_approval_reason)
 
         # Log: Order created
         log_order_action(order, 'Order Created', user=user)

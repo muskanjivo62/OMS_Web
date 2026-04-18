@@ -42,8 +42,6 @@ const navigate = useNavigate();
   const [fromDate, setFromDate] = useState(firstDay);
   const [toDate, setToDate] = useState(lastDay);
 
-  const [isEditMode, setIsEditMode] = useState(false);
-  
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
