@@ -12,6 +12,8 @@ export interface User {
   is_active: boolean;
   main_groups?: { id: number; name: string }[];
   states?: { id: number; name: string }[];
+  phone?: string;
+  company?: number | null;
 }
 
 export interface Option {
@@ -135,5 +137,28 @@ removePartyProduct: async (card_code: string, itemCode: string, category: string
     const response = await api.post("/auth/users/create/", payload);
 
     return response.data;
-  }
+  },
+
+updateUser: async (id: number, data: CreateUserData) => {
+  const mainGroups = data.mainGroups || [];
+  const states = data.states || [];
+
+  const payload = {
+    name: data.name,
+    username: data.username,
+    password: data.password || undefined,
+    email: data.email,
+    phone: data.phone,
+    role: data.role || null,
+    company: data.company || null,
+    main_group: mainGroups[0] || data.mainGroup || null,
+    main_groups: mainGroups,
+    state: states[0] || data.state || null,
+    states: states,
+  };
+
+  const response = await api.put(`/auth/users/${id}/`, payload);
+  return response.data;
+}
+
 };

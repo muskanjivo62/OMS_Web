@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import LoginView,PartyUsersView,AssignPartiesView, ProfileView,StateListView,UserPartiesView,UpdateProductRateView,RemoveProductFromPartyView,RemovePartyAssignmentView,PartyProductsView,AssignProductToPartyView,BulkAssignProductsToPartyView,UserListForAssignmentView,CompanyListView,MainGroupListView,CreateUserView,RoleListView
+from .views import LoginView,PartyUsersView,AssignPartiesView, ProfileView,StateListView, UserDetailView,UserPartiesView,UpdateProductRateView,RemoveProductFromPartyView,RemovePartyAssignmentView,PartyProductsView,AssignProductToPartyView,BulkAssignProductsToPartyView,UserListForAssignmentView,CompanyListView,MainGroupListView,CreateUserView,RoleListView
 from django.views.decorators.csrf import csrf_exempt
 
 
@@ -29,4 +29,6 @@ urlpatterns = [
     path('party-product/update-rate/', UpdateProductRateView.as_view(), name='update-product-rate'),
     path('party-product/remove/', RemoveProductFromPartyView.as_view(), name='remove-product-from-party'),
 
+
+ path('users/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
 ]

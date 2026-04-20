@@ -75,28 +75,28 @@ export default function Add_Sales() {
   const returnTo = locationState?.returnTo || "/Billing_orders";
   const isEditMode = editOrderId !== null;
   const [parties, setParties] = useState<any[]>([]);
-const [partySearch, setPartySearch] = useState("");
-const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
-const [billSearch, setBillSearch] = useState("");
-const [billDropdownOpen, setBillDropdownOpen] = useState(false);
-const [shipSearch, setShipSearch] = useState("");
-const [shipDropdownOpen, setShipDropdownOpen] = useState(false);
-const [branch, setBranch] = useState<any[]>([])
-const [billAddress, setBillAddress] = useState<any[]>([]);
-const [shipAddress, setShipAddress] = useState<any[]>([]);
-const [category, setCategory] = useState<string[]>([]);
-const [products, setProducts] = useState<Product[]>([]);
-const [company, setCompany] = useState<any[]>([]);
-const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
-const [schemeOptions, setSchemeOptions] = useState<Record<number, SchemeProduct[]>>({});
-const [stateCode, setStateCode] = useState<string | null>(null);
-const [editOrderFallback, setEditOrderFallback] = useState<EditOrderFallback>(emptyEditOrderFallback);
-const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-const [isSaving, setIsSaving] = useState(false);
-const [isLoadingEditOrder, setIsLoadingEditOrder] = useState(false);
-const partyDropdownRef = useRef<HTMLDivElement>(null);
-const billDropdownRef = useRef<HTMLDivElement>(null);
-const shipDropdownRef = useRef<HTMLDivElement>(null);
+  const [partySearch, setPartySearch] = useState("");
+  const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
+  const [billSearch, setBillSearch] = useState("");
+  const [billDropdownOpen, setBillDropdownOpen] = useState(false);
+  const [shipSearch, setShipSearch] = useState("");
+  const [shipDropdownOpen, setShipDropdownOpen] = useState(false);
+  const [branch, setBranch] = useState<any[]>([])
+  const [billAddress, setBillAddress] = useState<any[]>([]);
+  const [shipAddress, setShipAddress] = useState<any[]>([]);
+  const [category, setCategory] = useState<string[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [company, setCompany] = useState<any[]>([]);
+  const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
+  const [schemeOptions, setSchemeOptions] = useState<Record<number, SchemeProduct[]>>({});
+  const [stateCode, setStateCode] = useState<string | null>(null);
+  const [editOrderFallback, setEditOrderFallback] = useState<EditOrderFallback>(emptyEditOrderFallback);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingEditOrder, setIsLoadingEditOrder] = useState(false);
+  const partyDropdownRef = useRef<HTMLDivElement>(null);
+  const billDropdownRef = useRef<HTMLDivElement>(null);
+  const shipDropdownRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     parties: "",
@@ -108,16 +108,16 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     company: "",
   });
 
- const [rows, setRows] = useState<SalesRow[]>([createEmptyRow()]);
+  const [rows, setRows] = useState<SalesRow[]>([createEmptyRow()]);
 
   // Use Effects
   useEffect(() => {
     fetchPartyName();
-    fetchBranch ();
+    fetchBranch();
     fetchProducts();
     fetchCompany();
     // fetchCurrentUserProfile();
-    
+
   }, []);
 
   useEffect(() => {
@@ -190,7 +190,7 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     }
   };
 
-  const fetchPartyCategories = async (card_code:string) => {
+  const fetchPartyCategories = async (card_code: string) => {
     try {
       let partyProductsData = await ordersService.getPartyProduct(card_code);
       setPartyProducts(partyProductsData);
@@ -198,8 +198,8 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
       console.log("Fetched party products:", partyProductsData);
       const categories = [...new Set(partyProductsData.map((p: PartyProduct) => p.category))] as string[];
       setCategory(categories);
-      
-      
+
+
       return partyProductsData;
     } catch (error) {
       console.log("Error fetching categories:", error);
@@ -259,39 +259,39 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
 
     return orderItems.length > 0
       ? orderItems.map((item) => {
-          const itemWithExtras = item as OrderItem & {
-            scheme?: number | string | null;
-            is_scheme_visible?: boolean;
-          };
-          const schemeId = item.scheme_id ?? itemWithExtras.scheme;
-          const isSchemeVisible = Boolean(
-            schemeId ||
-            item.scheme_name ||
-            item.scheme_qty ||
-            itemWithExtras.is_scheme_visible,
-          );
+        const itemWithExtras = item as OrderItem & {
+          scheme?: number | string | null;
+          is_scheme_visible?: boolean;
+        };
+        const schemeId = item.scheme_id ?? itemWithExtras.scheme;
+        const isSchemeVisible = Boolean(
+          schemeId ||
+          item.scheme_name ||
+          item.scheme_qty ||
+          itemWithExtras.is_scheme_visible,
+        );
 
-          return {
-            category: item.category || "",
-            brand: item.brand || "",
-            variety: item.variety || "",
-            type: item.item_type || getProductType(item.item_name || ""),
-            item: item.item_name || "",
-            isScheme: isSchemeVisible,
-            scheme: schemeId ? String(schemeId) : "",
-            schemeQty: isSchemeVisible ? valueToString(item.scheme_qty) : "",
-            // schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
-            pcs: valueToString(item.pcs),
-            qty: valueToString(item.qty),
-            ltrs: valueToString(item.ltrs),
-            boxes: valueToString(item.boxes),
-            basicPrice: valueToString(item.basic_price),
-            marketPrice: valueToString(item.market_price),
-            tax: valueToString(item.tax_rate),
-            amount: valueToString(item.total),
-            confirmed: true,
-          };
-        })
+        return {
+          category: item.category || "",
+          brand: item.brand || "",
+          variety: item.variety || "",
+          type: item.item_type || getProductType(item.item_name || ""),
+          item: item.item_name || "",
+          isScheme: isSchemeVisible,
+          scheme: schemeId ? String(schemeId) : "",
+          schemeQty: isSchemeVisible ? valueToString(item.scheme_qty) : "",
+          // schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
+          pcs: valueToString(item.pcs),
+          qty: valueToString(item.qty),
+          ltrs: valueToString(item.ltrs),
+          boxes: valueToString(item.boxes),
+          basicPrice: valueToString(item.basic_price),
+          marketPrice: valueToString(item.market_price),
+          tax: valueToString(item.tax_rate),
+          amount: valueToString(item.total),
+          confirmed: true,
+        };
+      })
       : [createEmptyRow()];
   };
 
@@ -322,16 +322,16 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
           prev.some((party) => party.value === order.card_code)
             ? prev
             : [
-                {
-                  value: order.card_code,
-                  label: order.card_name
-                    ? `${order.card_name} (${order.card_code})`
-                    : order.card_code,
-                  category: "oil",
-                  state: "",
-                },
-                ...prev,
-              ],
+              {
+                value: order.card_code,
+                label: order.card_name
+                  ? `${order.card_name} (${order.card_code})`
+                  : order.card_code,
+                category: "oil",
+                state: "",
+              },
+              ...prev,
+            ],
         );
 
         const [, fetchedPartyProducts] = await Promise.all([
@@ -402,142 +402,142 @@ const shipDropdownRef = useRef<HTMLDivElement>(null);
     };
   }, [editOrderId, isEditMode, navigate, returnTo]);
 
-const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
-  if (!shouldFetch || !stateCode) {
-    setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
-    return;
-  }
+  const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
+    if (!shouldFetch || !stateCode) {
+      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+      return;
+    }
 
-  try {
-    const schemes = await ordersService.getSchemeProducts(stateCode);
-    console.log("Fetched schemes for row:", schemes);
+    try {
+      const schemes = await ordersService.getSchemeProducts(stateCode);
+      console.log("Fetched schemes for row:", schemes);
 
-    setSchemeOptions((prev) => ({
-      ...prev,
-      [index]: schemes,
-    }));
-  } catch (error) {
-    console.log("Error fetching schemes:", error);
-    setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
-  }
-};
+      setSchemeOptions((prev) => ({
+        ...prev,
+        [index]: schemes,
+      }));
+    } catch (error) {
+      console.log("Error fetching schemes:", error);
+      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+    }
+  };
 
   // -------------------------------
   // ----------Handle fxns----------
   // --------------------------------
 
   const validateBeforeSave = () => {
-  const confirmedRows = rows.filter((row) => row.confirmed);
+    const confirmedRows = rows.filter((row) => row.confirmed);
 
-  if (confirmedRows.length === 0) {
-    alert("Please confirm at least one item before submitting the order.");
-    return false;
-  }
+    if (confirmedRows.length === 0) {
+      alert("Please confirm at least one item before submitting the order.");
+      return false;
+    }
 
-  if (rows.some((row) => !row.confirmed && row.item)) {
-    alert("Please confirm the current item before submitting the order.");
-    return false;
-  }
-  
-  return true;
-};
+    if (rows.some((row) => !row.confirmed && row.item)) {
+      alert("Please confirm the current item before submitting the order.");
+      return false;
+    }
 
-  const submitOrder = async () => {
-  const confirmedRows = rows.filter((row) => row.confirmed);
-
-  const selectedParty = parties.find((p) => p.value === formData.parties);
-
-  const payload = {
-    ...(editOrderId ? { order_id: editOrderId } : {}),
-    card_code: formData.parties,
-    card_name: selectedParty?.label || editOrderFallback.cardName || "",
-    bill_to_id: Number(formData.billAddress),
-    bill_to_address:
-      billAddress.find((b) => b.id === Number(formData.billAddress))
-        ?.address_name || "",
-    ship_to_id: Number(formData.shipAddress),
-    ship_to_address:
-      shipAddress.find((s) => s.id === Number(formData.shipAddress))
-        ?.address_name || "",
-    dispatch_from_id: Number(formData.dispatch),
-    dispatch_from_name:
-      branch.find((d) => d.bpl_id === Number(formData.dispatch))?.bpl_name || "",
-
-    delivery_date: formData.Deliverydate,
-    company: Number(formData.company),
-
-    total_amount: totalAmount,
-    tax_amount: taxAmount,
-    grand_total: grandTotal,
-
-    items: confirmedRows.map((row) => ({
-      item_code:
-        partyProducts.find(
-          (p) =>
-            p.item_name === row.item &&
-            p.category === row.category &&
-            (p.brand || "") === (row.brand || "") &&
-            (p.variety || "") === (row.variety || ""),
-        )?.item_code || "",
-
-      item_name: row.item,
-      category: row.category,
-      brand: row.brand,
-      variety: row.variety,
-      item_type: row.type,
-
-      qty: Number(row.qty),
-      pcs: Number(row.pcs),
-      boxes: Number(row.boxes),
-      ltrs: Number(row.ltrs),
-
-      basic_price: Number(row.basicPrice),
-      market_price: Number(row.marketPrice),
-      tax_rate: Number(row.tax),
-      total: Number(row.amount || 0),
-      scheme_id: row.isScheme && row.scheme ? Number(row.scheme) : undefined,
-      scheme_qty: row.isScheme ? Number(row.schemeQty || 0) : 0,
-      // scheme_ltrs: row.isScheme ? Number(row.schemeLtrs || 0) : 0,
-      is_scheme: row.isScheme,
-      total_ltrs:  Number(row.ltrs) + Number(row.schemeQty || 0) 
-    })),
+    return true;
   };
 
-  try {
-    setIsSaving(true);
-    console.log("Submitting Payload:", payload);
-    const data = await ordersService.createOrder(payload);
+  const submitOrder = async () => {
+    const confirmedRows = rows.filter((row) => row.confirmed);
 
-    console.log("API Response:", data);
+    const selectedParty = parties.find((p) => p.value === formData.parties);
 
-    alert(editOrderId ? "Order updated and sent for approval ✅" : "Order Added Successfully ✅");
-    setShowSaveConfirm(false);
-    if (editOrderId) {
-      navigate(returnTo);
-      return;
+    const payload = {
+      ...(editOrderId ? { order_id: editOrderId } : {}),
+      card_code: formData.parties,
+      card_name: selectedParty?.label || editOrderFallback.cardName || "",
+      bill_to_id: Number(formData.billAddress),
+      bill_to_address:
+        billAddress.find((b) => b.id === Number(formData.billAddress))
+          ?.address_name || "",
+      ship_to_id: Number(formData.shipAddress),
+      ship_to_address:
+        shipAddress.find((s) => s.id === Number(formData.shipAddress))
+          ?.address_name || "",
+      dispatch_from_id: Number(formData.dispatch),
+      dispatch_from_name:
+        branch.find((d) => d.bpl_id === Number(formData.dispatch))?.bpl_name || "",
+
+      delivery_date: formData.Deliverydate,
+      company: Number(formData.company),
+
+      total_amount: totalAmount,
+      tax_amount: taxAmount,
+      grand_total: grandTotal,
+
+      items: confirmedRows.map((row) => ({
+        item_code:
+          partyProducts.find(
+            (p) =>
+              p.item_name === row.item &&
+              p.category === row.category &&
+              (p.brand || "") === (row.brand || "") &&
+              (p.variety || "") === (row.variety || ""),
+          )?.item_code || "",
+
+        item_name: row.item,
+        category: row.category,
+        brand: row.brand,
+        variety: row.variety,
+        item_type: row.type,
+
+        qty: Number(row.qty),
+        pcs: Number(row.pcs),
+        boxes: Number(row.boxes),
+        ltrs: Number(row.ltrs),
+
+        basic_price: Number(row.basicPrice),
+        market_price: Number(row.marketPrice),
+        tax_rate: Number(row.tax),
+        total: Number(row.amount || 0),
+        scheme_id: row.isScheme && row.scheme ? Number(row.scheme) : undefined,
+        scheme_qty: row.isScheme ? Number(row.schemeQty || 0) : 0,
+        // scheme_ltrs: row.isScheme ? Number(row.schemeLtrs || 0) : 0,
+        is_scheme: row.isScheme,
+        total_ltrs: Number(row.ltrs) + Number(row.schemeQty || 0)
+      })),
+    };
+
+    try {
+      setIsSaving(true);
+      console.log("Submitting Payload:", payload);
+      const data = await ordersService.createOrder(payload);
+
+      console.log("API Response:", data);
+
+      alert(editOrderId ? "Order updated and sent for approval ✅" : "Order Added Successfully ✅");
+      setShowSaveConfirm(false);
+      if (editOrderId) {
+        navigate(returnTo);
+        return;
+      }
+      handleClearForm();
+
+    } catch (error) {
+      console.error(error);
+
+      console.error("Payload:", JSON.stringify(payload, null, 2));
+
+      alert(editOrderId ? "Error updating order ❌" : "Error creating order ❌");
+    } finally {
+      setIsSaving(false);
     }
-    handleClearForm();
-
-  } catch (error) {
-    console.error(error);
-   
-console.error("Payload:", JSON.stringify(payload, null, 2));
-
-    alert(editOrderId ? "Error updating order ❌" : "Error creating order ❌");
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!validateBeforeSave()) {
-    return;
-  }
+    if (!validateBeforeSave()) {
+      return;
+    }
 
-  setShowSaveConfirm(true);
-};
+    setShowSaveConfirm(true);
+  };
 
   const handleClearForm = () => {
     if (isEditMode) {
@@ -553,7 +553,7 @@ console.error("Payload:", JSON.stringify(payload, null, 2));
       shipAddress: "",
       Deliverydate: "",
       company: "",
-  
+
     });
 
     setRows([createEmptyRow()]);
@@ -568,166 +568,166 @@ console.error("Payload:", JSON.stringify(payload, null, 2));
     setRows((prev) => [...prev, createEmptyRow()]);
   };
 
-const handleRowSchemeToggle = (index: number, isScheme: boolean) => {
-  setRows((prev) =>
-    prev.map((row, rowIndex) => {
-      if (rowIndex === index) {
-        return {
-          ...row,
-          confirmed: false,
-          isScheme: isScheme,
-          scheme: isScheme ? row.scheme : "",
-          schemeQty: "",
-          // schemeLtrs: "",
-        };
-      }
-      return row;
-    })
-  );
-};
-
-const handleRowChange = (
-  index: number,
-  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-) => {
-  const { name, value } = e.target;
-
-  let updatedRows = [...rows];
-  let row = { ...updatedRows[index] };
-  row.confirmed = false;
-
-  // assign value (RowType is all strings)
-  (row as any)[name] = value;
-
-  //  ITEM SELECT
-  if (name === "item") {
-    row.qty = "";
-    row.ltrs = "";
-    row.boxes = "";
-    row.marketPrice = "";
-    row.amount = "";
-    row.isScheme = false;
-    row.scheme = "";
-    row.schemeQty = "";
-    // row.schemeLtrs = "";
-
-    const partyProduct = partyProducts.find(
-      (p) =>
-        p.item_name === value &&
-        p.category === row.category &&
-        (p.brand || "") === (row.brand || "") &&
-        (p.variety || "") === (row.variety || "")
-    ) || partyProducts.find((p) => p.item_name === value && p.category === row.category)
-      || partyProducts.find((p) => p.item_name === value);
-
-    if (partyProduct) {
-      const match = partyProduct.item_name.match(
-        /(\d+\.?\d*)\s*(LTR|ML|KG|GM|GMS|L)/i,
-      );
-      row.type = match ? `${match[1]} ${match[2].toUpperCase()}` : "Others";
-      row.pcs = String(partyProduct.sal_factor2 ?? "");
-      row.tax = String(partyProduct.tax_rate ?? "");
-      row.basicPrice = String(partyProduct.basic_rate ?? "");
-      void fetchSchemesForRow(index, true);
-    } else {
-      void fetchSchemesForRow(index, false);
-    }
-  }
-
-  if (name === "category" || name === "brand" || name === "variety" || name === "type") {
-    row.item = "";
-    row.isScheme = false;
-    row.scheme = "";
-    row.schemeQty = "";
-    // row.schemeLtrs = "";
-    row.pcs = "";
-    row.qty = "";
-    row.ltrs = "";
-    row.boxes = "";
-    row.basicPrice = "";
-    row.marketPrice = "";
-    row.tax = "";
-    row.amount = "";
-    setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
-  }
-
-  //  CALCULATIONS
-  //  (boxes → qty)
-if (name === "boxes" || name === "marketPrice") {
-  const boxes = Number(row.boxes) || 0;
-
-  const product =
-    partyProducts.find((p) => p.item_name === row.item) ||
-    products.find((p) => p.item_name === row.item);
-
-  if (product) {
-    const factor = Number(product.sal_factor2) || 1;
-
-    // ✅ qty from boxes
-    const qty = boxes * factor;
-    row.qty = String(qty);
-
-    // ✅ liters
-    row.ltrs = String(Number(product.sal_pack_unit) * qty);
-
-    // ✅ amount
-    const basic = Number(row.basicPrice) || 0;
-    const market = Number(row.marketPrice) || 0;
-    const price = market > 0 ? market : basic;
-
-    row.amount = (price * qty).toFixed(2);
-  }
-}
-if (name === "boxes" || name === "marketPrice" || name === "scheme") {
-  const boxes = Number(row.boxes) || 0;
-
-  const product =
-    partyProducts.find((p) => p.item_name === row.item) ||
-    products.find((p) => p.item_name === row.item);
-
-  if (product) {
-    const factor = Number(product.sal_factor2) || 1;
-
-    const qty = boxes * factor;
-    row.qty = String(qty);
-
-    row.ltrs = String(Number(product.sal_pack_unit) * qty);
-
-    const basic = Number(row.basicPrice) || 0;
-    const market = Number(row.marketPrice) || 0;
-    const price = market > 0 ? market : basic;
-
-    row.amount = (price * qty).toFixed(2);
-  }
-
-  if (row.isScheme && row.scheme) {
-    const schemes = schemeOptions[index] || [];
-    const schemeObj = schemes.find(
-      (s) => String(s.scheme_id) === String(row.scheme)
+  const handleRowSchemeToggle = (index: number, isScheme: boolean) => {
+    setRows((prev) =>
+      prev.map((row, rowIndex) => {
+        if (rowIndex === index) {
+          return {
+            ...row,
+            confirmed: false,
+            isScheme: isScheme,
+            scheme: isScheme ? row.scheme : "",
+            schemeQty: "",
+            // schemeLtrs: "",
+          };
+        }
+        return row;
+      })
     );
+  };
 
-    if (schemeObj) {
-      const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
-      const multiplier = match ? parseFloat(match[1]) : 1;
-      const schemeName = (schemeObj.scheme_name || "").toLowerCase();
+  const handleRowChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
 
-      const calculatedQty = schemeName.includes("box")
-        ? boxes * multiplier
-        : (Number(row.qty) || 0) * multiplier;
+    let updatedRows = [...rows];
+    let row = { ...updatedRows[index] };
+    row.confirmed = false;
 
-      row.schemeQty = String(calculatedQty);
+    // assign value (RowType is all strings)
+    (row as any)[name] = value;
 
-      // const sPackUnit = Number((schemeObj as any).sal_pack_unit || product?.sal_pack_unit || 0);
-      // row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
-    } else {
+    //  ITEM SELECT
+    if (name === "item") {
+      row.qty = "";
+      row.ltrs = "";
+      row.boxes = "";
+      row.marketPrice = "";
+      row.amount = "";
+      row.isScheme = false;
+      row.scheme = "";
       row.schemeQty = "";
       // row.schemeLtrs = "";
+
+      const partyProduct = partyProducts.find(
+        (p) =>
+          p.item_name === value &&
+          p.category === row.category &&
+          (p.brand || "") === (row.brand || "") &&
+          (p.variety || "") === (row.variety || "")
+      ) || partyProducts.find((p) => p.item_name === value && p.category === row.category)
+        || partyProducts.find((p) => p.item_name === value);
+
+      if (partyProduct) {
+        const match = partyProduct.item_name.match(
+          /(\d+\.?\d*)\s*(LTR|ML|KG|GM|GMS|L)/i,
+        );
+        row.type = match ? `${match[1]} ${match[2].toUpperCase()}` : "Others";
+        row.pcs = String(partyProduct.sal_factor2 ?? "");
+        row.tax = String(partyProduct.tax_rate ?? "");
+        row.basicPrice = String(partyProduct.basic_rate ?? "");
+        void fetchSchemesForRow(index, true);
+      } else {
+        void fetchSchemesForRow(index, false);
+      }
     }
-  }
-}
-  updatedRows[index] = row;
-  setRows(updatedRows);
-};
+
+    if (name === "category" || name === "brand" || name === "variety" || name === "type") {
+      row.item = "";
+      row.isScheme = false;
+      row.scheme = "";
+      row.schemeQty = "";
+      // row.schemeLtrs = "";
+      row.pcs = "";
+      row.qty = "";
+      row.ltrs = "";
+      row.boxes = "";
+      row.basicPrice = "";
+      row.marketPrice = "";
+      row.tax = "";
+      row.amount = "";
+      setSchemeOptions((prev) => ({ ...prev, [index]: [] }));
+    }
+
+    //  CALCULATIONS
+    //  (boxes → qty)
+    if (name === "boxes" || name === "marketPrice") {
+      const boxes = Number(row.boxes) || 0;
+
+      const product =
+        partyProducts.find((p) => p.item_name === row.item) ||
+        products.find((p) => p.item_name === row.item);
+
+      if (product) {
+        const factor = Number(product.sal_factor2) || 1;
+
+        // ✅ qty from boxes
+        const qty = boxes * factor;
+        row.qty = String(qty);
+
+        // ✅ liters
+        row.ltrs = String(Number(product.sal_pack_unit) * qty);
+
+        // ✅ amount
+        const basic = Number(row.basicPrice) || 0;
+        const market = Number(row.marketPrice) || 0;
+        const price = market > 0 ? market : basic;
+
+        row.amount = (price * qty).toFixed(2);
+      }
+    }
+    if (name === "boxes" || name === "marketPrice" || name === "scheme") {
+      const boxes = Number(row.boxes) || 0;
+
+      const product =
+        partyProducts.find((p) => p.item_name === row.item) ||
+        products.find((p) => p.item_name === row.item);
+
+      if (product) {
+        const factor = Number(product.sal_factor2) || 1;
+
+        const qty = boxes * factor;
+        row.qty = String(qty);
+
+        row.ltrs = String(Number(product.sal_pack_unit) * qty);
+
+        const basic = Number(row.basicPrice) || 0;
+        const market = Number(row.marketPrice) || 0;
+        const price = market > 0 ? market : basic;
+
+        row.amount = (price * qty).toFixed(2);
+      }
+
+      if (row.isScheme && row.scheme) {
+        const schemes = schemeOptions[index] || [];
+        const schemeObj = schemes.find(
+          (s) => String(s.scheme_id) === String(row.scheme)
+        );
+
+        if (schemeObj) {
+          const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
+          const multiplier = match ? parseFloat(match[1]) : 1;
+          const schemeName = (schemeObj.scheme_name || "").toLowerCase();
+
+          const calculatedQty = schemeName.includes("box")
+            ? boxes * multiplier
+            : (Number(row.qty) || 0) * multiplier;
+
+          row.schemeQty = String(calculatedQty);
+
+          // const sPackUnit = Number((schemeObj as any).sal_pack_unit || product?.sal_pack_unit || 0);
+          // row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
+        } else {
+          row.schemeQty = "";
+          // row.schemeLtrs = "";
+        }
+      }
+    }
+    updatedRows[index] = row;
+    setRows(updatedRows);
+  };
 
   const handleDeleteRow = (index: number) => {
     const updatedRows = rows.filter((_, i) => i !== index);
@@ -808,13 +808,13 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
   };
 
   const isRowValid = (row: SalesRow) =>
-      row.category &&
-      row.brand &&
-      row.variety &&
-      row.type &&
-      row.item &&
-      Number(row.qty) > 0 &&
-      Number(row.amount) > 0;
+    row.category &&
+    row.brand &&
+    row.variety &&
+    row.type &&
+    row.item &&
+    Number(row.qty) > 0 &&
+    Number(row.amount) > 0;
 
   const handleConfirmRow = (index: number) => {
     const row = rows[index];
@@ -968,10 +968,10 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
                 <option value="">--select--</option>
                 {branch.length > 0
                   ? branch.map((d) => (
-                      <option key={d.bpl_id} value={d.bpl_id}>
-                        {d.bpl_name}
-                      </option>
-                    ))
+                    <option key={d.bpl_id} value={d.bpl_id}>
+                      {d.bpl_name}
+                    </option>
+                  ))
                   : null}
               </select>
               <div className="sl-focus-line" />
@@ -1115,7 +1115,7 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
           </div>
         </div>
 
-        
+
         <div className="sl-table-wrap">
           <table className="sl-table">
             <thead>
@@ -1126,7 +1126,7 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
                 <th>Type</th>
                 <th>Item</th>
                 <th>Pcs</th>
-                 <th>Boxes</th>
+                <th>Boxes</th>
                 <th>Qty</th>
                 <th>Ltrs</th>
                 <th>Basic Price</th>
@@ -1285,26 +1285,26 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
                     </td>
 
                     <td>
-                     <input
-  type="number"
-  name="boxes"  
-  value={row.boxes}
-  onChange={(e) => handleRowChange(index, e)}
-  disabled={row.confirmed && !isEditMode}
-  required
-/>
+                      <input
+                        type="number"
+                        name="boxes"
+                        value={row.boxes}
+                        onChange={(e) => handleRowChange(index, e)}
+                        disabled={row.confirmed && !isEditMode}
+                        required
+                      />
                     </td>
 
                     <td>
-                       <input type="number" value={row.qty} readOnly />
+                      <input type="number" value={row.qty} readOnly />
                     </td>
-                   
+
 
                     <td>
                       <input type="number" value={row.ltrs} readOnly />
                     </td>
 
-                    
+
 
                     <td>
                       <input type="number" value={row.basicPrice} readOnly />
@@ -1384,7 +1384,7 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
                             >
                               <option value="">Select Scheme...</option>
                               {(schemeOptions[index] || []).map((scheme) => (
-                        <option key={scheme.scheme_id} value={scheme.scheme_id}>
+                                <option key={scheme.scheme_id} value={scheme.scheme_id}>
                                   {scheme.scheme_name}
                                 </option>
                               ))}
@@ -1396,7 +1396,7 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
                             <input
                               type="text"
                               name="schemeQty"
-                      value={row.isScheme && row.schemeQty ? row.schemeQty : ""}
+                              value={row.isScheme && row.schemeQty ? row.schemeQty : ""}
                               readOnly
                             />
                           </div>
@@ -1437,7 +1437,7 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
 
         <div className="sl-section-label">Summary</div>
         <div className="sl-grid sl-summary-grid">
-          
+
 
           <div className="sl-field">
             <label className="sl-label">Company</label>
@@ -1451,10 +1451,10 @@ if (name === "boxes" || name === "marketPrice" || name === "scheme") {
                 <option value="">Select Company</option>
                 {company.length > 0
                   ? company.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name}
-                      </option>
-                    ))
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))
                   : null}
               </select>
               <div className="sl-focus-line" />

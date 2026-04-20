@@ -42,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'name', 'username', 'email', 'phone',
-            'role','role_display', 'company', 'main_group','main_groups', 'state', 'states', 'is_active'
+            'role','role_display', 'company', 'main_group','main_groups', 'state', 'states', 'is_active', 'password'
         ]
 
     def get_company(self, obj):
@@ -161,4 +161,68 @@ class CreateUserSerializer(serializers.Serializer):
                 if state.id not in existing_state_ids:
                     UserState.objects.create(user=user, state=state)
         return user
+    
+
+class UpdateUserSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150, required=False)
+    username = serializers.CharField(max_length=150, required=False)
+    password = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    phone = serializers.CharField(max_length=15, required=False, allow_blank=True, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
+
+    role = serializers.PrimaryKeyRelatedField(queryset=UserRole.objects.all(), required=False, allow_null=True)
+    company = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all(), required=False, allow_null=True)
+    main_group = serializers.PrimaryKeyRelatedField(queryset=MainGroup.objects.all(), required=False, allow_null=True)
+    state = serializers.PrimaryKeyRelatedField(queryset=State.objects.all(), required=False, allow_null=True)
+    main_groups = serializers.PrimaryKeyRelatedField(queryset=MainGroup.objects.all(), required=False, many=True)
+    states = serializers.PrimaryKeyRelatedField(queryset=State.objects.all(), required=False, many=True)
+
+    def update(self, instance, validated_data):
+        main_groups = validated_data.pop('main_groups', None)
+        states_list = validated_data.pop('states', None)
+
+        instance.name = validated_data.get('name', instance.name)
+      
+  
+        new_username = validated_data.get('username')
+        if new_username and new_username != instance.username:
+            if User.objects.filter(username=new_username).exists():
+                raise serializers.ValidationError({'username': 'Username already exists'})
+            instance.username = new_username
+
+        new_email = validated_data.get('email')
+        if new_email and new_email != instance.email:
+            if User.objects.filter(email=new_email).exists():
+              raise serializers.ValidationError({'email': 'Email already exists'})
+            instance.email = new_email
+        elif 'email' in validated_data and not new_email:
+          instance.email = new_email
+
+        instance.phone = validated_data.get('phone', instance.phone)
+       
+        for field in ['role', 'company', 'main_group', 'state', 'is_active']:
+            if field in validated_data:
+                setattr(instance, field, validated_data.get(field))
+
+        if main_groups is not None:
+            instance.main_groups.set(main_groups)
+            if main_groups:
+                instance.main_group = main_groups[0]
+
+        if states_list is not None:
+            UserState.objects.filter(user=instance).delete()
+            for state in states_list:
+                UserState.objects.create(user=instance, state=state)
+            if states_list:
+                instance.state = states_list[0]
+
+        # Agar nawa password ditta gaya hai taan hi update karo
+        password = validated_data.get('password')
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
+   
     

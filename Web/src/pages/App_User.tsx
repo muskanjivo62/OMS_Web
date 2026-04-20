@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { userService } from "../services/userService";
 import type { User, Option, CreateUserData } from "../services/userService";
 import "../styles/App_User.css";
+import { HiPencilSquare } from "react-icons/hi2";
 
 export default function App_User() {
 
   const stateRef = useRef<HTMLDivElement>(null);
- const groupRef = useRef<HTMLDivElement>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [mainGroup, setMainGroup] = useState<Option[]>([]);
   const [state, setState] = useState<Option[]>([]);
@@ -32,6 +33,8 @@ export default function App_User() {
   const [showPassword, setShowPassword] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 7;
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editUserId, setEditUserId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -41,29 +44,29 @@ export default function App_User() {
     fetchCompany();
   }, []);
 
-   useEffect(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    if (
-      stateRef.current &&
-      !stateRef.current.contains(event.target as Node)
-    ) {
-      setStDropdownOpen(false);
-    }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        stateRef.current &&
+        !stateRef.current.contains(event.target as Node)
+      ) {
+        setStDropdownOpen(false);
+      }
 
-    if (
-      groupRef.current &&
-      !groupRef.current.contains(event.target as Node)
-    ) {
-      setMgDropdownOpen(false);
-    }
-  };
+      if (
+        groupRef.current &&
+        !groupRef.current.contains(event.target as Node)
+      ) {
+        setMgDropdownOpen(false);
+      }
+    };
 
-  document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
 
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, []);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const fetchUsers = async () => {
     try {
@@ -114,19 +117,26 @@ export default function App_User() {
   const toggleMainGroup = (id: number) => {
     setFormData((prev) => {
       const current = prev.mainGroups || [];
+      const isSelected = current.includes(id);
       const updated = current.includes(id)
         ? current.filter((v) => v !== id)
         : [...current, id];
-      return { ...prev, mainGroups: updated };
+      return {
+        ...prev,
+        mainGroup: isSelected ? updated[0] || 0 : id,
+        mainGroups: updated,
+      };
     });
   };
 
   const toggleAllMainGroups = () => {
     setFormData((prev) => {
       const allSelected = (prev.mainGroups || []).length === mainGroup.length;
+      const updated = allSelected ? [] : mainGroup.map((g) => g.id);
       return {
         ...prev,
-        mainGroups: allSelected ? [] : mainGroup.map((g) => g.id),
+        mainGroup: updated[0] || 0,
+        mainGroups: updated,
       };
     });
   };
@@ -134,17 +144,23 @@ export default function App_User() {
   const toggleState = (id: number) => {
     setFormData((prev) => {
       const current = prev.states || [];
+      const isSelected = current.includes(id);
       const updated = current.includes(id)
         ? current.filter((v) => v !== id)
         : [...current, id];
-      return { ...prev, states: updated };
+      return {
+        ...prev,
+        state: isSelected ? updated[0] || 0 : id,
+        states: updated,
+      };
     });
   };
 
   const toggleAllStates = () => {
     setFormData((prev) => {
       const allSelected = (prev.states || []).length === state.length;
-      return { ...prev, states: allSelected ? [] : state.map((s) => s.id) };
+      const updated = allSelected ? [] : state.map((s) => s.id);
+      return { ...prev, state: updated[0] || 0, states: updated };
     });
   };
 
@@ -155,7 +171,12 @@ export default function App_User() {
 
     setFormData((prev) => ({
       ...prev,
-      [name]: ["role", "company"].includes(name) ? Number(value) : value,
+      [name]:
+        name === "role"
+          ? (value === "" ? 0 : Number(value))
+          : name === "company"
+            ? (value === "" ? null : Number(value))
+            : value,
     }));
   };
 
@@ -219,10 +240,16 @@ export default function App_User() {
     e.preventDefault();
 
     try {
-      const result = await userService.createUser(formData);
+      let result;
+
+      if (isEditMode && editUserId) {
+        result = await userService.updateUser(editUserId, formData);
+      } else {
+        result = await userService.createUser(formData);
+      }
 
       if (result.success) {
-        alert("User Added Successfully ✅");
+        alert(isEditMode ? "User Updated ✅" : "User Added ✅");
 
         setFormData({
           name: "",
@@ -237,8 +264,9 @@ export default function App_User() {
           role: 0,
           company: 0,
         });
-        setMgDropdownOpen(false);
-        setStDropdownOpen(false);
+
+        setIsEditMode(false);
+        setEditUserId(null);
 
         fetchUsers();
         setShowForm(false);
@@ -247,10 +275,59 @@ export default function App_User() {
         alert("Error: " + getCreateUserErrorMessage(result));
       }
     } catch (error: any) {
-      console.error("Error creating user:", error);
-      console.error("Response data:", error.response?.data);
       alert("Error: " + getCreateUserErrorMessage(error));
     }
+  };
+
+  const handleEditUser = (user: User) => {
+    setIsEditMode(true);
+    setEditUserId(user.id);
+
+    const getId = (value: unknown) => {
+      if (typeof value === "number") return value;
+      if (typeof value === "string") return Number(value) || 0;
+      if (value && typeof value === "object" && "id" in value) {
+        return Number((value as { id?: number | string }).id) || 0;
+      }
+      return 0;
+    };
+    const getIds = (values: unknown) =>
+      Array.isArray(values) ? values.map(getId).filter(Boolean) : [];
+    const editableUser = user as User & {
+      main_group?: unknown;
+      main_groups?: unknown;
+      state?: unknown;
+      states?: unknown;
+      company?: unknown;
+      role?: unknown;
+      role_display?: string;
+    };
+    const mainGroupIds = getIds(editableUser.main_groups);
+    const stateIds = getIds(editableUser.states);
+    const roleName = String(
+      editableUser.role || editableUser.role_name || editableUser.role_display || "",
+    ).toLowerCase();
+    const roleId =
+      getId(editableUser.role) ||
+      role.find((r) => r.name.toLowerCase() === roleName)?.id ||
+      0;
+
+    setFormData({
+      name: user.name || "",
+      username: user.username || "",
+      password: "",
+      email: user.email || "",
+      phone: user.phone || "",
+      mainGroup: getId(editableUser.main_group) || mainGroupIds[0] || 0,
+      mainGroups: mainGroupIds,
+      state: getId(editableUser.state) || stateIds[0] || 0,
+      states: stateIds,
+      role: roleId,
+      company: getId(editableUser.company) || null,
+    });
+
+    setShowForm(true);
+    setShowUsers(false);
   };
 
   return (
@@ -258,13 +335,17 @@ export default function App_User() {
       {/* ── PAGE HEADER ── */}
       <div className="au-header app-page-head">
         <div>
-          <span className="app-chip au-chip">{showForm ? "Create User" : "Access Control"}</span>
+          <span className="app-chip au-chip">
+            {showForm ? (isEditMode ? "Update User" : "Create User") : "Access Control"}
+          </span>
           <h1 className="au-title app-page-title">
-            {showForm ? "Add New User" : "App Users"}
+            {showForm ? (isEditMode ? "Update User" : "Add New User") : "App Users"}
           </h1>
           <p className="au-subtitle app-page-subtitle">
             {showForm
-              ? "Create application users with roles, territory mapping and company assignment."
+              ? isEditMode
+                ? "Update application user details, role, territory mapping and company assignment."
+                : "Create application users with roles, territory mapping and company assignment."
               : "Manage user access, review account status and keep operational roles aligned."}
           </p>
         </div>
@@ -276,6 +357,7 @@ export default function App_User() {
           }}
         >
           <span>{showForm ? "← Back to Users" : "+ Add User"}</span>
+
         </button>
       </div>
 
@@ -298,6 +380,7 @@ export default function App_User() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Status</th>
+                  <th>Edit User</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,6 +404,18 @@ export default function App_User() {
                           >
                             {user.is_active ? "Active" : "Inactive"}
                           </span>
+                        </td>
+                        <td>
+                          <button
+                            className="ao-btn-icon edit"
+                            onClick={() => {
+                              handleEditUser(user);
+                              setShowForm(true);
+                              setShowUsers(false);
+                            }} title="Edit User"
+                          >
+                            <HiPencilSquare size={22} />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -374,8 +469,14 @@ export default function App_User() {
       {showForm && (
         <div className="au-form-card">
           <div className="au-form-head">
-            <div className="au-form-title">User Details</div>
-            <div className="au-form-subtitle">Fill in credentials, role and mapping information.</div>
+            <div className="au-form-title">
+              {isEditMode ? "Update User Details" : "User Details"}
+            </div>
+            <div className="au-form-subtitle">
+              {isEditMode
+                ? "Update credentials, role and mapping information."
+                : "Fill in credentials, role and mapping information."}
+            </div>
           </div>
           <form onSubmit={handleSubmit}>
             <div className="au-form-grid">
@@ -417,7 +518,7 @@ export default function App_User() {
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange}
-                    required
+                    required={!isEditMode}
                   />
                   <button
                     type="button"
@@ -495,7 +596,7 @@ export default function App_User() {
                   >
                     {(formData.mainGroups?.length || 0) === 1
                       ? mainGroup.find((g) => g.id === formData.mainGroups![0])
-                          ?.name || "1 selected"
+                        ?.name || "1 selected"
                       : (formData.mainGroups?.length || 0) > 1
                         ? `${formData.mainGroups!.length} selected`
                         : "Select Main Group"}
@@ -547,7 +648,7 @@ export default function App_User() {
                   >
                     {(formData.states?.length || 0) === 1
                       ? state.find((s) => s.id === formData.states![0])?.name ||
-                        "1 selected"
+                      "1 selected"
                       : (formData.states?.length || 0) > 1
                         ? `${formData.states!.length} selected`
                         : "Select State"}
@@ -591,15 +692,16 @@ export default function App_User() {
               <div className="au-field">
                 <label className="au-label">User Role</label>
                 <div className="au-input-wrap">
+
                   <select
                     name="role"
-                    value={formData.role}
+                    value={formData.role || ""}
                     onChange={handleChange}
                     required
                   >
                     <option value="">Select Role</option>
                     {role.map((r) => (
-                      <option key={r.id} value={Number(r.id)}>
+                      <option key={r.id} value={r.id}>
                         {r.name}
                       </option>
                     ))}
@@ -612,13 +714,13 @@ export default function App_User() {
                 <div className="au-input-wrap">
                   <select
                     name="company"
-                    value={formData.company ?? 0}
+                    value={formData.company ?? ""}
                     onChange={handleChange}
                     required
                   >
                     <option value="">Select Company</option>
                     {company.map((c) => (
-                      <option key={c.id} value={Number(c.id)}>
+                      <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
                     ))}
@@ -629,7 +731,7 @@ export default function App_User() {
             </div>
 
             <button type="submit" className="au-submit">
-              <span>Create User</span>
+              <span>{isEditMode ? "Update User" : "Create User"}</span>
               <svg
                 fill="none"
                 viewBox="0 0 24 24"

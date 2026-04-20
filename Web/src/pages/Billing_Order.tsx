@@ -5,13 +5,13 @@ import { ordersService } from "../services/ordersService";
 import type { Order, OrderItem } from "../services/ordersService";
 import "../styles/Billing_Order.css";
 import { useNavigate } from "react-router-dom";
-import { 
+import {
   HiCheckCircle,   // Approve
   HiXCircle,       // Reject
   HiEye,           // View
   HiArrowDownTray,  // Download
   // HiEllipsisVertical  
-   HiPencilSquare,
+  HiPencilSquare,
 } from "react-icons/hi2";
 import api from '../services/api'
 
@@ -30,7 +30,7 @@ const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
 export default function Billing_orders() {
 
-const navigate = useNavigate();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [orderDetails, setOrderDetails] = useState<Order | null>(null);
@@ -46,12 +46,12 @@ const navigate = useNavigate();
   const itemsPerPage = 10;
 
   // Quotation flow state
-  const [showConfirmModal, setShowConfirmModal]   = useState(false);
-  const [pendingOrderId,   setPendingOrderId]     = useState<number | null>(null);
-  const [pendingCardCode,  setPendingCardCode]     = useState("");
-  const [isCreating,       setIsCreating]         = useState(false);
-  const [showSuccess,      setShowSuccess]        = useState(false);
-  const [quotationResult,  setQuotationResult]    = useState<{ number: string; cardCode: string } | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
+  const [pendingCardCode, setPendingCardCode] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [quotationResult, setQuotationResult] = useState<{ number: string; cardCode: string } | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -137,17 +137,17 @@ const navigate = useNavigate();
   //   }
   // };
 
-    const filteredOrders = orders.filter((order) => {
-     let matchDate = true;
+  const filteredOrders = orders.filter((order) => {
+    let matchDate = true;
 
-  if (fromDate && toDate) {
-    const orderDate = new Date(order.created_at);
-    const from = new Date(`${fromDate}T23:59:59.999`);
+    if (fromDate && toDate) {
+      const orderDate = new Date(order.created_at);
+      const from = new Date(`${fromDate}T23:59:59.999`);
       const to = new Date(`${toDate}T23:59:59.999`);
 
 
-    matchDate = orderDate >= from && orderDate <= to;
-  }
+      matchDate = orderDate >= from && orderDate <= to;
+    }
 
     return matchDate;
   });
@@ -193,14 +193,14 @@ const navigate = useNavigate();
     saveAs(file, `Order_${order.order_number}.xlsx`);
   };
 
-const handleEditOrder = (order: Order) => {
-  navigate("/Add_Sales", {
-    state: {
-      editOrderId: order.id,
-      returnTo: "/Billing_orders",
-    },
-  });
-};
+  const handleEditOrder = (order: Order) => {
+    navigate("/Add_Sales", {
+      state: {
+        editOrderId: order.id,
+        returnTo: "/Billing_orders",
+      },
+    });
+  };
 
   return (
     <div className="bo-page">
@@ -300,24 +300,24 @@ const handleEditOrder = (order: Order) => {
     </div>
   )}
 </div> */}
-                        
+
                       </td>
 
-                          <td>
-  <button
-    className="ao-btn-icon edit"
-    onClick={() => handleEditOrder(order)}
-    title="Edit Order"
-  >
-    <HiPencilSquare size={22} />
-  </button>
-</td>
                       <td>
                         <button
-                           className="ao-btn-icon download"
+                          className="ao-btn-icon edit"
+                          onClick={() => handleEditOrder(order)}
+                          title="Edit Order"
+                        >
+                          <HiPencilSquare size={22} />
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="ao-btn-icon download"
                           onClick={() => downloadExcel(order)}
                         >
-                         <HiArrowDownTray size={22} />
+                          <HiArrowDownTray size={22} />
                         </button>
                       </td>
                     </tr>
@@ -346,11 +346,11 @@ const handleEditOrder = (order: Order) => {
         <div className="bo-detail">
           <div className="bo-d-nav">
             <button className="bo-d-back" onClick={() => setShowDetails(false)}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 13L5 8l5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 13L5 8l5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               Back to Orders
             </button>
             <button className="bo-d-export" onClick={() => downloadExcel(orderDetails)}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8m0 0L4 6.5M7 9l3-2.5M2.5 12h9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8m0 0L4 6.5M7 9l3-2.5M2.5 12h9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               Export Excel
             </button>
           </div>
@@ -394,31 +394,31 @@ const handleEditOrder = (order: Order) => {
             </div>
             <div className="bo-d-items-scroll">
               <table className="bo-d-tbl">
-                <thead><tr><th>#</th><th>Item Code</th> 
-                <th style={{ minWidth: '250px' }}>Item Name</th>
-                <th>Category</th><th>Scheme</th><th>Scheme Qty</th>
-                <th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th>
-                {/* <th>Scheme Ltrs</th> */}
-                <th>Total Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th style={{textAlign:'right'}}>Amount</th></tr></thead>
+                <thead><tr><th>#</th><th>Item Code</th>
+                  <th style={{ minWidth: '250px' }}>Item Name</th>
+                  <th>Category</th><th>Scheme</th><th>Scheme Qty</th>
+                  <th>Qty</th><th>Pcs</th><th>Boxes</th><th>Ltrs</th>
+                  {/* <th>Scheme Ltrs</th> */}
+                  <th>Total Ltrs</th><th>Basic Price</th><th>Market Price</th><th>Tax %</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
                 <tbody>
                   {selectedItems.length > 0 ? selectedItems.map((item, i) => (
                     <tr key={i}>
-                      <td style={{textAlign:'center',color:'#94a3b8'}}>{i + 1}</td>
+                      <td style={{ textAlign: 'center', color: '#94a3b8' }}>{i + 1}</td>
                       <td><span className="bo-d-item-code">{item.item_code}</span></td>
-                      <td style={{fontWeight:500,color:'#0f172a', minWidth: '250px'}}>{item.item_name}</td>
+                      <td style={{ fontWeight: 500, color: '#0f172a', minWidth: '250px' }}>{item.item_name}</td>
                       <td>{item.category}</td>
                       <td>{item.scheme_name || "—"}</td>
-                      <td style={{textAlign:'center'}}>{item.scheme_name ? (item.scheme_qty || 0) : "—"}</td>
-                      <td style={{textAlign:'center'}}>{item.qty}</td>
-                      <td style={{textAlign:'center'}}>{item.pcs}</td>
-                      <td style={{textAlign:'center'}}>{Number(item.boxes).toFixed(2)}</td>
-                      <td style={{textAlign:'center'}}>{item.ltrs}</td>
+                      <td style={{ textAlign: 'center' }}>{item.scheme_name ? (item.scheme_qty || 0) : "—"}</td>
+                      <td style={{ textAlign: 'center' }}>{item.qty}</td>
+                      <td style={{ textAlign: 'center' }}>{item.pcs}</td>
+                      <td style={{ textAlign: 'center' }}>{Number(item.boxes).toFixed(2)}</td>
+                      <td style={{ textAlign: 'center' }}>{item.ltrs}</td>
                       {/* <td style={{textAlign:'center'}}>{item.scheme_name ? ((item as any).scheme_ltrs || 0) : "—"}</td> */}
-                      <td style={{textAlign:'center'}}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2)}</td>
-                      <td style={{textAlign:'right'}}>{Number(item.basic_price).toFixed(2)}</td>
-                      <td style={{textAlign:'right'}}>{Number(item.market_price).toFixed(2)}</td>
-                      <td style={{textAlign:'center'}}>{Number(item.tax_rate).toFixed(2)}</td>
-                      <td style={{textAlign:'right',fontWeight:600,color:'#0f172a'}}>{Number(item.total).toFixed(2)}</td>
+                      <td style={{ textAlign: 'center' }}>{(item as any).total_ltrs || (Number(item.ltrs || 0) + Number((item as any).scheme_qty || 0)).toFixed(2)}</td>
+                      <td style={{ textAlign: 'right' }}>{Number(item.basic_price).toFixed(2)}</td>
+                      <td style={{ textAlign: 'right' }}>{Number(item.market_price).toFixed(2)}</td>
+                      <td style={{ textAlign: 'center' }}>{Number(item.tax_rate).toFixed(2)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>{Number(item.total).toFixed(2)}</td>
                     </tr>
                   )) : (<tr><td colSpan={14} className="bo-empty">No items found</td></tr>)}
                 </tbody>
