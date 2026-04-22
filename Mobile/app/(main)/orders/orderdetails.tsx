@@ -106,7 +106,10 @@ export default function OrderDetailsScreen() {
         end={{ x: 1, y: 1 }}
         style={styles.header}>
         <Text style={styles.orderNo}>{order.order_number}</Text>
-        <Text style={styles.party}>{order.card_name}</Text>
+        <Text style={styles.party}>
+          {order.card_name}
+          {order.party_state ? `  ·  ${order.party_state}` : ""}
+        </Text>
 
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{order.status_display}</Text>
@@ -117,6 +120,8 @@ export default function OrderDetailsScreen() {
       <View style={styles.card}>
         <SectionTitle icon="information-circle-outline" title="Order Info" />
 
+        <InfoRow label="Party State" value={order.party_state} />
+        <InfoRow label="Punched By" value={order.created_by_name} />
         <InfoRow label="Delivery Date" value={order.delivery_date} />
         <InfoRow label="PO Number" value={order.po_number} />
         <InfoRow label="Bill To" value={order.bill_to_address} />

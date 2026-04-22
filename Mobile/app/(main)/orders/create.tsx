@@ -366,7 +366,7 @@ export default function CreateOrderScreen() {
   const [selectedShipTo, setSelectedShipTo] = useState<number | null>(null);
 
   // ── Master data ───────────────────────────────────────────────────────────
-  const [parties, setParties] = useState<{ label: string; value: string }[]>(
+  const [parties, setParties] = useState<{ label: string; value: string; state?: string }[]>(
     [],
   );
   const [dispatches, setDispatches] = useState<
@@ -532,27 +532,125 @@ export default function CreateOrderScreen() {
       const uniqueCategories = [...new Set<string>(allProducts.map((p: any) => p.category).filter(Boolean))];
       setCategories(uniqueCategories.sort().map((c) => ({ label: c, value: c })));
 
+      // Detect Punjab party for combo-item splitting
+      const partyEntry = parties.find((p: any) => String(p.value) === String(order.card_code));
+      const partyStateCode = (partyEntry?.state || "").toUpperCase();
+      const isPunjabParty = partyStateCode === "PB" || partyStateCode.includes("PUNJAB");
+
       // Pre-fill confirmed order items
-      const items: OrderItemType[] = (order.items || []).map((item: any, idx: number) => ({
-        id: item.id ?? Date.now() + idx,
-        itemCode: item.item_code ?? "",
-        itemName: item.item_name ?? "",
-        category: item.category ?? "",
-        brand: item.brand ?? "",
-        variety: item.variety ?? "",
-      type: item.item_type ?? "",
-      qty: Number(item.qty) || 0,
-      scheme: item.scheme_id ?? null,
-      schemeName: item.scheme_name ?? null,
-      schemeQty: Number(item.qty_scheme) || 0,
-      pcs: Number(item.pcs) || 0,
-      boxes: Number(item.boxes) || 0,
-      ltrs: Number(item.ltrs) || 0,
-        marketPrice: Number(item.market_price) || 0,
-        total: Number(item.total) || 0,
-        taxRate: Number(item.tax_rate) || 0,
-        basicPrice: Number(item.basic_price) || 0,
-      }));
+      const items: OrderItemType[] = [];
+      let itemIdCounter = Date.now();
+
+      for (const item of (order.items || [])) {
+        const isCombo = String(item.item_name || "").includes("+");
+
+        if (isPunjabParty && isCombo) {
+          // ── Row 1: Main product (e.g. Cold Press 5 LTR) ──────────────────
+          items.push({
+            id: itemIdCounter++,
+            itemCode: item.item_code ?? "",
+            itemName: item.item_name ?? "",
+            category: item.category ?? "",
+            brand: item.brand ?? "",
+            variety: item.variety ?? "",
+            type: item.item_type ?? "",
+            qty: Number(item.qty) || 0,
+            scheme: null,
+            schemeName: null,
+            schemeQty: 0,
+            pcs: Number(item.pcs) || 0,
+            boxes: Number(item.boxes) || 0,
+            ltrs: Number(item.ltrs) || 0,
+            marketPrice: Number(item.market_price) || 0,
+            total: Number(item.total) || 0,
+            taxRate: Number(item.tax_rate) || 0,
+            basicPrice: Number(item.basic_price) || 0,
+          });
+
+          // ── Row 2: Extra Light Olive component ───────────────────────────
+          const elProduct = allProducts.find((p: any) =>
+            p.combo_scheme_name &&
+            p.combo_scheme_name === item.scheme_name &&
+            String(p.item_code) !== String(item.item_code)
+          );
+          const elPcs = toNumber(elProduct?.sal_factor2 ?? item.pcs);
+          const elSalPackUnit = toNumber(elProduct?.sal_pack_unit ?? 1);
+          const elBoxes = Number(item.boxes) || 0;
+          const elQty = elBoxes * elPcs;
+          const elLtrs = parseFloat((elQty * elSalPackUnit).toFixed(2));
+
+          items.push({
+            id: itemIdCounter++,
+            itemCode: elProduct?.item_code ?? (item.scheme_item_code ?? ""),
+            itemName: elProduct?.item_name ?? "EXTRA LIGHT OLIVE 1 LTR",
+            category: item.category ?? "",
+            brand: item.brand ?? "",
+            variety: elProduct?.variety ?? "EXTRA LIGHT",
+            type: elProduct ? extractType(elProduct.item_name ?? "") : "1 LTR",
+            qty: elQty,
+            scheme: null,
+            schemeName: null,
+            schemeQty: 0,
+            pcs: elPcs,
+            boxes: elBoxes,
+            ltrs: elLtrs,
+            marketPrice: 0,
+            total: 0,
+            taxRate: Number(item.tax_rate) || 0,
+            basicPrice: toNumber(elProduct?.basic_rate ?? 0),
+          });
+
+          // ── Row 3: Scheme item (if visible) ──────────────────────────────
+          if (item.is_scheme_visible || item.scheme_id) {
+            const schemeProduct = allProducts.find((p: any) =>
+              String(p.item_code) === String(item.scheme_item_code)
+            );
+            const schemeQty = Number(item.qty_scheme) || 0;
+            items.push({
+              id: itemIdCounter++,
+              itemCode: item.scheme_item_code ?? "",
+              itemName: schemeProduct?.item_name ?? (item.scheme_name ?? ""),
+              category: item.category ?? "",
+              brand: item.brand ?? "",
+              variety: schemeProduct?.variety ?? "",
+              type: schemeProduct ? extractType(schemeProduct.item_name ?? "") : "",
+              qty: schemeQty,
+              scheme: item.scheme_id ?? null,
+              schemeName: item.scheme_name ?? null,
+              schemeQty,
+              pcs: toNumber(schemeProduct?.sal_factor2 ?? 1),
+              boxes: schemeQty,
+              ltrs: 0,
+              marketPrice: 0,
+              total: 0,
+              taxRate: 0,
+              basicPrice: 0,
+            });
+          }
+        } else {
+          // Non-Punjab or non-combo: single row as before
+          items.push({
+            id: item.id ?? itemIdCounter++,
+            itemCode: item.item_code ?? "",
+            itemName: item.item_name ?? "",
+            category: item.category ?? "",
+            brand: item.brand ?? "",
+            variety: item.variety ?? "",
+            type: item.item_type ?? "",
+            qty: Number(item.qty) || 0,
+            scheme: item.scheme_id ?? null,
+            schemeName: item.scheme_name ?? null,
+            schemeQty: Number(item.qty_scheme) || 0,
+            pcs: Number(item.pcs) || 0,
+            boxes: Number(item.boxes) || 0,
+            ltrs: Number(item.ltrs) || 0,
+            marketPrice: Number(item.market_price) || 0,
+            total: Number(item.total) || 0,
+            taxRate: Number(item.tax_rate) || 0,
+            basicPrice: Number(item.basic_price) || 0,
+          });
+        }
+      }
       setOrderItems(items);
       setEditOrderLoaded(true);
     } catch (err) {
@@ -1240,7 +1338,7 @@ export default function CreateOrderScreen() {
           basic_price: Number(item.basicPrice) || 0,
         })),
       };
-
+      console.log("Final payload for submission:", JSON.stringify(payload, null, 2));
       if (isEditMode) {
 
         const response = await orderService.updateOrder(Number(editOrderId), payload);

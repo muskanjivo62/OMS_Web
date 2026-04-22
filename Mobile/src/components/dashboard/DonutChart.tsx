@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text } from 'react-native-paper';
-import Svg, { Circle } from 'react-native-svg';
 import { COLORS, SPACING } from '@/src/constants/theme';
 
 interface DonutSegment {
@@ -29,9 +28,6 @@ export default function DonutChart({
   valuePrefix = '',
   maxLegendItems,
 }: DonutChartProps) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const center = size / 2;
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   if (total === 0) {
@@ -43,52 +39,37 @@ export default function DonutChart({
   }
 
   const nonZeroData = data.filter((d) => d.value > 0);
-
-  let accumulated = 0;
-  const segments = nonZeroData.map((segment) => {
-    const percentage = segment.value / total;
-    const strokeDasharray = `${circumference * percentage} ${circumference * (1 - percentage)}`;
-    const rotation = (accumulated / total) * 360 - 90;
-    accumulated += segment.value;
-    return { ...segment, strokeDasharray, rotation };
-  });
+  const chartWidth = Math.max(size, 110);
+  const barHeight = Math.max(Math.round(strokeWidth * 0.7), 10);
 
   return (
     <View style={styles.container}>
-      <View style={{ position: 'relative', width: size, height: size, alignSelf: 'center' }}>
-        <Svg width={size} height={size}>
-          <Circle
-            cx={center}
-            cy={center}
-            r={radius}
-            stroke="#F1F5F9"
-            strokeWidth={strokeWidth}
-            fill="none"
-          />
-          {segments.map((seg, i) => (
-            <Circle
-              key={i}
-              cx={center}
-              cy={center}
-              r={radius}
-              stroke={seg.color}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeDasharray={seg.strokeDasharray}
-              strokeLinecap="round"
-              rotation={seg.rotation}
-              origin={`${center}, ${center}`}
-            />
-          ))}
-        </Svg>
-        {/* Center text */}
-        <View style={[styles.centerText, { width: size, height: size }]} pointerEvents="none">
+      <View style={[styles.summary, { width: chartWidth }]}>
+        <View style={styles.centerText}>
           <Text style={styles.centerValue}>{centerValue}</Text>
           {centerLabel && (
             <Text style={styles.centerLabel} numberOfLines={1}>
               {centerLabel}
             </Text>
           )}
+        </View>
+        <View style={[styles.segmentBar, { height: barHeight }]}>
+          {nonZeroData.map((seg, i) => (
+            <View
+              key={`${seg.label}-${i}`}
+              style={[
+                styles.segment,
+                {
+                  backgroundColor: seg.color,
+                  flexGrow: seg.value,
+                  borderTopLeftRadius: i === 0 ? barHeight / 2 : 0,
+                  borderBottomLeftRadius: i === 0 ? barHeight / 2 : 0,
+                  borderTopRightRadius: i === nonZeroData.length - 1 ? barHeight / 2 : 0,
+                  borderBottomRightRadius: i === nonZeroData.length - 1 ? barHeight / 2 : 0,
+                },
+              ]}
+            />
+          ))}
         </View>
       </View>
 
@@ -127,12 +108,13 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
   },
-  centerText: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    justifyContent: 'center',
+  summary: {
+    alignSelf: 'center',
     alignItems: 'center',
+  },
+  centerText: {
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
   },
   centerValue: {
     fontSize: 20,
@@ -144,6 +126,17 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     maxWidth: 80,
     textAlign: 'center',
+  },
+  segmentBar: {
+    width: '100%',
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+  },
+  segment: {
+    flexBasis: 0,
+    minWidth: 2,
   },
   legend: {
     marginTop: SPACING.sm,
