@@ -254,6 +254,12 @@ export default function Auditor_orders() {
                   {/* <span className={`ao-badge ao-badge-${(orderDetails.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>{orderDetails.status_display}</span> */}
                 </div>
               </div>
+
+              <div className="ao-d-info-field">
+                <span className="ao-d-hf-label">Punched By</span>
+                <span className="ao-d-hf-value">{orderDetails.created_by || "—"}</span>
+              </div>
+        
               <div className="ao-d-info-field">
                 <span className="ao-d-hf-label">Delivery Date</span>
                 <span className="ao-d-hf-value">{orderDetails.delivery_date || "—"}</span>

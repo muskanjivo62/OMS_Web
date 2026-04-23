@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from .models import Parties,DispatchLocation,ProductDetails,OrderItem,Branches,OrdersLog,Order
-from users.models import SchemeProduct
+from users.models import SchemeProduct, State
 from sap_sync.models import PartyAddress as SapPartyAddress
 from sap_sync.models import Product as SapProduct
+from sap_sync.models import Party as SapParty
 
 
 def get_scheme_item_code_raw(scheme_id):
@@ -194,10 +195,34 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     items_count = serializers.IntegerField(source="items.count", read_only=True)
     status = serializers.CharField(source="status.code")
     status_display = serializers.CharField(source="status.name")
+    party_state = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    def get_party_state(self, obj):
+        party = SapParty.objects.filter(card_code=obj.card_code).first()
+        if not party or not party.state:
+            return None
+        state = State.objects.filter(code=party.state).first()
+        return state.name if state else party.state
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.username
+        return None
 
     class Meta:
         model = Order
-        fields = "__all__"
+        fields = [
+            "id", "order_number", "card_code", "card_name",
+            "bill_to_id", "bill_to_address", "ship_to_id", "ship_to_address",
+            "dispatch_from_id", "dispatch_from_name", "company", "po_number",
+            "remarks", "total_amount", "status", "status_display",
+            "created_by", "created_by_name", "created_at", "delivery_date",
+            "sap_created", "sap_doc_number",
+            "approved_by", "approved_at", "rejected_by", "rejected_at",
+            "rejection_reason", "reject_reason", "updated_at",
+            "items", "items_count", "party_state",
+        ]
 
 class CreateSchemeSerializer(serializers.ModelSerializer):
     class Meta:

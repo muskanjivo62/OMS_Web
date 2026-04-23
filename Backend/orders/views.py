@@ -21,11 +21,15 @@ from rest_framework import permissions
 from sap_sync.models import Party as SapParty, PartyAddress as SapPartyAddress, Product as SapProduct
 from .models import Order, OrderStatus
 from .models import PartyProductAssignment
+from .scheme_rules import (
+    get_ordered_quantity,
+    get_party_product_scheme,
+    should_mirror_punjab_combo_scheme_qty,
+)
 from users.models import SchemeProduct, User
 
 BILLING_ACTIVE_CODES = ['BILLING', 'BILLING_PENDING']
 BILLING_RESOLVED_CODES = ['BILLING_REJECTED', 'COMPLETED']
-
 
 def _get_rate_approval_reason(item, basic_price, market_price):
     item_name = item.get('item_name') or item.get('item_code') or 'Item'
@@ -37,6 +41,42 @@ def _get_rate_approval_reason(item, basic_price, market_price):
         return f"{item_name}: Market ₹{market_price} < Basic ₹{basic_price}"
 
     return None
+
+def _resolve_order_item_scheme(card_code, item):
+    scheme_id = item.get('scheme_id') or item.get('scheme')
+    if scheme_id:
+        try:
+            return SchemeProduct.objects.get(scheme_id=int(scheme_id))
+        except (SchemeProduct.DoesNotExist, ValueError, TypeError):
+            return None
+
+    assigned_scheme = get_party_product_scheme(
+        card_code=card_code,
+        item_code=item.get('item_code', ''),
+        category=item.get('category', ''),
+    )
+    if assigned_scheme and should_mirror_punjab_combo_scheme_qty(
+        card_code,
+        item_name=item.get('item_name'),
+        scheme_name=getattr(assigned_scheme, 'scheme_name', None),
+    ):
+        return assigned_scheme
+
+    return None
+
+def _resolve_order_item_scheme_qty(card_code, item, scheme_obj, provided_scheme_qty):
+    if not scheme_obj:
+        return provided_scheme_qty
+
+    scheme_name = item.get('scheme_name') or getattr(scheme_obj, 'scheme_name', None)
+    if should_mirror_punjab_combo_scheme_qty(
+        card_code,
+        item_name=item.get('item_name'),
+        scheme_name=scheme_name,
+    ):
+        return get_ordered_quantity(item)
+
+    return provided_scheme_qty
 
 def _get_base_orders(user):
     """Scope orders by user role:
@@ -291,10 +331,6 @@ class WDashboardChartsView(APIView):
             'top_parties': top_parties_data,
             'category_sales': category_data,
         })
-
-
-
-
   
 class DashboardKPIView(APIView):
     permission_classes = [AllowAny]
@@ -797,14 +833,13 @@ class UpdateOrderView(APIView):
         flagged_items = []
 
         for item in items:
-            scheme_id = item.get('scheme_id') or item.get('scheme')
-            scheme_obj = None
-            scheme_qty = _to_float(item.get('scheme_qty', 0))
-            if scheme_id:
-                try:
-                    scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
-                except (SchemeProduct.DoesNotExist, ValueError, TypeError):
-                    scheme_obj = None
+            scheme_obj = _resolve_order_item_scheme(order.card_code, item)
+            scheme_qty = _resolve_order_item_scheme_qty(
+                order.card_code,
+                item,
+                scheme_obj,
+                _to_float(item.get('scheme_qty', 0)),
+            )
 
             OrderItem.objects.create(
                 order=order,
@@ -860,7 +895,6 @@ class UpdateOrderView(APIView):
             'message': 'Order updated and sent for rate approval' if needs_approval else 'Order updated and sent to auditor',
         }, status=status.HTTP_200_OK)
 
-
 class CreateOrderView(APIView):
     permission_classes = [AllowAny]
     
@@ -894,7 +928,7 @@ class CreateOrderView(APIView):
             order_remarks = request.data.get('remarks', data.get('remarks', ''))
             if not items:
                 return Response({'error': 'At least one item is required'}, status=status.HTTP_400_BAD_REQUEST)
-
+            
             order.card_code = data.get('card_code', order.card_code)
             order.card_name = data.get('card_name', order.card_name)
             order.bill_to_id = data.get('bill_to_id') or order.bill_to_id
@@ -913,14 +947,13 @@ class CreateOrderView(APIView):
             needs_approval = False
             flagged_items = []
             for item in items:
-                scheme_id = item.get('scheme_id') or item.get('scheme')
-                scheme_obj = None
-                scheme_qty = _to_float(item.get('scheme_qty', 0))
-                if scheme_id:
-                    try:
-                        scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
-                    except (SchemeProduct.DoesNotExist, ValueError, TypeError):
-                        scheme_obj = None
+                scheme_obj = _resolve_order_item_scheme(order.card_code, item)
+                scheme_qty = _resolve_order_item_scheme_qty(
+                    order.card_code,
+                    item,
+                    scheme_obj,
+                    _to_float(item.get('scheme_qty', 0)),
+                )
                 OrderItem.objects.create(
                     order=order,
                     item_code=item.get('item_code', ''),
@@ -965,7 +998,6 @@ class CreateOrderView(APIView):
                 'needs_approval': needs_approval,
                 'message': 'Order updated and sent for rate approval' if needs_approval else 'Order updated and sent to auditor',
             }, status=status.HTTP_200_OK)
-        # ── End edit mode ────────────────────────────────────────────────────
 
         serializer = CreateOrderSerializer(data=request.data)
 
@@ -994,7 +1026,6 @@ class CreateOrderView(APIView):
 
         order_number = f'ORD-{today}-{new_num:04d}'
 
-        # Calculate total
         total_amount = sum(_to_float(item.get('total', 0)) for item in items)
 
         user = request.user if request.user.is_authenticated else None
@@ -1017,19 +1048,18 @@ class CreateOrderView(APIView):
             delivery_date=data.get('delivery_date'),
             remarks=order_remarks
         )   
-        
+
         needs_approval = False
         flagged_items = []
 
         for item in items:
-            scheme_id = item.get('scheme_id') or item.get('scheme')
-            scheme_obj = None
-            scheme_qty = _to_float(item.get('scheme_qty', 0))
-            if scheme_id:
-                try:
-                    scheme_obj = SchemeProduct.objects.get(scheme_id=int(scheme_id))
-                except (SchemeProduct.DoesNotExist, ValueError, TypeError):
-                    scheme_obj = None
+            scheme_obj = _resolve_order_item_scheme(order.card_code, item)
+            scheme_qty = _resolve_order_item_scheme_qty(
+                order.card_code,
+                item,
+                scheme_obj,
+                _to_float(item.get('scheme_qty', 0)),
+            )
 
             OrderItem.objects.create(
                 order=order,
@@ -1480,5 +1510,5 @@ class CreateSchemeView(APIView):
             'message': 'Failed to create scheme',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
-
+        
     permission_classes = [AllowAny]
