@@ -1450,10 +1450,10 @@ class OrderListView(APIView):
             # Billing view: show all billing-related orders regardless of sap_created
             orders = Order.objects.filter(status_id__in=[3, 5, 6, 8]).order_by('-created_at')
         else:
-            orders = Order.objects.filter(sap_created=False).order_by('-created_at')
-            # Filter by status
             if status_filter:
-                orders = orders.filter(status_id=status_filter)
+                orders = Order.objects.filter(status__code=status_filter).order_by('-created_at')
+            else:
+                orders = Order.objects.filter(sap_created=False).order_by('-created_at')
 
         # Filter by user_id
         if user_id:

@@ -55,6 +55,7 @@ interface ItemRow {
   basePrice: string;
   tax: string;
   itemTotal: string;
+  isQtyManual: boolean;
 }
 
 interface OrderItemType {
@@ -320,10 +321,12 @@ const getConfirmedItemLtrsBreakdown = (item: Pick<OrderItemType, "qty" | "pcs" |
   )} ltr`;
 };
 
-const calculateRowItemTotal = (row: Pick<ItemRow, "boxes" | "basePrice">) => {
+const calculateRowItemTotal = (row: Pick<ItemRow, "boxes" | "basePrice" | "marketPrice">) => {
   const totalPcs = toNumber(row.boxes);
   const basicPrice = toNumber(row.basePrice);
-  return (totalPcs * basicPrice).toFixed(2);
+  const marketPrice = toNumber(row.marketPrice);
+  const price = marketPrice > 0 ? marketPrice : basicPrice;
+  return (totalPcs * price).toFixed(2);
 };
 
 export default function CreateOrderScreen() {
@@ -408,30 +411,26 @@ export default function CreateOrderScreen() {
   };
 
   /** Update a single field on a specific item row */
+  // const updateRow = (id: number, patch: Partial<ItemRow>) => {
+  //   setItemRows((prev) =>
+  //     prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+  //   );
+  // };
+
   const updateRow = (id: number, patch: Partial<ItemRow>) => {
-    setItemRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-    );
-  };
+  setItemRows((prev) =>
+    prev.map((r) => {
+      if (r.id !== id) return r;
 
-  // useEffect(() => {
-  //   const loadAssignedStateId = async () => {
-  //     try {
-  //       const storedParty = await orderService.getParties();
-  //       const stateCode =
-  //         storedParty?.state;
+      return {
+        ...r,
+        ...patch,
+        qty: patch.qty !== undefined ? patch.qty : r.qty, // 🔒 protect qty
+      };
+    })
+  );
+};
 
-  //       setAssignedStateCode(stateCode);
-  //     } catch (error) {
-  //       console.log("Failed to load user states from storage:", error);
-  //       setAssignedStateCode(user?.states?.[0]?.code ?? user?.state?.code ?? "DEFAULT");
-  //     }
-  //   };
-
-  //   loadAssignedStateId();
-  // }, [user]);
-
-  // ─── Fetch master data on mount ────────────────────────────────────────────
   useEffect(() => {
     fetchMasterData();
   }, []);
@@ -537,9 +536,28 @@ export default function CreateOrderScreen() {
       const partyStateCode = (partyEntry?.state || "").toUpperCase();
       const isPunjabParty = partyStateCode === "PB" || partyStateCode.includes("PUNJAB");
 
+      // Set state code so scheme dropdown works correctly when adding new items in edit mode
+      setAssignedStateCode(partyEntry?.state || "");
+
       // Pre-fill confirmed order items
       const items: OrderItemType[] = [];
       let itemIdCounter = Date.now();
+
+      // First pass: collect item codes that combo expansion will generate so we
+      // can skip them if they also appear as standalone saved OrderItems.
+      const derivedItemCodes = new Set<string>();
+      for (const apiItem of (order.items || [])) {
+        if (isPunjabParty && String(apiItem.item_name || "").includes("+")) {
+          const elProduct = allProducts.find((p: any) =>
+            p.combo_scheme_name &&
+            p.combo_scheme_name === apiItem.scheme_name &&
+            String(p.item_code) !== String(apiItem.item_code)
+          );
+          const elCode = elProduct?.item_code ?? (apiItem.scheme_item_code ?? "");
+          if (elCode) derivedItemCodes.add(String(elCode));
+          if (apiItem.scheme_item_code) derivedItemCodes.add(String(apiItem.scheme_item_code));
+        }
+      }
 
       for (const item of (order.items || [])) {
         const isCombo = String(item.item_name || "").includes("+");
@@ -554,12 +572,12 @@ export default function CreateOrderScreen() {
             brand: item.brand ?? "",
             variety: item.variety ?? "",
             type: item.item_type ?? "",
-            qty: Number(item.qty) || 0,
+            qty: Number(item.boxes) || 0,
             scheme: null,
             schemeName: null,
             schemeQty: 0,
             pcs: Number(item.pcs) || 0,
-            boxes: Number(item.boxes) || 0,
+            boxes: Number(item.qty) || 0,
             ltrs: Number(item.ltrs) || 0,
             marketPrice: Number(item.market_price) || 0,
             total: Number(item.total) || 0,
@@ -628,6 +646,10 @@ export default function CreateOrderScreen() {
             });
           }
         } else {
+          // Skip items that were already generated as derived components of a
+          // combo expansion above (prevents duplicates on repeated edits).
+          if (derivedItemCodes.has(String(item.item_code))) continue;
+
           // Non-Punjab or non-combo: single row as before
           items.push({
             id: item.id ?? itemIdCounter++,
@@ -637,12 +659,12 @@ export default function CreateOrderScreen() {
             brand: item.brand ?? "",
             variety: item.variety ?? "",
             type: item.item_type ?? "",
-            qty: Number(item.qty) || 0,
+            qty: Number(item.boxes) || 0,
             scheme: item.scheme_id ?? null,
             schemeName: item.scheme_name ?? null,
             schemeQty: Number(item.qty_scheme) || 0,
             pcs: Number(item.pcs) || 0,
-            boxes: Number(item.boxes) || 0,
+            boxes: Number(item.qty) || 0,
             ltrs: Number(item.ltrs) || 0,
             marketPrice: Number(item.market_price) || 0,
             total: Number(item.total) || 0,
@@ -663,13 +685,6 @@ export default function CreateOrderScreen() {
       loadEditOrder();
     }
   }, [dataLoading]);
-
-  // ─── Party change → load addresses + products ─────────────────────────────
-  /**
-   * FIX 1 & 2: Auto-select first address AND filter by user's category.
-   * We derive the user's category from their main_group name (adjust the
-   * mapping below if your data uses different strings).
-   */
 
   const getUserCategory = (): string | null => {
     if (!user?.main_group) return null;
@@ -941,6 +956,7 @@ export default function CreateOrderScreen() {
         itemTotal: calculateRowItemTotal({
           boxes: "",
           basePrice: product.basic_rate?.toString() || "0",
+          marketPrice: "",
         }),
       });
       try {
@@ -1059,7 +1075,11 @@ export default function CreateOrderScreen() {
               pcs: r.pcs,
               salPackUnit: r.salPackUnit,
             }),
-            itemTotal: calculateRowItemTotal({ boxes, basePrice: r.basePrice }),
+            itemTotal: calculateRowItemTotal({
+              boxes,
+              basePrice: r.basePrice,
+              marketPrice: r.marketPrice,
+            }),
           };
         }),
       );
@@ -1091,6 +1111,51 @@ export default function CreateOrderScreen() {
     }
   };
   
+  const handleRowQtyChange = (rowId: number, value: string) => {
+  if (!/^\d*\.?\d*$/.test(value)) return;
+    
+  setItemRows((prev) =>
+    prev.map((r) => {
+      if (r.id !== rowId) return r;
+
+      const qtyNum = parseFloat(value) || 0;
+      const pcsNum = parseFloat(r.pcs) || 0;
+
+      const totalPcs = qtyNum * pcsNum;
+
+      return {
+        ...r,
+        qty: value, // ✅ ONLY user input
+        isQtyManual: true,
+        boxes: totalPcs ? totalPcs.toString() : "",
+        ltrs: calculateRowLtrs({
+          qty: value,
+          pcs: r.pcs,
+          salPackUnit: r.salPackUnit,
+        }),
+        itemTotal: calculateRowItemTotal({
+          boxes: totalPcs.toString(),
+          basePrice: r.basePrice,
+            marketPrice: r.marketPrice,
+        }),
+      };
+    })
+  );
+};
+
+  const handleRowSchemeQtyChange = (rowId: number, value: string) => {
+    if (!/^\d*\.?\d*$/.test(value)) return;
+    setItemRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        return {
+          ...r,
+          schemeQty: value,
+        };
+      })
+    );
+  };
+
   const handleRowSchemeChange = (rowId: number, scheme: string) => {
     setItemRows((prev) =>
       prev.map((row) => {
@@ -1117,44 +1182,114 @@ export default function CreateOrderScreen() {
     );
   };
 
-  const handleRowQtyChange = (rowId: number, value: string) => {
-    setItemRows((prev) =>
-      prev.map((r) => {
-        if (r.id !== rowId) return r;
-        const qtyNum = parseFloat(value) || 0;
-        const pcsNum = parseFloat(r.pcs) || 0;
-        const totalPcs = qtyNum * pcsNum;
-        const ltrs = calculateRowLtrs({
-          qty: value,
-          pcs: r.pcs,
-          salPackUnit: r.salPackUnit,
-        });
-        return {
-          ...r,
-          qty: value,
-          boxes: totalPcs.toString(),
-          schemeQty:
-            r.isScheme
-              ? calculateRowSchemeQty({
-                  qty: value,
-                  pcs: r.pcs,
-                  schemePcsPerBox: r.schemePcsPerBox,
-                  selectedSchemeName: getSelectedSchemeName({
-                    selectedScheme: r.selectedScheme,
-                    schemes: r.schemes,
-                  }),
-                }) || r.schemeQty
-              : r.schemeQty,
-          ltrs,
-          itemTotal: calculateRowItemTotal({
-            boxes: totalPcs.toString(),
-            basePrice: r.basePrice,
-          }),
-        };
-      }),
-    );
-  };
+//   const handleRowQtyChange = (rowId: number, value: string) => {
+//   // Allow empty input
+//   if (value === "") {
+//   setItemRows((prev) =>
+//     prev.map((r) =>
+//       r.id === rowId
+//         ? {
+//             ...r,
+//             qty: "",
+//             boxes: "",
+//             ltrs: "0",        // ✅ match type (string if that's your type)
+//             itemTotal: "0",   // ✅ important if required
+//           }
+//         : r
+//     )
+//   );
+//   return;
+// }
 
+//   // Allow only numeric + decimal typing
+//   if (!/^\d*\.?\d*$/.test(value)) return;
+
+//   // ❗ IMPORTANT: Skip calculation for incomplete decimals like "1."
+//   if (value.endsWith(".")) {
+//     setItemRows((prev) =>
+//       prev.map((r) =>
+//         r.id === rowId ? { ...r, qty: value } : r
+//       )
+//     );
+//     return;
+//   }
+
+//   setItemRows((prev) =>
+//     prev.map((r) => {
+//       if (r.id !== rowId) return r;
+
+//       const qtyNum = parseFloat(value);
+//       const pcsNum = parseFloat(r.pcs) || 0;
+
+//       const totalPcs = qtyNum * pcsNum;
+
+//       return {
+//         ...r,
+//         qty: value, // ✅ keep EXACT input
+//         boxes: totalPcs.toString(),
+//         ltrs: calculateRowLtrs({
+//           qty: value,
+//           pcs: r.pcs,
+//           salPackUnit: r.salPackUnit,
+//         }),
+//         schemeQty: r.isScheme
+//           ? calculateRowSchemeQty({
+//               qty: value,
+//               pcs: r.pcs,
+//               schemePcsPerBox: r.schemePcsPerBox,
+//               selectedSchemeName: getSelectedSchemeName({
+//                 selectedScheme: r.selectedScheme,
+//                 schemes: r.schemes,
+//               }),
+//             }) || r.schemeQty
+//           : r.schemeQty,
+//         itemTotal: calculateRowItemTotal({
+//           boxes: totalPcs.toString(),
+//           basePrice: r.basePrice,
+//         }),
+//       };
+//     })
+//    );
+//   };
+
+  // const handleRowQtyChange = (rowId: number, value: string) => {
+  //   setItemRows((prev) =>
+  //     prev.map((r) => {
+  //       if (r.id !== rowId) return r;
+  //       const qtyNum = parseFloat(value) || 0;
+  //       const pcsNum = parseFloat(r.pcs) || 0;
+  //       const totalPcs = qtyNum * pcsNum;
+  //       const ltrs = calculateRowLtrs({
+  //         qty: value,
+  //         pcs: r.pcs,
+  //         salPackUnit: r.salPackUnit,
+  //       });
+  //       return {
+  //         ...r,
+  //         qty: value,
+  //         boxes: totalPcs.toString(),
+  //         schemeQty:
+  //           r.isScheme
+  //             ? calculateRowSchemeQty({
+  //                 qty: value,
+  //                 pcs: r.pcs,
+  //                 schemePcsPerBox: r.schemePcsPerBox,
+  //                 selectedSchemeName: getSelectedSchemeName({
+  //                   selectedScheme: r.selectedScheme,
+  //                   schemes: r.schemes,
+  //                 }),
+  //               }) || r.schemeQty
+  //             : r.schemeQty,
+  //         ltrs,
+  //         itemTotal: calculateRowItemTotal({
+  //           boxes: totalPcs.toString(),
+  //           basePrice: r.basePrice,
+  //         }),
+  //       };
+  //     }),
+  //   );
+  // };
+  
   const handleRowMarketPriceChange = (rowId: number, value: string) => {
     setItemRows((prev) =>
       prev.map((r) => {
@@ -1165,6 +1300,7 @@ export default function CreateOrderScreen() {
           itemTotal: calculateRowItemTotal({
             boxes: r.boxes,
             basePrice: r.basePrice,
+              marketPrice: value,
           }),
         };
       }),
@@ -1224,6 +1360,7 @@ export default function CreateOrderScreen() {
       toNumber(calculateRowItemTotal({
         boxes: row.boxes,
         basePrice: row.basePrice,
+          marketPrice: row.marketPrice,
       }));
 
     const effectiveSchemeId = row.selectedScheme;
@@ -1278,7 +1415,6 @@ export default function CreateOrderScreen() {
     parseFloat(totalWithoutTax) + parseFloat(totalTaxAmount)
   ).toFixed(2);
 
-  // ─── Submit ────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     if (!partyName) return Alert.alert("Error", "Select a party");
@@ -1699,13 +1835,14 @@ export default function CreateOrderScreen() {
                         <TextInput
                           label="Qty"
                           textColor={COLORS.black}
-                          value={row.schemeQty}
+                          value={row.schemeQty ?? ""} 
+                          onChangeText={(val) => handleRowSchemeQtyChange(row.id, val)}
                           mode="outlined"
                           keyboardType="numeric"
                           style={styles.input}
                           outlineColor={COLORS.border}
                           activeOutlineColor={COLORS.primary}
-                          editable={false}
+                          editable={true}
                         />
                       </View>
                     ) : null}
@@ -1891,9 +2028,9 @@ export default function CreateOrderScreen() {
                   </Text>
                 )}
                 <View style={styles.itemDetails}>
-                  <Text style={styles.itemDetail}>Boxes: {item.qty}</Text>
+                  <Text style={styles.itemDetail}>Boxes: {item.boxes}</Text>
                   <Text style={styles.itemDetail}>PCS/Case: {item.pcs}</Text>
-                  <Text style={styles.itemDetail}>Total PCS: {item.boxes}</Text>
+                  <Text style={styles.itemDetail}>Total PCS: {item.qty}</Text>
                 </View>
                 <Text style={styles.itemDetailBold}>
                   Total Ltrs: {getConfirmedItemLtrsDisplay(item)}

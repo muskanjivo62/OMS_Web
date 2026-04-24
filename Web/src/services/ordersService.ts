@@ -23,7 +23,7 @@ export interface PartyProduct {
   tax_rate: string | number;
   basic_rate: string | number;
 }
-
+  
 export interface SchemeProduct {
   scheme_id: number;
   scheme_name: string;
@@ -123,6 +123,7 @@ export interface Order {
   created_by: string | number;
   total_amount: number;
   sap_doc_number?: string;
+
 }
 
 export interface OrderStatus {

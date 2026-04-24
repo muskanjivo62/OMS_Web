@@ -5,7 +5,6 @@ from django.apps import apps
 
 PUNJAB_STATE_ALIASES = {"PB", "PUNJAB"}
 
-
 def _to_float(value, default=0.0):
     try:
         if value in (None, ""):
@@ -14,12 +13,10 @@ def _to_float(value, default=0.0):
     except (TypeError, ValueError):
         return float(default)
 
-
 def _normalized_text(*values):
     text = " ".join(str(value or "") for value in values)
     text = re.sub(r"\s*\+\s*", " + ", text)
     return re.sub(r"\s+", " ", text).strip().upper()
-
 
 def get_party_state(card_code):
     if not card_code:
@@ -43,7 +40,6 @@ def get_party_state(card_code):
             return state
 
     return None
-
 
 def get_party_state_code(card_code):
     state = get_party_state(card_code)
@@ -81,31 +77,29 @@ def get_party_state_code(card_code):
 
     return normalized_state
 
-
 def get_ordered_quantity(value):
     if isinstance(value, dict):
-        qty = _to_float(value.get("qty"), 0)
-        pcs = _to_float(value.get("pcs"), 0)
-        boxes = _to_float(value.get("boxes"), 0)
+        # qty = _to_float(value.get("qty"), 0)
+        # pcs = _to_float(value.get("pcs"), 0)
+        ltrs = _to_float(value.get("ltrs"), 0)
     else:
-        qty = _to_float(getattr(value, "qty", None), 0)
-        pcs = _to_float(getattr(value, "pcs", None), 0)
-        boxes = _to_float(getattr(value, "boxes", None), 0)
+        # qty = _to_float(getattr(value, "qty", None), 0)
+        # pcs = _to_float(getattr(value, "pcs", None), 0)
+        ltrs = _to_float(getattr(value, "ltrs", None), 0)
 
-    if pcs > 0 and boxes > 0:
-        if abs((qty * pcs) - boxes) <= 0.01:
-            return qty
-        if abs((boxes * pcs) - qty) <= 0.01:
-            return boxes
+    # if pcs > 0 and ltrs > 0:
+    #     if abs((qty * pcs) - ltrs) <= 0.01:
+    #         return qty
+    #     if abs((ltrs * pcs) - qty) <= 0.01:
+    #         return ltrs
 
-    if qty > 0:
-        return qty
+    # if qty > 0:
+    #     return qty
 
-    if boxes > 0:
-        return boxes
+    if ltrs > 0:
+        return ltrs
 
     return 0.0
-
 
 def is_punjab_party(card_code):
     state = _normalized_text(get_party_state(card_code))
@@ -117,7 +111,6 @@ def is_punjab_party(card_code):
         or "PUNJAB" in state_code
     )
 
-
 def is_cold_press_1ltr_combo_10_set(*values):
     text = _normalized_text(*values)
     return bool(
@@ -126,11 +119,9 @@ def is_cold_press_1ltr_combo_10_set(*values):
         and re.search(r"COMBO\s*10\s*SETS?", text)
     )
 
-
 def is_combo_item_text(*values):
     text = _normalized_text(*values)
     return "+" in text or "COMBO" in text
-
 
 def should_mirror_punjab_combo_scheme_qty(card_code, item_name=None, scheme_name=None):
     if not is_combo_item_text(item_name, scheme_name):
@@ -140,7 +131,6 @@ def should_mirror_punjab_combo_scheme_qty(card_code, item_name=None, scheme_name
         return False
 
     return not is_cold_press_1ltr_combo_10_set(item_name, scheme_name)
-
 
 def get_party_product_scheme(card_code, item_code, category=None):
     if not card_code or not item_code:

@@ -11,7 +11,8 @@ export default function Order_Tracking() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [tracker, setTracker] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-
+  const [activeTab, setActiveTab] = useState<"all" | "rejected">("all");
+  
   useEffect(() => {
     void fetchOrders();
   }, []);
@@ -31,6 +32,12 @@ export default function Order_Tracking() {
 
   const filteredOrders = useMemo(() => {
     return orders
+      .filter((order) => {
+        if (activeTab === "rejected") {
+          return String(order.status_display || "").toLowerCase().includes("reject");
+        }
+        return true;
+      })
       .sort((a, b) => {
         const first = new Date(b.created_at || "").getTime();
         const second = new Date(a.created_at || "").getTime();
@@ -43,7 +50,7 @@ export default function Order_Tracking() {
 
         return first - second;
       });
-  }, [orders]);
+  }, [orders, activeTab]);
 
   const orderedLogs = useMemo(() => {
     return [...logs].sort((a, b) => {
@@ -210,6 +217,25 @@ export default function Order_Tracking() {
       <div className="tracker-head">
         <h4>Order Tracker</h4>
       </div>
+
+      {!tracker && (
+        <div style={{ display: 'flex', gap: '10px', padding: '0 20px', marginBottom: '15px' }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ddd', background: activeTab === 'all' ? '#1E3A5F' : '#fff', color: activeTab === 'all' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 }}
+          >
+            All Orders
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('rejected')}
+            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ddd', background: activeTab === 'rejected' ? '#EF4444' : '#fff', color: activeTab === 'rejected' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 }}
+          >
+            Rejected Orders
+          </button>
+        </div>
+      )}
 
       {!tracker && (
         <div>

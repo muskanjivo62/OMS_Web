@@ -456,7 +456,7 @@ class SyncBranchesView(APIView):
                 'message': str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class ApproveOrderAPIView(APIView):
+class   ApproveOrderAPIView(APIView):
     """Approve an order and push to SAP"""
     permission_classes = [AllowAny]
     

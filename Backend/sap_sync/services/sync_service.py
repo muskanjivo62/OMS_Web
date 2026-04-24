@@ -11,7 +11,6 @@ import requests
 from django.conf import settings
 from ..models import SalesQuotationLog
 from orders.scheme_rules import (
-    get_ordered_quantity,
     get_party_state_code,
     get_party_product_scheme,
     should_mirror_punjab_combo_scheme_qty,
@@ -242,7 +241,9 @@ def _to_float(value, default=0.0):
 
 
 def _get_sap_line_quantity(item):
-    return get_ordered_quantity(item)
+    if isinstance(item, dict):
+        return _to_float(item.get("ltrs"), 0)
+    return _to_float(getattr(item, "ltrs", None), 0)
 
 
 def _get_sap_unit_price(item):

@@ -20,8 +20,8 @@ import { router } from "expo-router";
 type AuditorTab = "pending" | "others";
 
 const OTHER_STATUS_OPTIONS = [
-  { label: "Approved by Auditor", value: "3" },
-  { label: "Rejected by Auditor", value: "7" },
+  { label: "Approved by Auditor", value: "BILLING" },
+  { label: "Rejected by Auditor", value: "REJECTED" },
 ];
 
 export default function AuditorApprovalScreen() {
@@ -29,7 +29,7 @@ export default function AuditorApprovalScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<AuditorTab>("pending");
-  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("3");
+  const [selectedOtherStatus, setSelectedOtherStatus] = useState<string>("BILLING");
   const [actionLoading, setActionLoading] = useState<{
     id: number;
     type: "approve" | "reject";
@@ -67,7 +67,7 @@ export default function AuditorApprovalScreen() {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const statusFilter = activeTab === "pending" ? "10" : selectedOtherStatus;
+      const statusFilter = activeTab === "pending" ? "AUDITOR_APPROVAL" : selectedOtherStatus;
       const data = await productService.getOrders(0, statusFilter);
       setOrders(data || []);
     } catch (error) {

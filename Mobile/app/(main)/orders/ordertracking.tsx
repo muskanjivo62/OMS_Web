@@ -63,18 +63,25 @@ export default function OrderTrackingScreen() {
     return `${categories.slice(0, 2).join(", ")} +${categories.length - 2}`;
   };
 
-  const statusOptions = [
+  const dynamicStatuses = [
     ...new Set(
       orders
         .map((item: any) => getStatusName(item))
         .filter(Boolean),
     ),
-  ]
-    .sort()
-    .map((status) => ({ label: status, value: status }));
+  ].sort();
+
+  const statusOptions = [
+    { label: "Rejected Orders", value: "Rejected" },
+    ...dynamicStatuses.map((status) => ({ label: status, value: status })),
+  ];
 
   const filteredOrders = orders.filter((item: any) => {
+    const statusLower = getStatusName(item).toLowerCase();
     if (!selectedStatus) return true;
+    if (selectedStatus === "Rejected") {
+      return statusLower.includes("reject");
+    }
     return getStatusName(item) === selectedStatus;
   });
 
@@ -163,6 +170,23 @@ export default function OrderTrackingScreen() {
           <Text style={styles.actionBtnText}>View Progress</Text>
         </TouchableOpacity>
       </View>
+
+      {getStatusName(item).toLowerCase().includes("reject") && (
+        <View style={[styles.actionRow, { marginTop: 8 }]}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: COLORS.error }]}
+            onPress={() => {
+              router.push({
+                pathname: "/orders/create",
+                params: { orderId: item.id, mode: "edit" },
+              });
+            }}
+          >
+            <Ionicons name="create-outline" size={18} color="#fff" />
+            <Text style={styles.actionBtnText}>Edit / Re-order</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
