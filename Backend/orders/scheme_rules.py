@@ -79,13 +79,13 @@ def get_party_state_code(card_code):
 
 def get_ordered_quantity(value):
     if isinstance(value, dict):
-        # qty = _to_float(value.get("qty"), 0)
+        qty = _to_float(value.get("qty"), 0)
         # pcs = _to_float(value.get("pcs"), 0)
-        ltrs = _to_float(value.get("ltrs"), 0)
+        # ltrs = _to_float(value.get("ltrs"), 0)
     else:
-        # qty = _to_float(getattr(value, "qty", None), 0)
+        qty = _to_float(getattr(value, "qty", None), 0)
         # pcs = _to_float(getattr(value, "pcs", None), 0)
-        ltrs = _to_float(getattr(value, "ltrs", None), 0)
+        # ltrs = _to_float(getattr(value, "ltrs", None), 0)
 
     # if pcs > 0 and ltrs > 0:
     #     if abs((qty * pcs) - ltrs) <= 0.01:
@@ -96,8 +96,8 @@ def get_ordered_quantity(value):
     # if qty > 0:
     #     return qty
 
-    if ltrs > 0:
-        return ltrs
+    if qty > 0:
+        return qty
 
     return 0.0
 

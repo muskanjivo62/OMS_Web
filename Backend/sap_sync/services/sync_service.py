@@ -242,8 +242,8 @@ def _to_float(value, default=0.0):
 
 def _get_sap_line_quantity(item):
     if isinstance(item, dict):
-        return _to_float(item.get("ltrs"), 0)
-    return _to_float(getattr(item, "ltrs", None), 0)
+        return _to_float(item.get("qty"), 0)
+    return _to_float(getattr(item, "qty", None), 0)
 
 
 def _get_sap_unit_price(item):

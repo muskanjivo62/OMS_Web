@@ -67,7 +67,7 @@ export default function PendingApprovalScreen() {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const statusFilter = activeTab === "pending" ? "2" : selectedOtherStatus;
+      const statusFilter = activeTab === "pending" ? "RATE_APPROVAL" : selectedOtherStatus;
       const data = await productService.getOrders(0, statusFilter);
       setOrders(data || []);
     } catch (error) {
