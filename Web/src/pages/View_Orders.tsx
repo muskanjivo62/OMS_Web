@@ -103,6 +103,18 @@ export default function View_Orders() {
   // console.log("Selected Items:", JSON.stringify(selectedItems));
   // console.log("Order Details:", JSON.stringify(orderDetails));
 
+       const fetchOrderDetails = async (orderId: number) => {
+  try {
+    const data = await ordersService.getOrderDetails(orderId);
+
+    setOrderDetails(data);
+    setSelectedItems(data.items || []);
+    setShowDetails(true);
+  } catch (error) {
+    console.log("Error fetching order details:", error);
+  }
+};
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -359,9 +371,7 @@ export default function View_Orders() {
                         <button
                           className="ao-btn-icon view" 
                           onClick={() => {
-                            setOrderDetails(order);
-                            setSelectedItems(order.items || []);
-                            setShowDetails(true);
+                           fetchOrderDetails(order.id);
                           }}
                         >
                          <HiEye size={22} />

@@ -123,6 +123,7 @@ export interface Order {
   created_by: string | number;
   total_amount: number;
   sap_doc_number?: string;
+  created_by_name?: string;
 
 }
 

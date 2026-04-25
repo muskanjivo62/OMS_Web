@@ -3,6 +3,7 @@ import { userService } from "../services/userService";
 import type { User } from "../services/userService";
 import type { Order, OrderItem } from "../services/ordersService";
 import { loadManagerOrders } from "../utils/orderHistory";
+import { ordersService } from "../services/ordersService";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import "../styles/Report.css";
@@ -55,6 +56,18 @@ export default function Sales_Report() {
       setOrders(data);
     } catch (error) {
       console.error("Failed to fetch orders:", error);
+    }
+  };
+
+       const fetchOrderDetails = async (orderId: number) => {
+    try {
+      const data = await ordersService.getOrderDetails(orderId);
+  
+      setOrderDetails(data);
+      setSelectedItems(data.items || []);
+      setShowDetails(true);
+    } catch (error) {
+      console.log("Error fetching order details:", error);
     }
   };
 
@@ -250,11 +263,11 @@ export default function Sales_Report() {
     }
   }, [currentPage, totalPages]);
 
-  const viewOrderDetails = (order: Order) => {
-    setOrderDetails(order);
-    setSelectedItems(order.items || []);
-    setShowDetails(true);
-  };
+  // const viewOrderDetails = (order: Order) => {
+  //   setOrderDetails(order);
+  //   setSelectedItems(order.items || []);
+  //   setShowDetails(true);
+  // };
 
   const downloadExcel = (order: Order) => {
     const excelData: Record<string, unknown>[] = [];
@@ -685,7 +698,7 @@ export default function Sales_Report() {
                             </span>
                           </td>
                           <td>
-                            <button className="ao-btn-icon view" onClick={() => viewOrderDetails(order)}> <HiEye size={22} /></button>
+                            <button className="ao-btn-icon view" onClick={() => fetchOrderDetails(order.id)}> <HiEye size={22} /></button>
                           </td>
                           <td>
                             <button

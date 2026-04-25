@@ -66,6 +66,18 @@ export default function Billing_orders() {
     }
   };
 
+   const fetchOrderDetails = async (orderId: number) => {
+  try {
+    const data = await ordersService.getOrderDetails(orderId);
+
+    setOrderDetails(data);
+    setSelectedItems(data.items || []);
+    setShowDetails(true);
+  } catch (error) {
+    console.log("Error fetching order details:", error);
+  }
+};
+
   // Step 1 – open confirm modal
   const initiateApprove = (order: Order) => {
     setPendingOrderId(order.id);
@@ -254,9 +266,7 @@ export default function Billing_orders() {
                         <button
                           className="ao-btn-icon view"
                           onClick={() => {
-                            setOrderDetails(order);
-                            setSelectedItems(order.items || []);
-                            setShowDetails(true);
+                            fetchOrderDetails(order.id);
                           }}
                         >
                           <HiEye size={22} />
@@ -363,6 +373,10 @@ export default function Billing_orders() {
                   <span className="bo-d-ordnum">{orderDetails.order_number}</span>
                   {/* <span className={`bo-badge bo-badge-${(orderDetails.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>{orderDetails.status_display}</span> */}
                 </div>
+              </div>
+               <div className="bo-d-info-field">
+                <span className="bo-d-hf-label">Created By</span>
+                <span className="bo-d-hf-value">{orderDetails.created_by_name || "—"}</span>
               </div>
               <div className="bo-d-info-field">
                 <span className="bo-d-hf-label">Delivery Date</span>

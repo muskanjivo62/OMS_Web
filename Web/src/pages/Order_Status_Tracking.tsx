@@ -4,6 +4,7 @@ import { saveAs } from "file-saver";
 import type { Order, OrderItem } from "../services/ordersService";
 import { sapService } from "../services/sapService";
 import { loadManagerOrders } from "../utils/orderHistory";
+import { ordersService } from "../services/ordersService";
 import "../styles/Order_Status_Tracking.css";
 
 type TrackingMode = "auditor" | "billing";
@@ -145,13 +146,17 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
     }
   };
 
-  const openDetails = async (order: Order) => {
-    const quotationNo = await resolveQuotationNumber(order);
-    const nextOrder = applyQuotationNumber(order, quotationNo);
-    setOrderDetails(nextOrder);
-    setSelectedItems(nextOrder.items || []);
+     const fetchOrderDetails = async (orderId: number) => {
+  try {
+    const data = await ordersService.getOrderDetails(orderId);
+
+    setOrderDetails(data);
+    setSelectedItems(data.items || []);
     setShowDetails(true);
-  };
+  } catch (error) {
+    console.log("Error fetching order details:", error);
+  }
+};
 
   const totalLtrs = selectedItems.reduce(
     (sum, item) =>
@@ -345,7 +350,7 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
                         </span>
                       </td>
                       <td>
-                        <button type="button" className="ot-icon-btn ot-view" onClick={() => openDetails(order)}>
+                        <button type="button" className="ot-icon-btn ot-view" onClick={() => fetchOrderDetails(order.id)}>
                           View
                         </button>
                       </td>

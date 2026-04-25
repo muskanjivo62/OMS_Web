@@ -42,6 +42,18 @@ export default function Auditor_orders() {
     }
   };
 
+     const fetchOrderDetails = async (orderId: number) => {
+  try {
+    const data = await ordersService.getOrderDetails(orderId);
+
+    setOrderDetails(data);
+    setSelectedItems(data.items || []);
+    setShowDetails(true);
+  } catch (error) {
+    console.log("Error fetching order details:", error);
+  }
+};
+
   const approveStatus = async (orderId: number) => {
     try {
       await ordersService.UpdateStatus(orderId, 10);
@@ -177,9 +189,7 @@ export default function Auditor_orders() {
                         <button
                          className="ao-btn-icon view"
                           onClick={() => {
-                            setOrderDetails(order);
-                            setSelectedItems(order.items || []);
-                            setShowDetails(true);
+                            fetchOrderDetails(order.id);
                           }}
                         >
                            <HiEye size={22} />
