@@ -4,7 +4,7 @@ import { saveAs } from "file-saver";
 import { ordersService } from "../services/ordersService";
 import type { Order, OrderItem } from "../services/ordersService";
 import "../styles/Billing_Order.css";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   HiCheckCircle,   // Approve
   HiXCircle,       // Reject
@@ -31,6 +31,7 @@ const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 export default function Billing_orders() {
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [orderDetails, setOrderDetails] = useState<Order | null>(null);
@@ -48,10 +49,10 @@ export default function Billing_orders() {
   // Quotation flow state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
-  const [pendingCardCode, setPendingCardCode] = useState("");
+  const [pendingOrderNum, setPendingOrderNum] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [quotationResult, setQuotationResult] = useState<{ number: string; cardCode: string } | null>(null);
+  const [quotationResult, setQuotationResult] = useState<{ number: string; order_id: string } | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -59,12 +60,20 @@ export default function Billing_orders() {
 
   const fetchOrders = async () => {
     try {
-      const data = await ordersService.getOrders(3);
+      const data = await ordersService.getOrders(undefined, true);
       setOrders(data);
     } catch (error) {
       console.log("Error fetching orders:", error);
     }
   };
+  console.log("All Orders:", orders);
+
+  useEffect(() => {
+    if (location.state?.openOrderId) {
+      fetchOrderDetails(location.state.openOrderId);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.openOrderId, location.pathname, navigate]);
 
    const fetchOrderDetails = async (orderId: number) => {
   try {
@@ -81,7 +90,7 @@ export default function Billing_orders() {
   // Step 1 – open confirm modal
   const initiateApprove = (order: Order) => {
     setPendingOrderId(order.id);
-    setPendingCardCode(order.card_code);
+    setPendingOrderNum(order.order_number);
     setShowConfirmModal(true);
   };
 
@@ -98,10 +107,11 @@ export default function Billing_orders() {
         const sapData = salesResponse.data.data ?? salesResponse.data;
         const quotationNumber = sapData.DocNum ?? sapData.doc_num ?? sapData.DocEntry ?? "—";
         await ordersService.UpdateStatus(pendingOrderId, 9);
-        setQuotationResult({ number: String(quotationNumber), cardCode: pendingCardCode });
+        setQuotationResult({ number: String(quotationNumber), order_id: pendingOrderNum });
         setShowSuccess(true);
       }
       fetchOrders();
+      window.dispatchEvent(new Event('refresh-notifications'));
     } catch (error: any) {
       alert("Error: " + (error?.response?.data?.message || "Something went wrong"));
     } finally {
@@ -122,6 +132,7 @@ export default function Billing_orders() {
       setShowRejectModal(false);
       setRejectReason("");
       fetchOrders();
+      window.dispatchEvent(new Event('refresh-notifications'));
     } catch (error: any) {
       alert("Error: " + (error?.response?.data?.message || "Unknown error"));
     }
@@ -154,7 +165,7 @@ export default function Billing_orders() {
 
     if (fromDate && toDate) {
       const orderDate = new Date(order.created_at);
-      const from = new Date(`${fromDate}T23:59:59.999`);
+      const from = new Date(`${fromDate}T00:00:00.000`);
       const to = new Date(`${toDate}T23:59:59.999`);
 
 
@@ -163,6 +174,7 @@ export default function Billing_orders() {
 
     return matchDate;
   });
+  console.log("Filtered Orders:", filteredOrders);
 
   const downloadExcel = (order: Order) => {
     let excelData = [];
@@ -241,6 +253,7 @@ export default function Billing_orders() {
                   <th>Order ID</th>
                   <th>Card Code</th>
                   <th>Card Name</th>
+                  <th>Created Date</th>
                   <th>Delivery Date</th>
                   {/* <th>Status</th> */}
                   <th>Details</th>
@@ -256,6 +269,7 @@ export default function Billing_orders() {
                       <td>{order.order_number}</td>
                       <td>{order.card_code}</td>
                       <td>{order.card_name}</td>
+                      <td>{order.created_at ? new Date(order.created_at).toLocaleDateString("en-GB") : "—"}</td>
                       <td>{order.delivery_date}</td>
                       {/* <td>
                         <span className={`bo-badge bo-badge-${(order.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>
@@ -373,10 +387,18 @@ export default function Billing_orders() {
                   <span className="bo-d-ordnum">{orderDetails.order_number}</span>
                   {/* <span className={`bo-badge bo-badge-${(orderDetails.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>{orderDetails.status_display}</span> */}
                 </div>
+                <div className="ao-d-info-field">
+                <span className="ao-d-hf-label">Party State</span>
+                <span className="ao-d-hf-value">{orderDetails.party_state || "—"}</span>
+              </div>
               </div>
                <div className="bo-d-info-field">
                 <span className="bo-d-hf-label">Created By</span>
                 <span className="bo-d-hf-value">{orderDetails.created_by_name || "—"}</span>
+              </div>
+              <div className="bo-d-info-field">
+                <span className="bo-d-hf-label">Created Date</span>
+                <span className="bo-d-hf-value">{orderDetails.created_at ? new Date(orderDetails.created_at).toLocaleDateString("en-GB") : "—"}</span>
               </div>
               <div className="bo-d-info-field">
                 <span className="bo-d-hf-label">Delivery Date</span>
@@ -485,8 +507,8 @@ export default function Billing_orders() {
                 <span className="bo-success-value">{quotationResult.number}</span>
               </div>
               <div className="bo-success-row">
-                <span className="bo-success-label">Card Code</span>
-                <span className="bo-success-value">{quotationResult.cardCode}</span>
+                <span className="bo-success-label">Order ID</span>
+                <span className="bo-success-value">{quotationResult.order_id}</span>
               </div>
             </div>
             <button className="bo-btn-approve" onClick={() => { setShowSuccess(false); setQuotationResult(null); }}>OK</button>

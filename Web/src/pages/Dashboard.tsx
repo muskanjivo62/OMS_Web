@@ -63,7 +63,7 @@ const fmt = (n: number | string) =>
   Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 const fmtCurrency = (n: number | string) =>
-  `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const roleContent: Record<SupportedRole, { title: string; subtitle: string; focus: string; accent: string }> = {
   admin: {
@@ -632,10 +632,10 @@ export default function Dashboard() {
               <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#5b6878" }} />
               <YAxis
                 tick={{ fontSize: 11, fill: "#5b6878" }}
-                tickFormatter={isBilling ? undefined : (v) => `₹${(v / 1000).toFixed(0)}k`}
+                tickFormatter={isBilling ? undefined : (v) => `₹${(v / 1000).toFixed(1)}k`}
                 width={52}
               />
-              <Tooltip formatter={(v) => isBilling ? [v, "Orders"] : [`₹${Number(v).toLocaleString("en-IN")}`, "Revenue"]} />
+              <Tooltip formatter={(v) => isBilling ? [v, "Orders"] : [`₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Revenue"]} />
               <Area type="monotone" dataKey={isBilling ? "count" : "revenue"} stroke="#0f172a" strokeWidth={2} fill="url(#revGrad)" dot={{ r: 3, fill: "#0f766e" }} />
             </AreaChart>
           </ResponsiveContainer>
@@ -693,8 +693,8 @@ export default function Dashboard() {
               <BarChart data={charts?.category_sales ?? []} margin={{ top: 10, right: 16, bottom: 24, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#dbe4ea" />
                 <XAxis dataKey="category" tick={{ fontSize: 11, fill: "#5b6878" }} angle={-20} textAnchor="end" />
-                <YAxis tick={{ fontSize: 11, fill: "#5b6878" }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} width={52} />
-                <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString("en-IN")}`, "Sales"]} />
+                <YAxis tick={{ fontSize: 11, fill: "#5b6878" }} tickFormatter={(v) => `₹${(v / 1000).toFixed(1)}k`} width={52} />
+                <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Sales"]} />
                 <Bar dataKey="total_sales" radius={[5, 5, 0, 0]} maxBarSize={40}>
                   {(charts?.category_sales ?? []).map((item, index) => (
                     <Cell key={item.category} fill={PALETTE[index % PALETTE.length]} />

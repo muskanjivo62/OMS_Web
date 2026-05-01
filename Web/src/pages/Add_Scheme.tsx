@@ -76,7 +76,7 @@ export default function Add_Scheme() {
 
   return (
     <div className="asg-page app-page">
-      <div className="asg-header app-page-head">
+      {/* <div className="asg-header app-page-head">
         <div>
           <span className="app-chip asg-chip">Scheme Setup</span>
           <h1 className="asg-title app-page-title">Add Scheme</h1>
@@ -84,7 +84,7 @@ export default function Add_Scheme() {
             Create product schemes.
           </p>
         </div>
-      </div>
+      </div> */}
 
       <div className="asg-form-card app-card">
         <div className="asg-form-head">

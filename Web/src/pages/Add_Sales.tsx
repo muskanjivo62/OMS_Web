@@ -3,7 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ordersService } from "../services/ordersService";
 import { userService } from "../services/userService";
 // import { getCurrentUser } from "../services/authService";
-import type { Order, OrderItem, Product, PartyProduct, RowType, SchemeProduct } from "../services/ordersService";
+import type {
+  Order,
+  OrderItem,
+  Product,
+  PartyProduct,
+  RowType,
+  SchemeProduct,
+} from "../services/ordersService";
 import "../styles/Add_Sales.css";
 
 type SalesRow = RowType & {
@@ -51,6 +58,7 @@ const createEmptyRow = (): SalesRow => ({
 type EditOrderLocationState = {
   editOrderId?: number;
   returnTo?: string;
+  mode?: "edit" | "duplicate";
 };
 
 type EditOrderFallback = {
@@ -70,10 +78,17 @@ const emptyEditOrderFallback: EditOrderFallback = {
 export default function Add_Sales() {
   const location = useLocation();
   const navigate = useNavigate();
-  const locationState = (location.state as EditOrderLocationState | null) ?? null;
-  const editOrderId = typeof locationState?.editOrderId === "number" ? locationState.editOrderId : null;
-  const returnTo = locationState?.returnTo || "/Billing_orders";
-  const isEditMode = editOrderId !== null;
+  const locationState =
+    (location.state as EditOrderLocationState | null) ?? null;
+  const editOrderId =
+    typeof locationState?.editOrderId === "number"
+      ? locationState.editOrderId
+      : null;
+  const mode = locationState?.mode ?? (editOrderId ? "edit" : "create");
+  const returnTo = locationState?.returnTo || "/Order_Tracking";
+  const isEditMode = mode === "edit" && editOrderId !== null;
+  const isDuplicateMode = mode === "duplicate" && editOrderId !== null;
+  const isLoadingFromOrder = isEditMode || isDuplicateMode;
   const [parties, setParties] = useState<any[]>([]);
   const [partySearch, setPartySearch] = useState("");
   const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
@@ -81,16 +96,20 @@ export default function Add_Sales() {
   const [billDropdownOpen, setBillDropdownOpen] = useState(false);
   const [shipSearch, setShipSearch] = useState("");
   const [shipDropdownOpen, setShipDropdownOpen] = useState(false);
-  const [branch, setBranch] = useState<any[]>([])
+  const [branch, setBranch] = useState<any[]>([]);
   const [billAddress, setBillAddress] = useState<any[]>([]);
   const [shipAddress, setShipAddress] = useState<any[]>([]);
   const [category, setCategory] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [company, setCompany] = useState<any[]>([]);
   const [partyProducts, setPartyProducts] = useState<PartyProduct[]>([]);
-  const [schemeOptions, setSchemeOptions] = useState<Record<number, SchemeProduct[]>>({});
+  const [schemeOptions, setSchemeOptions] = useState<
+    Record<number, SchemeProduct[]>
+  >({});
   const [stateCode, setStateCode] = useState<string | null>(null);
-  const [editOrderFallback, setEditOrderFallback] = useState<EditOrderFallback>(emptyEditOrderFallback);
+  const [editOrderFallback, setEditOrderFallback] = useState<EditOrderFallback>(
+    emptyEditOrderFallback,
+  );
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEditOrder, setIsLoadingEditOrder] = useState(false);
@@ -117,7 +136,6 @@ export default function Add_Sales() {
     fetchProducts();
     fetchCompany();
     // fetchCurrentUserProfile();
-
   }, []);
 
   useEffect(() => {
@@ -162,7 +180,9 @@ export default function Add_Sales() {
   const fetchPartyName = async () => {
     try {
       let data = await ordersService.getPartyName();
-      let filtered = data.filter((d: any) => (d.category).toLowerCase() === "oil");
+      let filtered = data.filter(
+        (d: any) => d.category.toLowerCase() === "oil",
+      );
       setParties(filtered);
     } catch (error) {
       console.log("Error fetching parties name:", error);
@@ -176,7 +196,7 @@ export default function Add_Sales() {
     } catch (error) {
       console.log("Error fetching dispatch data:", error);
     }
-  }
+  };
 
   const fetchPartyAddresses = async (card_code: string) => {
     try {
@@ -196,9 +216,10 @@ export default function Add_Sales() {
       setPartyProducts(partyProductsData);
 
       console.log("Fetched party products:", partyProductsData);
-      const categories = [...new Set(partyProductsData.map((p: PartyProduct) => p.category))] as string[];
+      const categories = [
+        ...new Set(partyProductsData.map((p: PartyProduct) => p.category)),
+      ] as string[];
       setCategory(categories);
-
 
       return partyProductsData;
     } catch (error) {
@@ -259,44 +280,44 @@ export default function Add_Sales() {
 
     return orderItems.length > 0
       ? orderItems.map((item) => {
-        const itemWithExtras = item as OrderItem & {
-          scheme?: number | string | null;
-          is_scheme_visible?: boolean;
-        };
-        const schemeId = item.scheme_id ?? itemWithExtras.scheme;
-        const isSchemeVisible = Boolean(
-          schemeId ||
-          item.scheme_name ||
-          item.scheme_qty ||
-          itemWithExtras.is_scheme_visible,
-        );
+          const itemWithExtras = item as OrderItem & {
+            scheme?: number | string | null;
+            is_scheme_visible?: boolean;
+          };
+          const schemeId = item.scheme_id ?? itemWithExtras.scheme;
+          const isSchemeVisible = Boolean(
+            schemeId ||
+            item.scheme_name ||
+            item.scheme_qty ||
+            itemWithExtras.is_scheme_visible,
+          );
 
-        return {
-          category: item.category || "",
-          brand: item.brand || "",
-          variety: item.variety || "",
-          type: item.item_type || getProductType(item.item_name || ""),
-          item: item.item_name || "",
-          isScheme: isSchemeVisible,
-          scheme: schemeId ? String(schemeId) : "",
-          schemeQty: isSchemeVisible ? valueToString(item.scheme_qty) : "",
-          // schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
-          pcs: valueToString(item.pcs),
-          qty: valueToString(item.qty),
-          ltrs: valueToString(item.ltrs),
-          boxes: valueToString(item.boxes),
-          basicPrice: valueToString(item.basic_price),
-          marketPrice: valueToString(item.market_price),
-          tax: valueToString(item.tax_rate),
-          amount: valueToString(item.total),
-          confirmed: true,
-        };
-      })
+          return {
+            category: item.category || "",
+            brand: item.brand || "",
+            variety: item.variety || "",
+            type: item.item_type || getProductType(item.item_name || ""),
+            item: item.item_name || "",
+            isScheme: isSchemeVisible,
+            scheme: schemeId ? String(schemeId) : "",
+            schemeQty: isSchemeVisible ? valueToString(item.scheme_qty) : "",
+            // schemeLtrs: isSchemeVisible && schemeLtrs > 0 ? String(schemeLtrs) : "",
+            pcs: valueToString(item.pcs),
+            qty: valueToString(item.qty),
+            ltrs: valueToString(item.ltrs),
+            boxes: valueToString(item.boxes),
+            basicPrice: valueToString(item.basic_price),
+            marketPrice: valueToString(item.market_price),
+            tax: valueToString(item.tax_rate),
+            amount: valueToString(item.total),
+            confirmed: true,
+          };
+        })
       : [createEmptyRow()];
   };
 
   useEffect(() => {
-    if (!isEditMode || !editOrderId) {
+    if (!isLoadingFromOrder || !editOrderId) {
       return;
     }
 
@@ -322,16 +343,16 @@ export default function Add_Sales() {
           prev.some((party) => party.value === order.card_code)
             ? prev
             : [
-              {
-                value: order.card_code,
-                label: order.card_name
-                  ? `${order.card_name} (${order.card_code})`
-                  : order.card_code,
-                category: "oil",
-                state: "",
-              },
-              ...prev,
-            ],
+                {
+                  value: order.card_code,
+                  label: order.card_name
+                    ? `${order.card_name} (${order.card_code})`
+                    : order.card_code,
+                  category: "oil",
+                  state: "",
+                },
+                ...prev,
+              ],
         );
 
         const [, fetchedPartyProducts] = await Promise.all([
@@ -349,17 +370,23 @@ export default function Add_Sales() {
           ...new Set(
             mergedPartyProducts
               .map((product) => product.category)
-              .filter((itemCategory): itemCategory is string => Boolean(itemCategory)),
+              .filter((itemCategory): itemCategory is string =>
+                Boolean(itemCategory),
+              ),
           ),
         ]);
 
         setFormData({
           parties: order.card_code || "",
-          dispatch: order.dispatch_from_id ? String(order.dispatch_from_id) : "",
-          date: order.created_at ? String(order.created_at).split("T")[0] : new Date().toISOString().split("T")[0],
+          dispatch: order.dispatch_from_id
+            ? String(order.dispatch_from_id)
+            : "",
+          date: order.created_at
+            ? String(order.created_at).split("T")[0]
+            : new Date().toISOString().split("T")[0],
           billAddress: order.bill_to_id ? String(order.bill_to_id) : "",
           shipAddress: order.ship_to_id ? String(order.ship_to_id) : "",
-          Deliverydate: order.delivery_date || "",
+          Deliverydate: isDuplicateMode ? "" : order.delivery_date || "",
           company: order.company ? String(order.company) : "",
         });
 
@@ -368,7 +395,7 @@ export default function Add_Sales() {
 
         const hasSchemeRows = mappedRows.some((row) => row.isScheme);
         if (hasSchemeRows) {
-          const schemes = await ordersService.getSchemeProducts('');
+          const schemes = await ordersService.getSchemeProducts("");
           console.log("Fetched schemes for edit order:", schemes);
           if (isCancelled) return;
 
@@ -400,7 +427,7 @@ export default function Add_Sales() {
     return () => {
       isCancelled = true;
     };
-  }, [editOrderId, isEditMode, navigate, returnTo]);
+  }, [editOrderId, isLoadingFromOrder, isDuplicateMode, navigate, returnTo]);
 
   const fetchSchemesForRow = async (index: number, shouldFetch: boolean) => {
     if (!shouldFetch || !stateCode) {
@@ -448,7 +475,7 @@ export default function Add_Sales() {
     const selectedParty = parties.find((p) => p.value === formData.parties);
 
     const payload = {
-      ...(editOrderId ? { order_id: editOrderId } : {}),
+      ...(isEditMode ? { order_id: editOrderId } : {}),
       card_code: formData.parties,
       card_name: selectedParty?.label || editOrderFallback.cardName || "",
       bill_to_id: Number(formData.billAddress),
@@ -461,7 +488,8 @@ export default function Add_Sales() {
           ?.address_name || "",
       dispatch_from_id: Number(formData.dispatch),
       dispatch_from_name:
-        branch.find((d) => d.bpl_id === Number(formData.dispatch))?.bpl_name || "",
+        branch.find((d) => d.bpl_id === Number(formData.dispatch))?.bpl_name ||
+        "",
 
       delivery_date: formData.Deliverydate,
       company: Number(formData.company),
@@ -499,7 +527,7 @@ export default function Add_Sales() {
         scheme_qty: row.isScheme ? Number(row.schemeQty || 0) : 0,
         // scheme_ltrs: row.isScheme ? Number(row.schemeLtrs || 0) : 0,
         is_scheme: row.isScheme,
-        total_ltrs: Number(row.ltrs) + Number(row.schemeQty || 0)
+        total_ltrs: Number(row.ltrs) + Number(row.schemeQty || 0),
       })),
     };
 
@@ -510,20 +538,27 @@ export default function Add_Sales() {
 
       console.log("API Response:", data);
 
-      alert(editOrderId ? "Order updated and sent for approval ✅" : "Order Added Successfully ✅");
+      alert(
+        isEditMode
+          ? "Order updated and sent for approval ✅"
+          : "New order created successfully ✅",
+      );
       setShowSaveConfirm(false);
-      if (editOrderId) {
+      if (isLoadingFromOrder) {
         navigate(returnTo);
         return;
       }
       handleClearForm();
-
     } catch (error) {
       console.error(error);
 
       console.error("Payload:", JSON.stringify(payload, null, 2));
 
-      alert(editOrderId ? "Error updating order ❌" : "Error creating order ❌");
+      alert(
+        isEditMode
+          ? "Error updating order ❌"
+          : "Error creating new order ❌",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -540,7 +575,7 @@ export default function Add_Sales() {
   };
 
   const handleClearForm = () => {
-    if (isEditMode) {
+    if (isLoadingFromOrder) {
       navigate(returnTo);
       return;
     }
@@ -553,7 +588,6 @@ export default function Add_Sales() {
       shipAddress: "",
       Deliverydate: "",
       company: "",
-
     });
 
     setRows([createEmptyRow()]);
@@ -582,13 +616,13 @@ export default function Add_Sales() {
           };
         }
         return row;
-      })
+      }),
     );
   };
 
   const handleRowChange = (
     index: number,
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
 
@@ -611,14 +645,18 @@ export default function Add_Sales() {
       row.schemeQty = "";
       // row.schemeLtrs = "";
 
-      const partyProduct = partyProducts.find(
-        (p) =>
-          p.item_name === value &&
-          p.category === row.category &&
-          (p.brand || "") === (row.brand || "") &&
-          (p.variety || "") === (row.variety || "")
-      ) || partyProducts.find((p) => p.item_name === value && p.category === row.category)
-        || partyProducts.find((p) => p.item_name === value);
+      const partyProduct =
+        partyProducts.find(
+          (p) =>
+            p.item_name === value &&
+            p.category === row.category &&
+            (p.brand || "") === (row.brand || "") &&
+            (p.variety || "") === (row.variety || ""),
+        ) ||
+        partyProducts.find(
+          (p) => p.item_name === value && p.category === row.category,
+        ) ||
+        partyProducts.find((p) => p.item_name === value);
 
       if (partyProduct) {
         const match = partyProduct.item_name.match(
@@ -634,7 +672,12 @@ export default function Add_Sales() {
       }
     }
 
-    if (name === "category" || name === "brand" || name === "variety" || name === "type") {
+    if (
+      name === "category" ||
+      name === "brand" ||
+      name === "variety" ||
+      name === "type"
+    ) {
       row.item = "";
       row.isScheme = false;
       row.scheme = "";
@@ -700,30 +743,30 @@ export default function Add_Sales() {
         row.amount = (price * qty).toFixed(2);
       }
 
-      if (row.isScheme && row.scheme) {
-        const schemes = schemeOptions[index] || [];
-        const schemeObj = schemes.find(
-          (s) => String(s.scheme_id) === String(row.scheme)
-        );
+      //if (row.isScheme && row.scheme) {
+      // const schemes = schemeOptions[index] || [];
+      // const schemeObj = schemes.find(
+      //   (s) => String(s.scheme_id) === String(row.scheme)
+      // );
 
-        if (schemeObj) {
-          const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
-          const multiplier = match ? parseFloat(match[1]) : 1;
-          const schemeName = (schemeObj.scheme_name || "").toLowerCase();
+      // if (schemeObj) {
+      //   const match = schemeObj.scheme_name.match(/(\d+\.?\d*)/);
+      //   const multiplier = match ? parseFloat(match[1]) : 1;
+      //   const schemeName = (schemeObj.scheme_name || "").toLowerCase();
 
-          const calculatedQty = schemeName.includes("box")
-            ? boxes * multiplier
-            : (Number(row.qty) || 0) * multiplier;
+      //   const calculatedQty = schemeName.includes("box")
+      //     ? boxes * multiplier
+      //     : (Number(row.qty) || 0) * multiplier;
 
-          row.schemeQty = String(calculatedQty);
+      //   row.schemeQty = String(calculatedQty);
 
-          // const sPackUnit = Number((schemeObj as any).sal_pack_unit || product?.sal_pack_unit || 0);
-          // row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
-        } else {
-          row.schemeQty = "";
-          // row.schemeLtrs = "";
-        }
-      }
+      //   // const sPackUnit = Number((schemeObj as any).sal_pack_unit || product?.sal_pack_unit || 0);
+      //   // row.schemeLtrs = (sPackUnit * calculatedQty).toFixed(2);
+      // } else {
+      //   row.schemeQty = "";
+      //   // row.schemeLtrs = "";
+      // }
+      // }
     }
     updatedRows[index] = row;
     setRows(updatedRows);
@@ -773,7 +816,6 @@ export default function Add_Sales() {
     } else {
       setStateCode(null);
     }
-
   };
 
   const handleChange = (e: React.ChangeEvent<any>) => {
@@ -851,19 +893,27 @@ export default function Add_Sales() {
     const search = partySearch.trim().toLowerCase();
     if (!search) return true;
     return (
-      String(party.label || "").toLowerCase().includes(search) ||
-      String(party.value || "").toLowerCase().includes(search)
+      String(party.label || "")
+        .toLowerCase()
+        .includes(search) ||
+      String(party.value || "")
+        .toLowerCase()
+        .includes(search)
     );
   });
   const filteredBillAddresses = billAddress.filter((address) => {
     const search = billSearch.trim().toLowerCase();
-    const label = String(address.address_name || address.full_address || address.address_id || "");
+    const label = String(
+      address.address_name || address.full_address || address.address_id || "",
+    );
     if (!search) return true;
     return label.toLowerCase().includes(search);
   });
   const filteredShipAddresses = shipAddress.filter((address) => {
     const search = shipSearch.trim().toLowerCase();
-    const label = String(address.address_name || address.full_address || address.address_id || "");
+    const label = String(
+      address.address_name || address.full_address || address.address_id || "",
+    );
     if (!search) return true;
     return label.toLowerCase().includes(search);
   });
@@ -871,10 +921,12 @@ export default function Add_Sales() {
     parties.find((party) => party.value === formData.parties)?.label ||
     editOrderFallback.partyLabel ||
     "";
-  const selectedBillAddress =
-    billAddress.find((address) => String(address.id) === formData.billAddress);
-  const selectedShipAddress =
-    shipAddress.find((address) => String(address.id) === formData.shipAddress);
+  const selectedBillAddress = billAddress.find(
+    (address) => String(address.id) === formData.billAddress,
+  );
+  const selectedShipAddress = shipAddress.find(
+    (address) => String(address.id) === formData.shipAddress,
+  );
   const selectedBillAddressLabel =
     selectedBillAddress?.address_name ||
     selectedBillAddress?.full_address ||
@@ -891,12 +943,20 @@ export default function Add_Sales() {
     <div className="sl-page app-page">
       <div className="sl-header app-page-head">
         <div>
-          <h1 className="sl-title app-page-title">{isEditMode ? "Edit Sales Order" : "Add Sales Order"}</h1>
+          <h1 className="sl-title app-page-title">
+            {isEditMode
+              ? "Edit Sales Order"
+              : isDuplicateMode
+                ? "Duplicate Sales Order"
+                : "Add Sales Order"}
+          </h1>
         </div>
       </div>
 
       {isEditMode && isLoadingEditOrder && (
-        <div className="sl-section-label">Loading existing order details...</div>
+        <div className="sl-section-label">
+          Loading existing order details...
+        </div>
       )}
 
       <form className="sl-form" onSubmit={handleSubmit}>
@@ -905,7 +965,10 @@ export default function Add_Sales() {
         <div className="sl-grid sl-order-grid">
           <div className="sl-field">
             <label className="sl-label">Party Name</label>
-            <div className={`sl-party-dropdown${partyDropdownOpen ? " open" : ""}`} ref={partyDropdownRef}>
+            <div
+              className={`sl-party-dropdown${partyDropdownOpen ? " open" : ""}`}
+              ref={partyDropdownRef}
+            >
               <button
                 type="button"
                 className="sl-party-trigger"
@@ -942,8 +1005,12 @@ export default function Add_Sales() {
                           className="sl-party-option"
                           onClick={() => handlePartySelect(party.value)}
                         >
-                          <span className="sl-party-option-label">{party.label}</span>
-                          <span className="sl-party-option-code">{party.value}</span>
+                          <span className="sl-party-option-label">
+                            {party.label}
+                          </span>
+                          <span className="sl-party-option-code">
+                            {party.value}
+                          </span>
                         </button>
                       ))
                     ) : (
@@ -968,10 +1035,10 @@ export default function Add_Sales() {
                 <option value="">--select--</option>
                 {branch.length > 0
                   ? branch.map((d) => (
-                    <option key={d.bpl_id} value={d.bpl_id}>
-                      {d.bpl_name}
-                    </option>
-                  ))
+                      <option key={d.bpl_id} value={d.bpl_id}>
+                        {d.bpl_name}
+                      </option>
+                    ))
                   : null}
               </select>
               <div className="sl-focus-line" />
@@ -990,7 +1057,10 @@ export default function Add_Sales() {
           {/* Bill To */}
           <div className="sl-field">
             <label className="sl-label">Bill To Address</label>
-            <div className={`sl-party-dropdown${billDropdownOpen ? " open" : ""}`} ref={billDropdownRef}>
+            <div
+              className={`sl-party-dropdown${billDropdownOpen ? " open" : ""}`}
+              ref={billDropdownRef}
+            >
               <button
                 type="button"
                 className="sl-party-trigger"
@@ -1040,13 +1110,21 @@ export default function Add_Sales() {
                 </div>
               )}
             </div>
-            <input type="hidden" name="billAddress" value={formData.billAddress} required />
+            <input
+              type="hidden"
+              name="billAddress"
+              value={formData.billAddress}
+              required
+            />
           </div>
 
           {/* Ship To */}
           <div className="sl-field">
             <label className="sl-label">Ship To Address</label>
-            <div className={`sl-party-dropdown${shipDropdownOpen ? " open" : ""}`} ref={shipDropdownRef}>
+            <div
+              className={`sl-party-dropdown${shipDropdownOpen ? " open" : ""}`}
+              ref={shipDropdownRef}
+            >
               <button
                 type="button"
                 className="sl-party-trigger"
@@ -1096,12 +1174,19 @@ export default function Add_Sales() {
                 </div>
               )}
             </div>
-            <input type="hidden" name="shipAddress" value={formData.shipAddress} required />
+            <input
+              type="hidden"
+              name="shipAddress"
+              value={formData.shipAddress}
+              required
+            />
           </div>
 
           {/* Delivery Date */}
           <div className="sl-field">
-            <label className="sl-label" htmlFor="Deliverydate">Delivery Date</label>
+            <label className="sl-label" htmlFor="Deliverydate">
+              Delivery Date
+            </label>
             <div className="sl-input-wrap">
               <input
                 type="date"
@@ -1114,7 +1199,6 @@ export default function Add_Sales() {
             </div>
           </div>
         </div>
-
 
         <div className="sl-table-wrap">
           <table className="sl-table">
@@ -1299,12 +1383,9 @@ export default function Add_Sales() {
                       <input type="number" value={row.qty} readOnly />
                     </td>
 
-
                     <td>
                       <input type="number" value={row.ltrs} readOnly />
                     </td>
-
-
 
                     <td>
                       <input type="number" value={row.basicPrice} readOnly />
@@ -1321,7 +1402,11 @@ export default function Add_Sales() {
                     </td>
 
                     <td>
-                      <input type="text" value={(Number(row.tax)).toFixed(2)} readOnly />
+                      <input
+                        type="text"
+                        value={Number(row.tax).toFixed(2)}
+                        readOnly
+                      />
                     </td>
 
                     <td>
@@ -1338,7 +1423,9 @@ export default function Add_Sales() {
                           Confirm
                         </button>
                       ) : (
-                        <span className="sl-row-confirmed-badge">Confirmed</span>
+                        <span className="sl-row-confirmed-badge">
+                          Confirmed
+                        </span>
                       )}
                       <button
                         type="button"
@@ -1347,11 +1434,32 @@ export default function Add_Sales() {
                         aria-label={`Delete item ${index + 1}`}
                         title="Delete item"
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4.5A1.5 1.5 0 019.5 3h5A1.5 1.5 0 0116 4.5V6" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 6l-1 13a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 11v6M14 11v6" />
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 6h18"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M8 6V4.5A1.5 1.5 0 019.5 3h5A1.5 1.5 0 0116 4.5V6"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 6l-1 13a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M10 11v6M14 11v6"
+                          />
                         </svg>
                       </button>
                     </td>
@@ -1362,12 +1470,16 @@ export default function Add_Sales() {
                       <td colSpan={14}>
                         <div className="sl-scheme-row">
                           <div className="sl-scheme-toggle-compact">
-                            <span className="sl-scheme-toggle-label">Scheme</span>
+                            <span className="sl-scheme-toggle-label">
+                              Scheme
+                            </span>
                             <label className="sl-switch">
                               <input
                                 type="checkbox"
                                 checked={row.isScheme}
-                                onChange={(e) => handleRowSchemeToggle(index, e.target.checked)}
+                                onChange={(e) =>
+                                  handleRowSchemeToggle(index, e.target.checked)
+                                }
                                 disabled={row.confirmed && !isEditMode}
                               />
                               <span className="sl-switch-slider" />
@@ -1375,16 +1487,25 @@ export default function Add_Sales() {
                           </div>
 
                           <div className="sl-scheme-dropdown-field">
-                            <label className="sl-scheme-field-label">Scheme</label>
+                            <label className="sl-scheme-field-label">
+                              Scheme
+                            </label>
                             <select
                               value={row.scheme}
                               name="scheme"
                               onChange={(e) => handleRowChange(index, e)}
-                              disabled={(row.confirmed && !isEditMode) || !row.isScheme || !(schemeOptions[index] || []).length}
+                              disabled={
+                                (row.confirmed && !isEditMode) ||
+                                !row.isScheme ||
+                                !(schemeOptions[index] || []).length
+                              }
                             >
                               <option value="">Select Scheme...</option>
                               {(schemeOptions[index] || []).map((scheme) => (
-                                <option key={scheme.scheme_id} value={scheme.scheme_id}>
+                                <option
+                                  key={scheme.scheme_id}
+                                  value={scheme.scheme_id}
+                                >
                                   {scheme.scheme_name}
                                 </option>
                               ))}
@@ -1392,12 +1513,17 @@ export default function Add_Sales() {
                           </div>
 
                           <div className="sl-scheme-qty-field">
-                            <label className="sl-scheme-field-label">Scheme Qty</label>
+                            <label className="sl-scheme-field-label">
+                              Scheme Qty
+                            </label>
                             <input
                               type="text"
                               name="schemeQty"
-                              value={row.isScheme && row.schemeQty ? row.schemeQty : ""}
-                              readOnly
+                              value={row.schemeQty}
+                              onChange={(e) => handleRowChange(index, e)}
+                              disabled={
+                                (row.confirmed && !isEditMode) || !row.isScheme
+                              }
                             />
                           </div>
 
@@ -1412,11 +1538,19 @@ export default function Add_Sales() {
                           </div> */}
 
                           <div className="sl-scheme-qty-field">
-                            <label className="sl-scheme-field-label">Total Ltrs</label>
+                            <label className="sl-scheme-field-label">
+                              Total Ltrs
+                            </label>
                             <input
                               type="text"
                               name="totalLtrs"
-                              value={row.isScheme && row.schemeQty ? (Number(row.ltrs) + Number(row.schemeQty)).toFixed(2) : Number(row.ltrs).toFixed(2)}
+                              value={
+                                row.isScheme && row.schemeQty
+                                  ? (
+                                      Number(row.ltrs) + Number(row.schemeQty)
+                                    ).toFixed(2)
+                                  : Number(row.ltrs).toFixed(2)
+                              }
                               readOnly
                             />
                           </div>
@@ -1437,8 +1571,6 @@ export default function Add_Sales() {
 
         <div className="sl-section-label">Summary</div>
         <div className="sl-grid sl-summary-grid">
-
-
           <div className="sl-field">
             <label className="sl-label">Company</label>
             <div className="sl-input-wrap">
@@ -1451,10 +1583,10 @@ export default function Add_Sales() {
                 <option value="">Select Company</option>
                 {company.length > 0
                   ? company.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name}
-                    </option>
-                  ))
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))
                   : null}
               </select>
               <div className="sl-focus-line" />
@@ -1479,7 +1611,12 @@ export default function Add_Sales() {
           <div className="sl-field">
             <label className="sl-label">Grand Total</label>
             <div className="sl-input-wrap">
-              <input type="text" name="gtotal" value={grandTotal.toFixed(1)} readOnly />
+              <input
+                type="text"
+                name="gtotal"
+                value={grandTotal.toFixed(1)}
+                readOnly
+              />
               <div className="sl-focus-line" />
             </div>
           </div>
@@ -1494,21 +1631,50 @@ export default function Add_Sales() {
         </div>
 
         <div className="sl-actions">
-          <button type="submit" className="sl-btn-save" disabled={isSaving || confirmedRows.length === 0 || rows.some((row) => !row.confirmed && row.item)}>
-            <span>{isEditMode ? "Update Order" : "Save Order"}</span>
+          <button
+            type="submit"
+            className="sl-btn-save"
+            disabled={
+              isSaving ||
+              confirmedRows.length === 0 ||
+              rows.some((row) => !row.confirmed && row.item)
+            }
+          >
+            <span>
+              {isEditMode ? "Update Order" : isDuplicateMode ? "Create as New" : "Save Order"}
+            </span>
           </button>
-          <button type="button" className="sl-btn-clear" onClick={handleClearForm}>
-            <span>{isEditMode ? "Cancel" : "Clear"}</span>
+          <button
+            type="button"
+            className="sl-btn-clear"
+            onClick={handleClearForm}
+          >
+            <span>{isLoadingFromOrder ? "Cancel" : "Clear"}</span>
           </button>
         </div>
       </form>
 
       {showSaveConfirm && (
         <div className="sl-modal-overlay">
-          <div className="sl-modal" role="dialog" aria-modal="true" aria-labelledby="sl-save-confirm-title">
-            <div id="sl-save-confirm-title" className="sl-modal-title">{isEditMode ? "Confirm Update" : "Confirm Save"}</div>
+          <div
+            className="sl-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sl-save-confirm-title"
+          >
+            <div id="sl-save-confirm-title" className="sl-modal-title">
+              {isEditMode
+                ? "Confirm Update"
+                : isDuplicateMode
+                  ? "Confirm New Order"
+                  : "Confirm Save"}
+            </div>
             <p className="sl-modal-text">
-              {isEditMode ? "Are you sure you want to update this order?" : "Are you sure you want to save this order?"}
+              {isEditMode
+                ? "Are you sure you want to update this order?"
+                : isDuplicateMode
+                  ? "Are you sure you want to create a new order based on this one?"
+                  : "Are you sure you want to save this order?"}
             </p>
             <div className="sl-modal-actions">
               <button
@@ -1525,7 +1691,13 @@ export default function Add_Sales() {
                 onClick={submitOrder}
                 disabled={isSaving}
               >
-                {isSaving ? (isEditMode ? "Updating..." : "Saving...") : (isEditMode ? "Yes, Update" : "Yes, Save")}
+                {isSaving
+                  ? isEditMode
+                    ? "Updating..."
+                    : "Creating..."
+                  : isEditMode
+                    ? "Yes, Update"
+                    : "Yes, Create New"}
               </button>
             </div>
           </div>

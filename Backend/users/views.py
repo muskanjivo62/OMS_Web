@@ -530,4 +530,66 @@ class UserDetailView(APIView):
             'message': 'Failed to update user',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class BulkAssignPartyToProductView(APIView):
+    """
+    Assign multiple products to multiple parties
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        card_codes = request.data.get('card_codes', [])
+        products = request.data.get('products', [])
+
+        if not card_codes:
+            return Response({'success': False, 'message': 'card_codes is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not products:
+            return Response({'success': False, 'message': 'products is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        added = 0
+        updated = 0
+        errors = []
+
+        for card_code in card_codes:
+            for prod in products:
+                item_code = prod.get('item_code')
+                category = prod.get('category')
+                basic_rate = prod.get('basic_rate', 0)
+
+                if not item_code or not category:
+                    errors.append(f"{card_code}: Missing item_code/category")
+                    continue
+
+                # Validate product exists
+                if not Product.objects.filter(item_code=item_code, category=category).exists():
+                    errors.append(f"{card_code}: {item_code}|{category} not found")
+                    continue
+
+                obj, created = PartyProductAssignment.objects.update_or_create(
+                    card_code=card_code,
+                    item_code=item_code,
+                    category=category,
+                    defaults={
+                        'basic_rate': Decimal(str(basic_rate)),
+                        'is_active': True,
+                        'assigned_by': request.user
+                    }
+                )
+
+                if created:
+                    added += 1
+                else:
+                    updated += 1
+
+        return Response({
+            'success': True,
+            'message': f'Added: {added}, Updated: {updated}',
+            'data': {
+                'added': added,
+                'updated': updated,
+                'errors': errors
+            }
+        }, status=status.HTTP_200_OK)
 

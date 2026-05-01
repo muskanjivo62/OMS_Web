@@ -360,23 +360,23 @@ export default function Daily_Report() {
                 </div>
               </div>
 
-              <div className="dr-table-wrap">
-                <table className="dr-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Order Number</th>
-                      <th>Card Code</th>
-                      <th>Card Name</th>
-                      <th>Delivery Date</th>
-                      <th>Status</th>
-                      <th>Action</th>
-                      <th>Generate Report</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.length > 0 ? (
-                      paginatedOrders.map((order, i) => (
+              {filteredOrders.length > 0 ? (
+                <div className="dr-table-wrap">
+                  <table className="dr-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Order Number</th>
+                        <th>Card Code</th>
+                        <th>Card Name</th>
+                        <th>Delivery Date</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                        <th>Generate Report</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedOrders.map((order, i) => (
                         <tr key={order.id}>
                           <td className="dr-muted">
                             {(currentPage - 1) * itemsPerPage + i + 1}
@@ -402,13 +402,13 @@ export default function Daily_Report() {
                            </button>
                           </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={8} className="dr-empty">No orders found</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="dr-empty" style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>No orders found</div>
+              )}
               {filteredOrders.length > itemsPerPage && (
                 <div className="dr-pagination">
                   <button

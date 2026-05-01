@@ -125,7 +125,7 @@ const handleDel =  async (code: string) => {
     <div className="pa-page app-page">
       <div className="pa-header app-page-head">
         <div>
-          <span className="app-chip pa-chip">User Mapping</span>
+          {/* <span className="app-chip pa-chip">User Mapping</span> */}
           <h1 className="pa-title app-page-title">Party Assignment</h1>
         </div>
       </div>
@@ -141,14 +141,14 @@ const handleDel =  async (code: string) => {
             marginBottom: '24px' 
           }}
         >
-          <div className="pa-card-head" style={{ marginBottom: '24px' }}>
+          {/* <div className="pa-card-head" style={{ marginBottom: '24px' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>
               Select User
             </h2>
             <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '4px 0 0' }}>
               Search and select a user to manage their assigned parties.
             </p>
-          </div>
+          </div> */}
 
           <div style={{ position: 'relative', maxWidth: '400px', zIndex: 10 }}>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#334155', marginBottom: '8px' }}>
@@ -258,6 +258,7 @@ const handleDel =  async (code: string) => {
                         <div>
                           <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.95rem' }}>{party.card_name}</div>
                           <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px', fontFamily: 'monospace' }}>{party.card_code}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px', fontFamily: 'monospace' }}>{party.state}</div>
                         </div>
                         <button
                           style={{ 
@@ -403,7 +404,9 @@ const handleDel =  async (code: string) => {
                     }}
                   />
                   <div>
-                    <div style={{ fontWeight: 500, color: '#0f172a', fontSize: '0.95rem' }}>{party.card_name}</div>
+                    <div style={{ fontWeight: 500, color: '#0f172a', fontSize: '0.95rem' }}>{party.card_name} ({party.state})</div>
+                                        
+
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>{party.card_code}</div>
                   </div>
                 </label>

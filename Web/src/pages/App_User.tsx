@@ -371,71 +371,60 @@ export default function App_User() {
             </div>
             <div className="au-table-count">{users.length} Users</div>
           </div>
-          <div className="au-table-wrap">
-            <table className="au-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Edit User</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.length > 0 ? (
-                  users
-                    .slice(
-                      (currentPage - 1) * itemsPerPage,
-                      currentPage * itemsPerPage,
-                    )
-                    .map((user) => (
-                      <tr key={user.id}>
-                        <td className="au-muted">{user.id}</td>
-                        <td className="au-name">{user.name}</td>
-                        <td>{user.email}</td>
-                        <td>{user.role}</td>
-                        <td>
-                          <span
-                            className={
-                              user.is_active ? "au-active" : "au-inactive"
-                            }
-                          >
-                            {user.is_active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="ao-btn-icon edit"
-                            onClick={() => {
-                              handleEditUser(user);
-                              setShowForm(true);
-                              setShowUsers(false);
-                            }} title="Edit User"
-                          >
-                            <HiPencilSquare size={22} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      style={{
-                        textAlign: "center",
-                        padding: "2.5rem",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      No users found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+            {users.length > 0 ? (
+              <div className="au-table-wrap">
+                <table className="au-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Edit User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users
+                        .slice(
+                          (currentPage - 1) * itemsPerPage,
+                          currentPage * itemsPerPage,
+                        )
+                        .map((user) => (
+                          <tr key={user.id}>
+                            <td className="au-muted">{user.id}</td>
+                            <td className="au-name">{user.name}</td>
+                            <td>{user.email}</td>
+                            <td>{user.role}</td>
+                            <td>
+                              <span
+                                className={
+                                  user.is_active ? "au-active" : "au-inactive"
+                                }
+                              >
+                                {user.is_active ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="ao-btn-icon edit"
+                                onClick={() => {
+                                  handleEditUser(user);
+                                  setShowForm(true);
+                                  setShowUsers(false);
+                                }} title="Edit User"
+                              >
+                                <HiPencilSquare size={22} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>No users found</div>
+            )}
 
           {users.length > itemsPerPage && (
             <div className="au-pagination">

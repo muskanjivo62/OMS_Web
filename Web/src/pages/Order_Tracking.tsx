@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ordersService } from "../services/ordersService";
 import type { Order, OrderLog } from "../services/ordersService";
 import { loadCurrentUserOrders } from "../utils/orderHistory";
 import "../styles/Order_Tracking.css";
 
 export default function Order_Tracking() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [logs, setLogs] = useState<OrderLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [logsLoading, setLogsLoading] = useState(false);
   const [tracker, setTracker] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [activeTab, setActiveTab] = useState<"all" | "rejected">("all");
+  const [statusFilter, setStatusFilter] = useState("");
   
   useEffect(() => {
     void fetchOrders();
@@ -30,11 +33,26 @@ export default function Order_Tracking() {
     }
   };
 
+  useEffect(() => {
+    if (location.state?.openOrderId && orders.length > 0) {
+      const targetOrder = orders.find(o => o.id === location.state.openOrderId);
+      if (targetOrder) {
+        void handleTrack(targetOrder);
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state?.openOrderId, orders, location.pathname, navigate]);
+
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set(orders.map((o) => o.status_display).filter(Boolean));
+    return Array.from(statuses).sort() as string[];
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     return orders
       .filter((order) => {
-        if (activeTab === "rejected") {
-          return String(order.status_display || "").toLowerCase().includes("reject");
+        if (statusFilter) {
+          return order.status_display === statusFilter;
         }
         return true;
       })
@@ -50,7 +68,7 @@ export default function Order_Tracking() {
 
         return first - second;
       });
-  }, [orders, activeTab]);
+  }, [orders, statusFilter]);
 
   const orderedLogs = useMemo(() => {
     return [...logs].sort((a, b) => {
@@ -212,6 +230,16 @@ export default function Order_Tracking() {
     setLogs([]);
   };
 
+  const handleEditOrder = (order: Order) => {
+    navigate("/Add_Sales", {
+      state: {
+        editOrderId: order.id,
+        returnTo: "/Order_Tracking",
+        mode: "edit",
+      },
+    });
+  };
+
   return (
     <div className="tracker-page">
       <div className="tracker-head">
@@ -220,20 +248,29 @@ export default function Order_Tracking() {
 
       {!tracker && (
         <div style={{ display: 'flex', gap: '10px', padding: '0 20px', marginBottom: '15px' }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ddd', background: activeTab === 'all' ? '#1E3A5F' : '#fff', color: activeTab === 'all' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 }}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#f8fafc',
+              color: '#0f172a',
+              cursor: 'pointer',
+              fontWeight: 500,
+              fontSize: '0.9rem',
+              outline: 'none',
+              minWidth: '180px'
+            }}
           >
-            All Orders
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('rejected')}
-            style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ddd', background: activeTab === 'rejected' ? '#EF4444' : '#fff', color: activeTab === 'rejected' ? '#fff' : '#333', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Rejected Orders
-          </button>
+            <option value="">All Orders</option>
+            {uniqueStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -246,64 +283,70 @@ export default function Order_Tracking() {
             )}
           </div>
 
-          <div className="tracker-table-wrap">
-            <table className="vo-table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Card Code</th>
-                  <th>Card Name</th>
-                  <th>Delivery Date</th>
-                  <th>Status</th>
-                  <th>Tracker</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {loading ? (
+            <div className="vo-empty" style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>Loading orders...</div>
+          ) : filteredOrders.length > 0 ? (
+            <div className="tracker-table-wrap">
+              <table className="vo-table">
+                <thead>
                   <tr>
-                    <td colSpan={6} className="vo-empty">
-                      Loading orders...
-                    </td>
+                    <th>Order ID</th>
+                    <th>Card Code</th>
+                    <th>Card Name</th>
+                    <th>Created Date</th>
+                    <th>Delivery Date</th>
+                    <th>Status</th>
+                    <th>Tracker</th>
                   </tr>
-                ) : filteredOrders.length > 0 ? (
-                  filteredOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td>{order.order_number}</td>
-                      <td>{order.card_code}</td>
-                      <td>{order.card_name}</td>
-                      <td>{order.delivery_date}</td>
-                      <td>
-                        <span
-                          className={`vo-badge vo-badge-${(
-                            order.status_display || ""
-                          )
-                            .toLowerCase()
-                            .replace(/\s+/g, "-")}`}
-                        >
-                          {order.status_display}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="tracker-btn"
-                          onClick={() => void handleTrack(order)}
-                        >
-                          Track
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="vo-empty">
-                      No orders found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredOrders.map((order) => (
+                      <tr key={order.id}>
+                        <td>{order.order_number}</td>
+                        <td>{order.card_code}</td>
+                        <td>{order.card_name}</td>
+                        <td>{order.created_at ? new Date(order.created_at).toLocaleDateString("en-GB") : "—"}</td>
+                        <td>{order.delivery_date}</td>
+                        <td>
+                          <span
+                            className={`vo-badge vo-badge-${(
+                              order.status_display || ""
+                            )
+                              .toLowerCase()
+                              .replace(/\s+/g, "-")}`}
+                          >
+                            {order.status_display}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button
+                              type="button"
+                              className="tracker-btn"
+                              onClick={() => void handleTrack(order)}
+                            >
+                              Track
+                            </button>
+                            {String(order.status_display || "").toLowerCase().includes("reject") && (
+                              <button
+                                type="button"
+                                className="tracker-btn"
+                                style={{ backgroundColor: "#ef4444" }}
+                                onClick={() => handleEditOrder(order)}
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="vo-empty" style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>No orders found</div>
+          )}
         </div>
       )}
 
@@ -317,15 +360,27 @@ export default function Order_Tracking() {
             >
               Back
             </button>
-            <span
-              className={`vo-badge vo-badge-${(
-                selectedOrder.status_display || ""
-              )
-                .toLowerCase()
-                .replace(/\s+/g, "-")}`}
-            >
-              {selectedOrder.status_display}
-            </span>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              {String(selectedOrder.status_display || "").toLowerCase().includes("reject") && (
+                <button
+                  type="button"
+                  className="tracker-btn"
+                  style={{ backgroundColor: "#ef4444" }}
+                  onClick={() => handleEditOrder(selectedOrder)}
+                >
+                  Edit Order
+                </button>
+              )}
+              <span
+                className={`vo-badge vo-badge-${(
+                  selectedOrder.status_display || ""
+                )
+                  .toLowerCase()
+                  .replace(/\s+/g, "-")}`}
+              >
+                {selectedOrder.status_display}
+              </span>
+            </div>
           </div>
 
           <div className="tracker-summary-grid">
@@ -340,6 +395,10 @@ export default function Order_Tracking() {
             <div>
               <p className="tracker-label">Card Name</p>
               <p>{selectedOrder.card_name}</p>
+            </div>
+            <div>
+              <p className="tracker-label">Created Date</p>
+              <p>{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleDateString("en-GB") : "-"}</p>
             </div>
             <div>
               <p className="tracker-label">Delivery Date</p>

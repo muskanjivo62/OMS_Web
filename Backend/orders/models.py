@@ -147,9 +147,9 @@ class OrderItem(models.Model):
     boxes = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     ltrs = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
-    basic_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    market_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    basic_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    market_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
 
     scheme = models.ForeignKey(
@@ -187,3 +187,17 @@ def log_order_action(order, action_name, user=None, remarks=''):
         )
     except OrderStatus.DoesNotExist:
         pass
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notifications'
+        ordering = ['-created_at']
+    def __str__(self):
+         return f"Notification for {self.user.username}: {self.message}"

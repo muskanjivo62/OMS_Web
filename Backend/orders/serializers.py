@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Parties,DispatchLocation,ProductDetails,OrderItem,Branches,OrdersLog,Order
+from .models import Parties,DispatchLocation,ProductDetails,OrderItem,Branches,OrdersLog,Order,Notification
 from users.models import SchemeProduct, State
 from sap_sync.models import PartyAddress as SapPartyAddress
 from sap_sync.models import Product as SapProduct
@@ -95,7 +95,7 @@ class CreateOrderSerializer(serializers.Serializer):
     po_number = serializers.CharField(required=False, allow_blank=True, default='')
     remarks = serializers.CharField(required=False, allow_blank=True, default='')
     items = serializers.ListField(child=serializers.DictField())
-    basic_price = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    basic_price = serializers.DecimalField(max_digits=12, decimal_places=4, default=0)
     delivery_date = serializers.DateField(required=False, allow_null=True)
 
 class BranchSerializer(serializers.ModelSerializer):
@@ -228,3 +228,10 @@ class CreateSchemeSerializer(serializers.ModelSerializer):
     class Meta:
         model = SchemeProduct
         fields = ["scheme_name", "item_code", "state_code"]
+
+class NotificationSerializer(serializers.ModelSerializer):
+    order_id = serializers.IntegerField(source='order.id', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'is_read', 'created_at', 'order_id']

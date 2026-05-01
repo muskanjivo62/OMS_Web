@@ -5,6 +5,7 @@ import { ordersService } from "../services/ordersService";
 import type { OrderItem, Order, OrderStatus, PartyProduct } from "../services/ordersService";
 import { loadCurrentUserOrders } from "../utils/orderHistory";
 import "../styles/View_Orders.css";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   HiEye,           // View
   HiArrowDownTray    // Download
@@ -33,6 +34,8 @@ type ItemFilterOption = {
 };
 
 export default function View_Orders() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [orderDetails, setOrderDetails] = useState<Order | null>(null);
@@ -99,6 +102,13 @@ export default function View_Orders() {
     fetchOrderStatus();
     fetchAssignedParties();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.openOrderId) {
+      fetchOrderDetails(location.state.openOrderId);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.openOrderId, location.pathname, navigate]);
 
   // console.log("Selected Items:", JSON.stringify(selectedItems));
   // console.log("Order Details:", JSON.stringify(orderDetails));
@@ -341,60 +351,60 @@ export default function View_Orders() {
             <span className="vo-count">Total: {filteredOrders.length}</span>
           </div>
 
-          <div className="vo-table-wrap">
-            <table className="vo-table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Card Code</th>
-                  <th>Card Name</th>
-                  <th>Delivery Date</th>
-                  <th>Status</th>
-                  <th>Details</th>
-                  <th>Download</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.length > 0 ? (
-                  paginatedOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td>{order.order_number}</td>
-                      <td>{order.card_code}</td>
-                      <td>{order.card_name}</td>
-                      <td>{order.delivery_date}</td>
-                      <td>
-                        <span className={`vo-badge vo-badge-${(order.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>
-                          {order.status_display}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="ao-btn-icon view" 
-                          onClick={() => {
-                           fetchOrderDetails(order.id);
-                          }}
-                        >
-                         <HiEye size={22} />
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                                className="ao-btn-icon download"
-                                onClick={() => downloadExcel(order)}
-                                >
-                                <HiArrowDownTray size={22} />
-                           </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
+          {filteredOrders.length > 0 ? (
+            <div className="vo-table-wrap">
+              <table className="vo-table">
+                <thead>
                   <tr>
-                    <td colSpan={7} className="vo-empty">No orders found</td>
+                    <th>Order ID</th>
+                    <th>Card Code</th>
+                    <th>Card Name</th>
+                    <th>Created Date</th>
+                    <th>Delivery Date</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                    <th>Download</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedOrders.map((order) => (
+                      <tr key={order.id}>
+                        <td>{order.order_number}</td>
+                        <td>{order.card_code}</td>
+                        <td>{order.card_name}</td>
+                        <td>{order.created_at ? new Date(order.created_at).toLocaleDateString("en-GB") : "—"}</td>
+                        <td>{order.delivery_date}</td>
+                        <td>
+                          <span className={`vo-badge vo-badge-${(order.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>
+                            {order.status_display}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="ao-btn-icon view" 
+                            onClick={() => {
+                             fetchOrderDetails(order.id);
+                            }}
+                          >
+                           <HiEye size={22} />
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                                  className="ao-btn-icon download"
+                                  onClick={() => downloadExcel(order)}
+                                  >
+                                  <HiArrowDownTray size={22} />
+                             </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="vo-empty" style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>No orders found</div>
+          )}
 
           {filteredOrders.length > itemsPerPage && (
             <div className="vo-pagination">
@@ -430,6 +440,10 @@ export default function View_Orders() {
                   <span className="vo-d-ordnum">{orderDetails.order_number}</span>
                   <span className={`vo-badge vo-badge-${(orderDetails.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>{orderDetails.status_display}</span>
                 </div>
+              </div>
+              <div className="vo-d-info-field">
+                <span className="vo-d-hf-label">Created Date</span>
+                <span className="vo-d-hf-value">{orderDetails.created_at ? new Date(orderDetails.created_at).toLocaleDateString("en-GB") : "—"}</span>
               </div>
               <div className="vo-d-info-field">
                 <span className="vo-d-hf-label">Delivery Date</span>

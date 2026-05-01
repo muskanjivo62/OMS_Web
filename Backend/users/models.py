@@ -39,7 +39,7 @@ class PartyProductAssignment(models.Model):
     card_code = models.CharField(max_length=50, db_index=True)  # Party identifier
     item_code = models.CharField(max_length=50, db_index=True)  # Product identifier
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, db_index=True)
-    basic_rate = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # Price for this party
+    basic_rate = models.DecimalField(max_digits=12, decimal_places=4, default=0.00)  # Price for this party
     
     assigned_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

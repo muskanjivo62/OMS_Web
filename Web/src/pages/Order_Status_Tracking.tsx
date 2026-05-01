@@ -6,6 +6,9 @@ import { sapService } from "../services/sapService";
 import { loadManagerOrders } from "../utils/orderHistory";
 import { ordersService } from "../services/ordersService";
 import "../styles/Order_Status_Tracking.css";
+import {
+  HiEye,HiArrowDownTray
+}from "react-icons/hi2";
 
 type TrackingMode = "auditor" | "billing";
 
@@ -18,8 +21,8 @@ const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().sp
 const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split("T")[0];
 
 const ACCEPTED_KEYWORDS: Record<TrackingMode, string[]> = {
-  auditor: ["approved", "accepted", "billing", "pending approval", "need approval", "billed", "completed", "quotation"],
-  billing: ["approved", "accepted", "billed", "completed", "quotation"],
+  auditor: ["billing", "billed", "completed", "quotation"],
+  billing: ["completed"],
 };
 const REJECTED_KEYWORDS = ["rejected", "declined", "cancelled", "canceled"];
 const BILLING_REJECTED_KEYWORDS = ["billing rejected", "rejected by billing", "billing reject"];
@@ -80,7 +83,7 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
   const fetchOrders = async () => {
     try {
       const data = await loadManagerOrders();
-      setOrders(data);
+      setOrders(data || []);
     } catch (error) {
       console.log("Error fetching orders:", error);
     }
@@ -91,11 +94,8 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
     [orders, mode],
   );
 
-  const filteredOrders = useMemo(() => {
+  const dateFilteredOrders = useMemo(() => {
     return trackedOrders.filter((order) => {
-      const decisionType = getDecisionType(order, mode);
-      const matchesDecision = decisionFilter === "all" ? true : decisionType === decisionFilter;
-
       let matchesDate = true;
       if (fromDate && toDate) {
         const orderDate = new Date(order.created_at);
@@ -104,12 +104,19 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
         matchesDate = orderDate >= from && orderDate <= to;
       }
 
-      return matchesDecision && matchesDate;
+      return matchesDate;
     });
-  }, [trackedOrders, decisionFilter, fromDate, toDate]);
+  }, [trackedOrders, fromDate, toDate]);
 
-  const acceptedCount = trackedOrders.filter((order) => getDecisionType(order, mode) === "accepted").length;
-  const rejectedCount = trackedOrders.filter((order) => getDecisionType(order, mode) === "rejected").length;
+  const filteredOrders = useMemo(() => {
+    return dateFilteredOrders.filter((order) => {
+      const decisionType = getDecisionType(order, mode);
+      return decisionFilter === "all" ? true : decisionType === decisionFilter;
+    });
+  }, [dateFilteredOrders, decisionFilter, mode]);
+
+  const acceptedCount = dateFilteredOrders.filter((order) => getDecisionType(order, mode) === "accepted").length;
+  const rejectedCount = dateFilteredOrders.filter((order) => getDecisionType(order, mode) === "rejected").length;
 
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -228,7 +235,7 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
           <div className="ot-head">
             <div>
               <h1 className="ot-title">{pageTitle}</h1>
-              <p className="ot-subtitle">{pageSubtitle}</p>
+              {/* <p className="ot-subtitle">{pageSubtitle}</p> */}
             </div>
           </div>
 
@@ -350,13 +357,13 @@ export default function Order_Status_Tracking({ mode }: OrderStatusTrackingProps
                         </span>
                       </td>
                       <td>
-                        <button type="button" className="ot-icon-btn ot-view" onClick={() => fetchOrderDetails(order.id)}>
-                          View
+                        <button type="button" className="ao-btn-icon view" onClick={() => fetchOrderDetails(order.id)}>
+                         <HiEye size={22} />
                         </button>
                       </td>
                       <td>
-                        <button type="button" className="ot-icon-btn ot-download" onClick={() => downloadExcel(order)}>
-                          Export
+                        <button type="button" className="ao-btn-icon download" onClick={() => downloadExcel(order)}>
+                           <HiArrowDownTray size={22} />
                         </button>
                       </td>
                     </tr>

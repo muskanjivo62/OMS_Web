@@ -369,7 +369,50 @@ html, body {
   }
   .header-profile-role {
     font-size: .52rem;
-  }
+  }a/* Add this to your global CSS to sync all pages with the Sidebar */
+
+:root {
+  --primary-blue: #2563eb;
+  --text-dark: #0f172a;
+  --text-muted: #64748b;
+  --bg-gradient: radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 24%),
+                 linear-gradient(180deg, #f4f7fb 0%, #eef3f8 100%);
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-gradient);
+  color: var(--text-dark);
+}
+
+/* Standard Button Style to match your Logout/Confirm buttons */
+.oms-button-primary {
+  padding: 10px 20px;
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.oms-button-primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* Standard Card/Container Style */
+.oms-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+  padding: 24px;
+}
   .header {
     padding: 0 .85rem;
   }

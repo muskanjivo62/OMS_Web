@@ -449,6 +449,7 @@
   color: #334155;
   border-bottom: 1px solid #edf2f7;
   background: rgba(255, 255, 255, 0.78);
+  text-align: center;
 }
 
 .dr-table tbody tr:hover td {
@@ -680,7 +681,8 @@
 
 .dr-d-items-scroll {
   overflow: auto;
-  max-height: calc(100vh - 440px);
+  min-height: 380px;
+  max-height: calc(100vh - 340px);
 }
 
 .dr-d-items-scroll::-webkit-scrollbar {

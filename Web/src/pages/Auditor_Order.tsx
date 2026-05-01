@@ -4,6 +4,7 @@ import { saveAs } from "file-saver";
 import { ordersService } from "../services/ordersService";
 import type { Order, OrderItem } from "../services/ordersService";
 import "../styles/Auditor_Order.css";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   HiCheckCircle,   // Approve
   HiXCircle,       // Reject
@@ -17,6 +18,8 @@ const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().sp
 const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split("T")[0];
 
 export default function Auditor_orders() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [orderDetails, setOrderDetails] = useState<Order | null>(null);
@@ -35,12 +38,20 @@ export default function Auditor_orders() {
 
   const fetchOrders = async () => {
     try {
-      const data = await ordersService.getOrders(10);
+      const data = await ordersService.getOrders('AUDITOR_APPROVAL');
       setOrders(data);
+      console.log("Fetched Orders:", data);
     } catch (error) {
       console.log("Error fetching orders:", error);
     }
   };
+
+  useEffect(() => {
+    if (location.state?.openOrderId) {
+      fetchOrderDetails(location.state.openOrderId);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.openOrderId, location.pathname, navigate]);
 
      const fetchOrderDetails = async (orderId: number) => {
   try {
@@ -127,16 +138,19 @@ export default function Auditor_orders() {
   };
 
   const filteredOrders = orders.filter((order) => {
+    console.log("Order:", order);
+    console.log("created_at:", order.created_at);
     let matchDate = true;
     if (fromDate && toDate) {
       const orderDate = new Date(order.created_at);
-      const from = new Date(`${fromDate}T23:59:59.999`);
+      const from = new Date(`${fromDate}T00:00:00.000`);
       const to = new Date(`${toDate}T23:59:59.999`);
 
       matchDate = orderDate >= from && orderDate <= to;
     }
     return matchDate;
   });
+  console.log("Filtered Orders:", filteredOrders);
 
   return (
     <div className="ao-page">
@@ -158,78 +172,78 @@ export default function Auditor_orders() {
             <span className="ao-count">Total: {filteredOrders.length}</span>
           </div>
 
-          <div className="ao-table-wrap">
-            <table className="ao-table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Card Code</th>
-                  <th>Card Name</th>
-                  <th>Delivery Date</th>
-                  {/* <th>Status</th> */}
-                  <th>Details</th>
-                  <th>Action</th>
-                  <th>Download</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.length > 0 ? (
-                  filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order) => (
-                    <tr key={order.id}>
-                      <td>{order.order_number}</td>
-                      <td>{order.card_code}</td>
-                      <td>{order.card_name}</td>
-                      <td>{order.delivery_date}</td>
-                      {/* <td>
-                        <span className={`ao-badge ao-badge-${(order.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>
-                          {order.status_display}
-                        </span>
-                      </td> */}
-                      <td>
-                        <button
-                         className="ao-btn-icon view"
-                          onClick={() => {
-                            fetchOrderDetails(order.id);
-                          }}
-                        >
-                           <HiEye size={22} />
-                        </button>
-                      </td>
-                      <td className="ao-action-cell">
-                        <button
-                          className="ao-btn-icon approve"
-                          onClick={() => approveStatus(order.id)}
-                        >
-                          <HiCheckCircle size={22} />
-                        </button>
-                        <button
-                          className="ao-btn-icon reject"
-                          onClick={() => {
-                            setSelectedOrderId(order.id);
-                            setShowRejectModal(true);
-                          }}
-                        >
-                          <HiXCircle size={22} />
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                           className="ao-btn-icon download"
-                          onClick={() => downloadExcel(order)}
-                        >
-                         <HiArrowDownTray size={22} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
+          {filteredOrders.length > 0 ? (
+            <div className="ao-table-wrap">
+              <table className="ao-table">
+                <thead>
                   <tr>
-                    <td colSpan={8} className="ao-empty">No orders found</td>
+                    <th>Order ID</th>
+                    <th>Card Code</th>
+                    <th>Card Name</th>
+                    <th>Created Date</th>
+                    <th>Delivery Date</th>
+                    {/* <th>Status</th> */}
+                    <th>Details</th>
+                    <th>Action</th>
+                    <th>Download</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((order) => (
+                      <tr key={order.id}>
+                        <td>{order.order_number}</td>
+                        <td>{order.card_code}</td>
+                        <td>{order.card_name}</td>
+                        <td>{order.created_at ? new Date(order.created_at).toLocaleDateString("en-GB") : "—"}</td>
+                        <td>{order.delivery_date}</td>
+                        {/* <td>
+                          <span className={`ao-badge ao-badge-${(order.status_display || "").toLowerCase().replace(/\s+/g, "-")}`}>
+                            {order.status_display}
+                          </span>
+                        </td> */}
+                        <td>
+                          <button
+                           className="ao-btn-icon view"
+                            onClick={() => {
+                              fetchOrderDetails(order.id);
+                            }}
+                          >
+                             <HiEye size={22} />
+                          </button>
+                        </td>
+                        <td className="ao-action-cell">
+                          <button
+                            className="ao-btn-icon approve"
+                            onClick={() => approveStatus(order.id)}
+                          >
+                            <HiCheckCircle size={22} />
+                          </button>
+                          <button
+                            className="ao-btn-icon reject"
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowRejectModal(true);
+                            }}
+                          >
+                            <HiXCircle size={22} />
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                             className="ao-btn-icon download"
+                            onClick={() => downloadExcel(order)}
+                          >
+                           <HiArrowDownTray size={22} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="ao-empty" style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>No orders found</div>
+          )}
 
           {filteredOrders.length > itemsPerPage && (
             <div className="ao-pagination">
@@ -265,9 +279,19 @@ export default function Auditor_orders() {
                 </div>
               </div>
 
+               <div className="ao-d-info-field">
+                <span className="ao-d-hf-label">Party State</span>
+                <span className="ao-d-hf-value">{orderDetails.party_state || "—"}</span>
+              </div>
+
               <div className="ao-d-info-field">
                 <span className="ao-d-hf-label">Punched By</span>
-                <span className="ao-d-hf-value">{orderDetails.created_by || "—"}</span>
+                <span className="ao-d-hf-value">{orderDetails.created_by_name || "—"}</span>
+              </div>
+        
+              <div className="ao-d-info-field">
+                <span className="ao-d-hf-label">Created Date</span>
+                <span className="ao-d-hf-value">{orderDetails.created_at ? new Date(orderDetails.created_at).toLocaleDateString("en-GB") : "—"}</span>
               </div>
         
               <div className="ao-d-info-field">

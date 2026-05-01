@@ -31,6 +31,8 @@ export default function Sales_Report() {
   const [selectedParty, setSelectedParty] = useState<string>("");
   const [partySearch, setPartySearch] = useState<string>("");
   const [partyDropdownOpen, setPartyDropdownOpen] = useState(false);
+  const [varietySearch, setVarietySearch] = useState<string>("");
+  const [varietyDropdownOpen, setVarietyDropdownOpen] = useState(false);
   const [mainGroup, setMainGroup] = useState<{ id: number; name: string }[]>(
     [],
   );
@@ -49,6 +51,7 @@ export default function Sales_Report() {
   const [parties, setParties] = useState<Party[]>([]);
   const groupRef = useRef<HTMLDivElement>(null);
   const partyDropdownRef = useRef<HTMLDivElement>(null);
+  const varietyRef = useRef<HTMLDivElement>(null);
 
   const fetchOrders = async () => {
     try {
@@ -131,6 +134,13 @@ export default function Sales_Report() {
     ) {
       setPartyDropdownOpen(false);
     }
+
+      if (
+        varietyRef.current &&
+        !varietyRef.current.contains(event.target as Node)
+      ) {
+        setVarietyDropdownOpen(false);
+      }
   };
 
   document.addEventListener("mousedown", handleClickOutside);
@@ -442,6 +452,10 @@ export default function Sales_Report() {
     ),
   ];
 
+  const filteredVarieties = uniqueVarieties.filter((v) =>
+    v.toLowerCase().includes(varietySearch.toLowerCase())
+  );
+
   return (
     <div className="dr-page">
       {/* ── LIST VIEW ── */}
@@ -586,19 +600,74 @@ export default function Sales_Report() {
 
               {/* Variety */}
               <div className="dr-field">
-               <label className="dr-label">Variety</label>
-              <select
-               className="dr-select"
-                value={selectedVariety}
-                onChange={(e) => setSelectedVariety(e.target.value)}
-              >
-                <option value="">-- Select Variety --</option>
-                {uniqueVarieties.map((variety, index) => (
-                  <option key={index} value={variety}>
-                    {variety}
-                  </option>
-                ))}
-              </select>
+                <label className="dr-label">Variety</label>
+                <div
+                  className={`sl-party-dropdown${varietyDropdownOpen ? " open" : ""}`}
+                  ref={varietyRef}
+                >
+                  <button
+                    type="button"
+                    className="sl-party-trigger"
+                    onClick={() => setVarietyDropdownOpen((prev) => !prev)}
+                  >
+                    <span className="sl-party-trigger-text">
+                      {selectedVariety || "-- Select Variety --"}
+                    </span>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path
+                        d="M3 4.5L6 7.5L9 4.5"
+                        stroke="#64748b"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  {varietyDropdownOpen && (
+                    <div className="sl-party-menu">
+                      <div className="sl-party-search-wrap">
+                        <input
+                          type="text"
+                          className="sl-party-search"
+                          placeholder="Search variety..."
+                          value={varietySearch}
+                          onChange={(e) => setVarietySearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="sl-party-options">
+                        <button
+                          type="button"
+                          className="sl-party-option"
+                          onClick={() => {
+                            setSelectedVariety("");
+                            setVarietySearch("");
+                            setVarietyDropdownOpen(false);
+                          }}
+                        >
+                          
+                        </button>
+                        {filteredVarieties.length > 0 ? (
+                          filteredVarieties.map((variety, index) => (
+                            <button
+                              type="button"
+                              key={index}
+                              className="sl-party-option"
+                              onClick={() => {
+                                setSelectedVariety(variety);
+                                setVarietySearch("");
+                                setVarietyDropdownOpen(false);
+                              }}
+                            >
+                              <span className="sl-party-option-label">{variety}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="sl-party-empty">No varieties found</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* From */}
@@ -665,23 +734,23 @@ export default function Sales_Report() {
                 </div>
               </div>
 
-              <div className="dr-table-wrap">
-                <table className="dr-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Order Number</th>
-                      <th>Card Code</th>
-                      <th>Card Name</th>
-                      <th>Delivery Date</th>
-                      <th>Status</th>
-                      <th>Action</th>
-                      <th>Generate Report</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.length > 0 ? (
-                      paginatedOrders.map((order, i) => (
+              {filteredOrders.length > 0 ? (
+                <div className="dr-table-wrap">
+                  <table className="dr-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Order Number</th>
+                        <th>Card Code</th>
+                        <th>Card Name</th>
+                        <th>Delivery Date</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                        <th>Generate Report</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedOrders.map((order, i) => (
                         <tr key={order.id}>
                           <td className="dr-muted">
                             {(currentPage - 1) * itemsPerPage + i + 1}
@@ -709,17 +778,13 @@ export default function Sales_Report() {
                                                     </button>
                           </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="dr-empty">
-                          No orders found 
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="dr-empty" style={{ padding: "40px", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", margin: "20px 0" }}>No orders found</div>
+              )}
               {filteredOrders.length > itemsPerPage && (
                 <div className="dr-pagination">
                   <button

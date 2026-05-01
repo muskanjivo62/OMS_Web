@@ -1,8 +1,8 @@
 from urllib import request
 from django.shortcuts import render
 import re
-from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer,OrderItemSerializer, CreateSchemeSerializer
-from .models import PartyProductAssignment,OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action
+from .serializers import SchemeProductSerializer,OrderDetailSerializer, OrderListByUserIdSerializer,OrdersLogSerializer,OrderStatusUpdateSerializer, DispatchLocationSerializer,BranchSerializer, PartyAddressSerializer,ProductSerializer,CreateOrderSerializer,OrderItemSerializer, CreateSchemeSerializer,NotificationSerializer
+from .models import PartyProductAssignment,OrdersLog,Parties, Branches, DispatchLocation, UserPartyAssignment, PartyAddress,ProductDetails,Order,OrderItem,OrderStatus,log_order_action,Notification
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -882,6 +882,8 @@ class UpdateOrderView(APIView):
                 order.status = next_status
 
         order.save()
+        if next_status:
+            send_order_notifications(order, next_status.name)
 
         user = request.user if request.user.is_authenticated else None
         log_order_action(order, 'Auditor Approval' if not needs_approval else 'Rate Approval', user=user)
@@ -986,6 +988,8 @@ class CreateOrderView(APIView):
             if next_status:
                 order.status = next_status
             order.save()
+            if next_status:
+                send_order_notifications(order, next_status.name)
 
             user = request.user if request.user.is_authenticated else None
             log_order_action(order, 'Rate Approval' if needs_approval else 'Auditor Approval', user=user)
@@ -1098,12 +1102,14 @@ class CreateOrderView(APIView):
             if next_status:
                 order.status = next_status
                 order.save()
+                send_order_notifications(order, next_status.name)
             log_order_action(order, 'Rate Approval', user=None, remarks='; '.join(flagged_items))
         else:
             next_status = get_status('Auditor Approval')
             if next_status:
                 order.status = next_status
                 order.save()
+                send_order_notifications(order, next_status.name)
             log_order_action(order, 'Auditor Approval', user=None)
 
         return Response({
@@ -1218,6 +1224,9 @@ class UpdateOrderStatusView(APIView):
         if reason:
             order.reject_reason = reason
 
+        # Mark all previous notifications for this order as read to prevent stale alerts
+        Notification.objects.filter(order=order, is_read=False).update(is_read=True)
+
         order.save()
 
         new_name = (status_obj.name or "").strip().lower()
@@ -1255,6 +1264,7 @@ class UpdateOrderStatusView(APIView):
                 order.save()
                 # Create pending Auditor Approval log
                 log_order_action(order=order, action_name=auditor_status.name, user=None, remarks="")
+                send_order_notifications(order, auditor_status.name)
 
             return Response({
                 "message": "Rate approved, order sent to auditor",
@@ -1290,6 +1300,8 @@ class UpdateOrderStatusView(APIView):
                     user=None,
                     remarks=""
                 )
+            
+            send_order_notifications(order, status_obj.name)
 
             return Response({
                 "message": "Order status updated successfully",
@@ -1320,6 +1332,8 @@ class UpdateOrderStatusView(APIView):
                 user=user,
                 remarks=reason
             )
+            
+        send_order_notifications(order, status_obj.name)
 
         return Response({
             "message": "Order status updated successfully",
@@ -1396,6 +1410,12 @@ class ApproveOrderView(APIView):
         order.approved_at = datetime.now()
         order.save()
         
+        # Mark all previous notifications for this order as read
+        Notification.objects.filter(order=order, is_read=False).update(is_read=True)
+        
+        if order.status:
+            send_order_notifications(order, 'Approved')
+            
         return Response({
             'message': f'Order {order.order_number} approved successfully',
             'order_number': order.order_number,
@@ -1431,6 +1451,12 @@ class RejectOrderView(APIView):
         order.rejection_reason = reason
         order.save()
         
+        # Mark all previous notifications for this order as read
+        Notification.objects.filter(order=order, is_read=False).update(is_read=True)
+        
+        if order.status:
+            send_order_notifications(order, 'Rejected')
+            
         return Response({
             'message': f'Order {order.order_number} rejected',
             'order_number': order.order_number,
@@ -1448,7 +1474,7 @@ class OrderListView(APIView):
 
         if billing_view:
             # Billing view: show all billing-related orders regardless of sap_created
-            orders = Order.objects.filter(status_id__in=[3, 5, 6, 8]).order_by('-created_at')
+            orders = Order.objects.filter(status_id__in=[3, 5, 6]).order_by('-created_at')
         else:
             if status_filter:
                 orders = Order.objects.filter(status__code=status_filter).order_by('-created_at')
@@ -1510,5 +1536,78 @@ class CreateSchemeView(APIView):
             'message': 'Failed to create scheme',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+def send_order_notifications(order, status_name):
+    from users.models import User
+    
+    creator = order.created_by
+    creator_name = getattr(creator, 'username', 'Unknown')
+    if getattr(creator, 'name', None):
+        creator_name = creator.name
+
+    # 1. Notify the Manager (Creator) about their order updates
+    if creator:
+        if status_name in ['Approved', 'Completed', 'Rejected', 'Billing Rejected']:
+            Notification.objects.create(
+                user=creator, 
+                order=order,
+                message=f"Your order {order.order_number} has been {status_name}."
+            )
+
+    # 2. Notify Auditors if a new order needs their approval
+    if status_name == 'Auditor Approval':
+        auditors = User.objects.filter(role__name__iexact='auditor', is_active=True) 
+        for auditor in auditors:
+            Notification.objects.create(
+                user=auditor,
+                order=order,
+                message=f"New Order {order.order_number} from {creator_name} is pending for your review."
+            )
+
+    # 3. Notify Approvers if order goes to them
+    elif status_name in ['Need Approval', 'Rate Approval']:
+        approvers = User.objects.filter(role__name__iexact='approver', is_active=True)
+        for approver in approvers:
+            Notification.objects.create(
+                user=approver,
+                order=order,
+                message=f"Order {order.order_number} from {creator_name} needs your approval."
+            )
+
+    # 4. Notify Billing if order goes to Billing Pending
+    elif status_name in ['Billing', 'Billing Pending', 'Billing Approval']:
+        billing_users = User.objects.filter(role__name__iexact='billing', is_active=True)
+        for bill_user in billing_users:
+            Notification.objects.create(
+                user=bill_user,
+                order=order,
+                message=f"Order {order.order_number} is ready for billing."
+            )
+
+class NotificationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:50]
+        serializer = NotificationSerializer(notifications, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        # Mark all as read
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({"message": "All notifications marked as read"})
+
+    def patch(self, request, pk=None):
+        # Mark single as read
+        if pk:
+            try:
+                notification = Notification.objects.get(id=pk, user=request.user)
+                notification.is_read = True
+                notification.save()
+                return Response({"message": "Notification marked as read"})
+            except Notification.DoesNotExist:
+                return Response({"error": "Notification not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "No ID provided"}, status=status.HTTP_400_BAD_REQUEST)
         
     permission_classes = [AllowAny]

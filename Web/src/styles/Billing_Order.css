@@ -36,7 +36,7 @@
           text-align: left; text-transform: uppercase; letter-spacing: .04em;
           white-space: nowrap; border-bottom: 2px solid #334155; text-align: center;
         }
-        .bo-table td { padding: 10px 14px; border-bottom: 1px solid #e5e7eb; color: #334155; transition: background .1s; }
+        .bo-table td { padding: 10px 14px; border-bottom: 1px solid #e5e7eb; color: #334155; transition: background .1s; text-align: center; }
         .bo-table tbody tr:hover { background: #eff6ff; }
         .bo-table tbody tr:nth-child(even) { background: #f8fafc; }
         .bo-table tbody tr:nth-child(even):hover { background: #eff6ff; }

@@ -1,11 +1,21 @@
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../services/authService";
+import api from "../services/api";
 import "./Sidebar.css";
+
 
 type SidebarProps = {
   children: ReactNode;
+};
+
+type Notification = {
+  id: number;
+  message: string;
+  is_read: boolean;
+  order_id?: number;
+  created_at: string;
 };
 
 export default function Sidebar({ children }: SidebarProps) {
@@ -16,8 +26,12 @@ export default function Sidebar({ children }: SidebarProps) {
   const [reportsOpen, setReportsOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const roleLabel = userRole ? userRole.toUpperCase() : "USER";
   const displayName = userName || "User";
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   const closeSidebar = () => {
     setMenuOpen(false);
@@ -30,10 +44,34 @@ export default function Sidebar({ children }: SidebarProps) {
   const fetchCurrentUser = async () => {
     try {
       const data = await getCurrentUser();
-      setUserRole(data.role);
+      const role = data.role || data.role_name || data.role_display || "";
+      setUserRole(typeof role === "object" ? role.name : role);
       setUserName(data.full_name || data.name || data.username || "");
     } catch (error) {
       console.error("Failed to fetch user:", error);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const response = await api.get('/orders/notifications/', config);
+      let data = response.data ?? response;
+      
+      if (data && !Array.isArray(data)) {
+        if (Array.isArray(data.data)) data = data.data;
+        else if (Array.isArray(data.results)) data = data.results;
+        else if (Array.isArray(data.notifications)) data = data.notifications;
+      }
+
+      if (Array.isArray(data)) {
+        const unreadOnly = data.filter((n: any) => !n.is_read);
+        setNotifications(unreadOnly);
+        setUnreadCount(unreadOnly.length);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
     }
   };
 
@@ -43,6 +81,18 @@ export default function Sidebar({ children }: SidebarProps) {
     if (!token) {
       window.location.href = "/";
     }
+
+    const timer = setTimeout(() => fetchNotifications(), 500);
+    const interval = setInterval(() => fetchNotifications(), 30000); 
+    
+    const handleRefresh = () => fetchNotifications();
+    window.addEventListener("refreshNotifications", handleRefresh);
+
+    return () => { 
+      clearTimeout(timer); 
+      clearInterval(interval); 
+      window.removeEventListener("refreshNotifications", handleRefresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -55,6 +105,53 @@ export default function Sidebar({ children }: SidebarProps) {
         location.pathname === "/Sales_Report"
     );
   }, [location.pathname]);
+
+  const handleCloseNotifications = () => {
+    setShowNotificationsModal(false);
+  };
+
+  const handleClearAllNotifications = async () => {
+    if (unreadCount > 0) {
+      try {
+        const token = localStorage.getItem("access");
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        await api.post('/orders/notifications/', {}, config);
+        setUnreadCount(0);
+        setNotifications([]);
+      } catch (error) {
+        console.error("Error clearing notifications:", error);
+      }
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    const role = userRole?.toLowerCase() || "";
+    const isActionableRole = role === "auditor" || role === "billing";
+
+    if (!isActionableRole) {
+      if (!notification.is_read) {
+        try {
+          const token = localStorage.getItem("access");
+          const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+          await api.patch(`/orders/notifications/${notification.id}/`, {}, config);
+          setNotifications((prev) => prev.filter(n => n.id !== notification.id));
+          setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (error) {
+          console.error("Error marking as read:", error);
+        }
+      } else {
+        setNotifications((prev) => prev.filter(n => n.id !== notification.id));
+      }
+    }
+
+    setShowNotificationsModal(false);
+    
+    const navState = notification.order_id ? { state: { openOrderId: notification.order_id } } : {};
+    if (role === "auditor") navigate("/Auditor_orders", navState);
+    else if (role === "billing") navigate("/Billing_orders", navState);
+    else if (role === "manager") navigate("/Order_Tracking", navState);
+    else navigate("/View_Orders", navState);
+  };
 
   return (
     <>
@@ -70,11 +167,51 @@ export default function Sidebar({ children }: SidebarProps) {
           </div>
           <span className="logo-text">OMS</span>
         </div>
-
-        <div className="header-right">
-          <div className="header-profile">
-            <span className="header-profile-name">{displayName}</span>
-            <span className="header-profile-role">{roleLabel}</span>
+        <div className="header-right" style={{ display: 'flex', alignItems: 'center' }}>
+          {["auditor", "billing", "manager"].includes(userRole?.toLowerCase()) && (
+            <button 
+              className="header-bell-btn" 
+              onClick={() => setShowNotificationsModal(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '8px',
+                marginRight: '12px',
+                color: '#475569'
+              }}
+            >
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" style={{ width: '24px', height: '24px' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '4px',
+                  right: '4px',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+          <div className="header-profile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: '16px' }}>
+            <span className="header-profile-name" style={{ fontWeight: '600', fontSize: '0.9rem', color: '#0f172a' }}>{displayName}</span>
+            <span className="header-profile-role" style={{ fontSize: '0.75rem', color: '#64748b' }}>{roleLabel}</span>
           </div>
         </div>
       </header>
@@ -137,7 +274,7 @@ export default function Sidebar({ children }: SidebarProps) {
           {(userRole?.toLowerCase() ===  "auditor") && (
             <>
               <li className={location.pathname === "/Auditor_orders" ? "active" : ""}>
-                <Link to="/Auditor_orders" onClick={closeSidebar}>Orders</Link>
+                <Link to="/Auditor_orders" onClick={closeSidebar}>Pending Orders</Link>
               </li>
               <li className={location.pathname === "/Auditor_status_tracking" ? "active" : ""}>
                 <Link to="/Auditor_status_tracking" onClick={closeSidebar}>Status Tracking</Link>
@@ -148,7 +285,7 @@ export default function Sidebar({ children }: SidebarProps) {
           {(userRole?.toLowerCase() ===  "billing" ) && (
             <>
               <li className={location.pathname === "/Billing_orders" ? "active" : ""}>
-                <Link to="/Billing_orders" onClick={closeSidebar}>Orders</Link>
+                <Link to="/Billing_orders" onClick={closeSidebar}>Pending Orders</Link>
               </li>
               <li className={location.pathname === "/Billing_status_tracking" ? "active" : ""}>
                 <Link to="/Billing_status_tracking" onClick={closeSidebar}>Status Tracking</Link>
@@ -196,6 +333,45 @@ export default function Sidebar({ children }: SidebarProps) {
           </button>
         </div>
       </aside>
+
+      {/* ── NOTIFICATIONS MODAL ── */}
+      {showNotificationsModal && (
+        <div className="sb-modal-overlay" onClick={handleCloseNotifications} style={{ zIndex: 1000, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="sb-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', padding: '24px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 className="sb-modal-title" style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>Notifications</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                {notifications.length > 0 && (
+                  <button onClick={handleClearAllNotifications} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#3b82f6', fontWeight: '500', padding: 0 }}>Clear All</button>
+                )}
+                <button onClick={handleCloseNotifications} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '24px', color: '#64748b', lineHeight: 1, padding: 0 }}>&times;</button>
+              </div>
+            </div>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
+              {notifications.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#64748b', padding: '30px 0', margin: 0 }}>No new notifications.</p>
+              ) : (
+                notifications.map((item) => (
+                  <div 
+                    key={item.id} 
+                    onClick={() => handleNotificationClick(item)}
+                    style={{
+                      padding: '14px',
+                      borderRadius: '10px',
+                      backgroundColor: !item.is_read ? '#f0f9ff' : '#f8fafc',
+                      border: `1px solid ${!item.is_read ? '#bae6fd' : '#e2e8f0'}`,
+                      marginBottom: '10px',
+                      cursor: 'pointer'
+                    }}>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#0f172a', lineHeight: '1.5' }}>{item.message}</p>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(item.created_at).toLocaleString()}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── LOGOUT CONFIRM MODAL ── */}
       {showLogoutModal && (

@@ -225,7 +225,7 @@
         }
 
         .vo-d-items-scroll {
-          overflow: auto; max-height: calc(100vh - 460px);
+          overflow: auto; min-height: 380px; max-height: calc(100vh - 360px);
         }
         .vo-d-items-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
         .vo-d-items-scroll::-webkit-scrollbar-track { background: transparent; }

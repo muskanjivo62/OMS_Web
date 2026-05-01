@@ -110,6 +110,7 @@ removePartyProduct: async (card_code: string, itemCode: string, category: string
     });
     return response.data;
   },
+  
 
   editRate: async (card_code: string, item_code: string, category: string, new_rate: number) => {
     const response = await api.post('/auth/party-product/update-rate/', {

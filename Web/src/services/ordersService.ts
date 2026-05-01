@@ -124,6 +124,7 @@ export interface Order {
   total_amount: number;
   sap_doc_number?: string;
   created_by_name?: string;
+  party_state?: string;
 
 }
 
@@ -224,9 +225,9 @@ export const ordersService = {
     return response.data;
   },
 
-  async getOrders(status?: number, billing?: boolean) {
+  async getOrders(status?: number | string, billing?: boolean) {
     const params: string[] = [];
-    if (status) params.push(`status=${status}`);
+    if (status !== undefined && status !== null) params.push(`status=${status}`);
     if (billing) params.push('billing=true');
     const url = "/orders/list/" + (params.length ? `?${params.join('&')}` : '');
     const response = await api.get(url);
@@ -264,6 +265,7 @@ export const ordersService = {
       status,
       ...(reason ? { reason } : {}),
     });
+    window.dispatchEvent(new Event("refreshNotifications"));
     return response.data;
   },
 
